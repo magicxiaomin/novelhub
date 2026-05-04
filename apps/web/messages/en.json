@@ -1,0 +1,12 @@
+{
+  "home": {
+    "badge": "Ticket 01 scaffold",
+    "headline": "NovelHub is ready for its first chapters.",
+    "intro": "A mobile-first web novel foundation with Next.js, Tailwind, shadcn/ui, and shared workspace packages.",
+    "cta": "Explore the setup"
+  },
+  "metadata": {
+    "description": "NovelHub mobile-first English web novel PWA.",
+    "title": "NovelHub"
+  }
+}
