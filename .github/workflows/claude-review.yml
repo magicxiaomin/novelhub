@@ -1,0 +1,235 @@
+name: Claude Auto Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    outputs:
+      verdict: ${{ steps.parse.outputs.verdict }}
+      ticket_id: ${{ steps.ticket.outputs.num }}
+      retry_count: ${{ steps.retry.outputs.count }}
+      skipped: ${{ steps.ticket.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Count previous Claude reviews on this PR
+        id: retry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          COUNT=$(gh pr view ${{ github.event.pull_request.number }} \
+            --json comments --jq \
+            '[.comments[] | select(.body | startswith("## Claude Review"))] | length')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Previous Claude reviews on this PR: $COUNT"
+
+      - name: Halt if retry limit reached
+        if: steps.retry.outputs.count >= '3'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr comment ${{ github.event.pull_request.number }} --body "## Claude Review — STOPPED
+
+          Maximum review iterations (3) reached. Halting auto-review loop to
+          prevent runaway. A human needs to look at this PR before it can proceed."
+          gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-review" || true
+          exit 1
+
+      - name: Identify ticket from branch name
+        id: ticket
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]{2}' | head -1 | cut -d/ -f2 || true)
+          if [ -z "${TICKET_NUM:-}" ]; then
+            echo "Branch '$BRANCH' is not a feature/<NN>-* branch; skipping Claude review"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "num=" >> "$GITHUB_OUTPUT"
+            echo "file=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TICKET_FILE=$(ls docs/tickets/${TICKET_NUM}-*.md 2>/dev/null | head -1 || true)
+          if [ -z "${TICKET_FILE:-}" ]; then
+            echo "No docs/tickets/${TICKET_NUM}-*.md found; skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
+            echo "file=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
+          echo "file=$TICKET_FILE" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Ticket: $TICKET_NUM ($TICKET_FILE)"
+
+      - name: Get PR diff
+        if: steps.ticket.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.diff
+          # Cap at 200KB for context budget; if larger, leave a marker
+          if [ "$(wc -c < /tmp/pr.diff)" -gt 200000 ]; then
+            head -c 200000 /tmp/pr.diff > /tmp/pr.diff.trimmed
+            echo "" >> /tmp/pr.diff.trimmed
+            echo "[... diff truncated at 200KB; full diff has $(wc -c < /tmp/pr.diff) bytes ...]" >> /tmp/pr.diff.trimmed
+          else
+            cp /tmp/pr.diff /tmp/pr.diff.trimmed
+          fi
+          echo "Diff size: $(wc -c < /tmp/pr.diff.trimmed) bytes"
+
+      - name: Set up Python
+        if: steps.ticket.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Anthropic SDK
+        if: steps.ticket.outputs.skip == 'false'
+        run: pip install --quiet "anthropic>=0.40.0"
+
+      - name: Run Claude review
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TICKET_FILE: ${{ steps.ticket.outputs.file }}
+          TICKET_NUM: ${{ steps.ticket.outputs.num }}
+        run: |
+          python3 .github/scripts/claude_review.py > /tmp/review.md
+          echo "--- Review preview ---"
+          head -40 /tmp/review.md
+
+      - name: Parse verdict
+        if: steps.ticket.outputs.skip == 'false'
+        id: parse
+        run: |
+          set -euo pipefail
+          # Default to REQUEST_CHANGES (fail-safe) if we can't parse
+          VERDICT=$(grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md | tail -1 || echo "REQUEST_CHANGES")
+          # If the verdict heading explicitly says one of them, prefer that
+          HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md \
+            | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
+          if [ -n "${HEADING_VERDICT:-}" ]; then
+            VERDICT="$HEADING_VERDICT"
+          fi
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+          echo "Parsed verdict: $VERDICT"
+
+      - name: Post review comment
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/review.md
+
+      - name: Apply verdict label
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} \
+            --remove-label "claude-approved" --remove-label "claude-changes-requested" 2>/dev/null || true
+          if [ "${{ steps.parse.outputs.verdict }}" = "APPROVE" ]; then
+            gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-approved"
+          else
+            gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-changes-requested"
+          fi
+
+  ping_codex_to_fix:
+    needs: review
+    if: |
+      needs.review.outputs.skipped == 'false' &&
+      needs.review.outputs.verdict == 'REQUEST_CHANGES' &&
+      needs.review.outputs.retry_count < '3'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Ping Codex to address review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ITERATION: ${{ needs.review.outputs.retry_count }}
+        run: |
+          NEXT_ITER=$((ITERATION + 1))
+          gh pr comment ${{ github.event.pull_request.number }} --body "@codex
+
+          The Claude review above requested changes. Please address every numbered fix in the most recent \`## Claude Review\` comment, push to this same branch, and the review will re-run automatically.
+
+          Constraints:
+          - Stay strictly within ticket scope. Do not add unrelated work.
+          - Do not introduce \`any\` types without a justifying comment.
+          - Do not add new dependencies not in AGENTS.md without flagging.
+          - Re-run \`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test\` and paste real output in a PR comment when done.
+
+          This is auto-iteration $NEXT_ITER of 3. After 3 iterations the pipeline halts for human review."
+
+  auto_merge:
+    needs: review
+    if: |
+      needs.review.outputs.skipped == 'false' &&
+      needs.review.outputs.verdict == 'APPROVE'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+    steps:
+      - name: Decide merge policy by ticket
+        id: policy
+        env:
+          # Tickets that REQUIRE human merge — security / payment / launch.
+          # Set to "" to enable full auto-merge across all tickets.
+          BLOCKED: "03 05 06 11 14"
+        run: |
+          set -euo pipefail
+          TICKET="${{ needs.review.outputs.ticket_id }}"
+          if [ -z "${BLOCKED:-}" ]; then
+            echo "auto=true" >> "$GITHUB_OUTPUT"
+            echo "Full auto-merge enabled (BLOCKED list is empty)"
+          elif echo " $BLOCKED " | grep -q " $TICKET "; then
+            echo "auto=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Ticket $TICKET requires human review (security / payment / launch)" >> "$GITHUB_OUTPUT"
+          else
+            echo "auto=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Block auto-merge for security tickets
+        if: steps.policy.outputs.auto == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-merge"
+          gh pr comment ${{ github.event.pull_request.number }} --body "## Auto-merge blocked by policy
+
+          ${{ steps.policy.outputs.reason }}.
+
+          Claude approved this PR, but tickets 03 (Auth), 05 (Coin Unlock), 06 (Stripe), 11 (FB CAPI), and 14 (Deployment) require human merge. Please review the diff yourself and merge manually."
+
+      - name: Auto-merge non-security tickets
+        if: steps.policy.outputs.auto == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Wait briefly for Sanity Checks to register; then enable auto-merge
+          # which will fire as soon as required checks are green.
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --squash --delete-branch --auto || \
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --squash --delete-branch
