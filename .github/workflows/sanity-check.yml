@@ -1,0 +1,55 @@
+name: Sanity Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# This workflow exists to be a required status check on main. Even if Claude
+# auto-approves a PR, the merge will not proceed unless build / lint / typecheck
+# / test all pass. Configure branch protection on `main` to require this job.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Skip on the very first PR (Ticket 01 monorepo init) where there's no
+    # workspace at the base of the PR yet — that PR is the one that introduces
+    # pnpm/lockfile/etc. After Ticket 01 merges this will run normally.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect monorepo
+        id: detect
+        run: |
+          if [ -f "pnpm-workspace.yaml" ] && [ -f "pnpm-lock.yaml" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Monorepo not yet bootstrapped (Ticket 01 not merged); skipping checks."
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.detect.outputs.ready == 'true'
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.ready == 'true'
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        if: steps.detect.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: steps.detect.outputs.ready == 'true'
+        run: pnpm lint
+
+      - name: Typecheck
+        if: steps.detect.outputs.ready == 'true'
+        run: pnpm typecheck
+
+      - name: Test
+        if: steps.detect.outputs.ready == 'true'
+        run: pnpm test

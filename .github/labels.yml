@@ -1,0 +1,21 @@
+- name: codex
+  color: "8B5CF6"
+  description: Issues for Codex to pick up
+- name: ticket
+  color: "0E8A16"
+  description: A NovelHub MVP ticket
+- name: auto-pipeline
+  color: "1D76DB"
+  description: Created by the auto-pipeline
+- name: claude-approved
+  color: "2EA44F"
+  description: Claude reviewed and approved
+- name: claude-changes-requested
+  color: "D93F0B"
+  description: Claude requested changes
+- name: needs-human-review
+  color: "B60205"
+  description: Auto-pipeline halted, needs human eyes
+- name: needs-human-merge
+  color: "FBCA04"
+  description: Approved but blocked from auto-merge by policy (security/payment/launch)
