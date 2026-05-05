@@ -56,7 +56,9 @@ echo "checking: prisma client generates without error"
 pnpm --filter @novelhub/db prisma:generate >/dev/null
 
 echo "checking: cross-package runtime import resolves and exports prisma"
-node -e "const m = require('@novelhub/db'); if (!m.prisma || typeof m.prisma.\$connect !== 'function') { console.error('FAIL: @novelhub/db did not export a working prisma client at runtime'); process.exit(1); }"
+# Run from apps/api which has @novelhub/db as a workspace dependency (pnpm-symlinked into apps/api/node_modules).
+# Repo root has no resolution path for workspace packages — that is by design.
+(cd apps/api && node -e "const m = require('@novelhub/db'); if (!m.prisma || typeof m.prisma.\$connect !== 'function') { console.error('FAIL: @novelhub/db did not export a working prisma client at runtime'); process.exit(1); }")
 
 echo "checking: apps/api smoke test exists for cross-package import"
 test -f apps/api/test/prisma-import.smoke.spec.ts
