@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { APP_NAME } from '@novelhub/shared';
+import APP_NAME from '@novelhub/shared';
 
 export interface HealthResponse {
   app: typeof APP_NAME;
