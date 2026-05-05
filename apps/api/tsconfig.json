@@ -10,9 +10,6 @@
     "moduleResolution": "node",
     "noEmit": true,
     "outDir": "./dist",
-    "paths": {
-      "@novelhub/shared": ["../../packages/shared/src"]
-    },
     "sourceMap": true,
     "types": ["node", "jest"]
   },

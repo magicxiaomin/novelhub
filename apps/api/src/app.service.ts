@@ -8,9 +8,13 @@ export interface HealthResponse {
 
 @Injectable()
 export class AppService {
+  getApplicationName(): typeof APP_NAME {
+    return APP_NAME;
+  }
+
   getHealth(): HealthResponse {
     return {
-      app: APP_NAME,
+      app: this.getApplicationName(),
       status: 'ok',
     };
   }

@@ -27,8 +27,8 @@ Fill in `.env` with local development values. Do not commit real secrets.
 ## Development
 
 ```bash
-pnpm --filter web dev
-pnpm --filter api start:dev
+pnpm --filter @novelhub/web dev
+pnpm --filter @novelhub/api start:dev
 ```
 
 The frontend runs on `http://localhost:3000`. The API runs on `http://localhost:4000`.
@@ -39,7 +39,7 @@ The frontend runs on `http://localhost:3000`. The API runs on `http://localhost:
 pnpm lint
 pnpm typecheck
 pnpm test
-pnpm --filter api test:e2e
+pnpm --filter @novelhub/api test:e2e
 ```
 
 ## Workspace Structure
@@ -61,9 +61,9 @@ AGENTS.md     AI agent project context
 The Prisma schema lives in `packages/db/prisma/schema.prisma`.
 
 ```bash
-pnpm --filter db prisma:generate
-pnpm --filter db prisma:migrate
-pnpm --filter db prisma:studio
+pnpm --filter @novelhub/db prisma:generate
+pnpm --filter @novelhub/db prisma:migrate
+pnpm --filter @novelhub/db prisma:studio
 ```
 
 Ticket 02 adds the domain schema and migrations.

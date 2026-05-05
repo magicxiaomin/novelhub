@@ -11,8 +11,7 @@
     "moduleResolution": "bundler",
     "noEmit": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@novelhub/shared": ["../../packages/shared/src"]
+      "@/*": ["./src/*"]
     },
     "plugins": [
       {
