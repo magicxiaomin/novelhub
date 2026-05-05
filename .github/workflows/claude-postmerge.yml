@@ -1,0 +1,142 @@
+name: Claude Postmerge Lessons
+
+# When a feature/NN-* PR merges to main, distill a ≤200-word lesson and
+# prepend it to docs/_postmortem.md. claude-plan.yml and claude_review.py
+# both read this file so subsequent tickets benefit from prior pain.
+#
+# Commits the postmortem update directly to main with [skip ci] so the
+# pipeline does not retrigger on its own bookkeeping.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: claude-postmerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  distill:
+    if: |
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'feature/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Identify ticket
+        id: ticket
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          NUM=$(echo "$BRANCH" | grep -oE '^feature/[0-9]{2}' | grep -oE '[0-9]{2}' | head -1 || true)
+          if [ -z "${NUM:-}" ]; then
+            echo "Branch '$BRANCH' is not a feature/NN-* branch; skipping postmerge"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          FILE=$(ls docs/tickets/${NUM}-*.md 2>/dev/null | head -1 || true)
+          if [ -z "${FILE:-}" ]; then
+            echo "No ticket file at docs/tickets/${NUM}-*.md; skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "num=$NUM" >> "$GITHUB_OUTPUT"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Collect PR artifacts
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          MERGE: ${{ github.event.pull_request.merge_commit_sha }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          # Diff that landed in main from this PR
+          git fetch origin "$BASE" "$MERGE" 2>/dev/null || true
+          git diff "$BASE" "$MERGE" > /tmp/pr.diff
+          if [ "$(wc -c < /tmp/pr.diff)" -gt 200000 ]; then
+            head -c 200000 /tmp/pr.diff > /tmp/pr.diff.trimmed
+            echo "" >> /tmp/pr.diff.trimmed
+            echo "[... diff truncated at 200KB ...]" >> /tmp/pr.diff.trimmed
+          else
+            cp /tmp/pr.diff /tmp/pr.diff.trimmed
+          fi
+          # Commit subjects on the merged branch (best-effort)
+          git log "$BASE..$MERGE" --pretty='%s' > /tmp/pr.commits.txt 2>/dev/null || \
+            echo "(could not collect commit subjects)" > /tmp/pr.commits.txt
+          echo "diff: $(wc -c < /tmp/pr.diff.trimmed) bytes; commits: $(wc -l < /tmp/pr.commits.txt) lines"
+
+      - uses: actions/setup-python@v5
+        if: steps.ticket.outputs.skip == 'false'
+        with:
+          python-version: '3.11'
+
+      - name: Install Anthropic SDK
+        if: steps.ticket.outputs.skip == 'false'
+        run: pip install --quiet "anthropic>=0.40.0"
+
+      - name: Distill lesson
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TICKET_NUM: ${{ steps.ticket.outputs.num }}
+          TICKET_FILE: ${{ steps.ticket.outputs.file }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 .github/scripts/claude_postmerge.py
+          echo "--- entry preview ---"
+          cat /tmp/postmortem-entry.md
+
+      - name: Prepend entry to docs/_postmortem.md
+        if: steps.ticket.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          # Split the existing postmortem at the first "---\n" separator after intro,
+          # insert the new entry as the most recent, then write back.
+          python3 - <<'PY'
+          from pathlib import Path
+          doc = Path("docs/_postmortem.md")
+          entry = Path("/tmp/postmortem-entry.md").read_text(encoding="utf-8").strip() + "\n"
+          if doc.exists():
+              text = doc.read_text(encoding="utf-8")
+              marker = "\n---\n"
+              if marker in text:
+                  intro, _, rest = text.partition(marker)
+                  new = intro + marker + "\n" + entry + "\n---\n" + rest
+              else:
+                  new = text.rstrip() + "\n\n---\n\n" + entry
+          else:
+              new = "# Postmortem: Lessons Learned\n\n---\n\n" + entry
+          doc.write_text(new, encoding="utf-8")
+          PY
+
+      - name: Commit and push
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          NUM: ${{ steps.ticket.outputs.num }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          git config user.email "claude-postmerge-bot@novelhub.local"
+          git config user.name "claude-postmerge-bot"
+          git add docs/_postmortem.md
+          if git diff --cached --quiet; then
+            echo "No change to docs/_postmortem.md (no lesson distilled); nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(postmortem): record lesson from Ticket ${NUM} (PR #${PR_NUMBER}) [skip ci]"
+          # Push directly to main; if branch protection rejects this, the workflow
+          # will fail loudly and a human can intervene to relax the rule for the
+          # bot user (or this commit can be moved to a fast-merged PR instead).
+          git push origin HEAD:main

@@ -42,6 +42,7 @@ def summarize_anthropic_error(exc: AnthropicError) -> str:
 def build_prompt(ticket_num: str, ticket_file: str) -> str:
     agents_md = read("AGENTS.md")
     ticket_md = read(ticket_file)
+    postmortem = read("docs/_postmortem.md")
     diff = Path("/tmp/pr.diff.trimmed").read_text(encoding="utf-8", errors="replace")
 
     is_security = ticket_num in SECURITY_TICKETS
@@ -85,6 +86,10 @@ Check ALL of these. If any cannot be verified from the diff, mark FAIL.
 ## Ticket being implemented ({ticket_file})
 
 {ticket_md}
+
+## docs/_postmortem.md (lessons from prior tickets — apply when judging this PR)
+
+{postmortem if postmortem else "(no postmortem yet — this is an early ticket)"}
 
 # Pull request diff
 
