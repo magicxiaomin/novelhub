@@ -109,6 +109,7 @@ jobs:
           7. Reference this issue with \`Closes #<issue-number>\` so it auto-closes on merge
 
           **Codex Cloud publishing notes:**
+          - This issue is assigned to \`chatgpt-codex-connector[bot]\` because this repo uses Codex issue-assignment automation.
           - The Codex workspace may be on branch \`work\`, may not have a git \`origin\` remote, and may not have \`gh\` installed. That is normal. Do not stop just because \`git remote -v\` is empty.
           - Use the Codex/GitHub integration to publish changes to \`feature/${TICKET_NUM}-${TICKET_SLUG}\` and create the PR.
           - If PR creation or branch publication fails, stop and comment here with the exact error. Do not claim a PR was opened unless a GitHub PR URL exists.
@@ -123,10 +124,16 @@ jobs:
           After the PR opens, Claude will auto-review. If changes are requested, address every numbered fix in that review and update the same PR branch through the Codex/GitHub integration - review will re-run automatically (max 3 iterations).
           EOF
 
-          gh issue create \
+          ISSUE_URL=$(gh issue create \
             --title "[Ticket ${TICKET_NUM}] ${TICKET_TITLE}" \
             --label "codex,ticket,auto-pipeline" \
-            --body-file /tmp/body.md
+            --body-file /tmp/body.md)
+          echo "Created issue: $ISSUE_URL"
+
+          ISSUE_NUMBER="${ISSUE_URL##*/}"
+          gh issue edit "$ISSUE_NUMBER" \
+            --add-assignee "chatgpt-codex-connector[bot]" || \
+            echo "Could not assign Codex connector bot; issue was still created."
 
       - name: Pipeline complete notice
         if: steps.pick.outputs.all_done == 'true'
