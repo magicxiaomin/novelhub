@@ -6,3 +6,212 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  /// Email stays globally unique while soft-deleted rows remain in place; this avoids identity reuse/account takeover edge cases.
+  email         String    @unique
+  passwordHash  String?   @map("password_hash")
+  googleId      String?   @unique @map("google_id")
+  coinBalance   Int       @default(0) @map("coin_balance")
+  emailVerified Boolean   @default(false) @map("email_verified")
+  isAdmin       Boolean   @default(false) @map("is_admin")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  subscriptions Subscription[]
+  unlocks       ChapterUnlock[]
+  progress      ReadingProgress[]
+  coinTxns      CoinTransaction[]
+  orders        Order[]
+  checkins      DailyCheckin[]
+
+  @@map("users")
+}
+
+model Book {
+  id               String    @id @default(uuid()) @db.Uuid
+  title            String
+  author           String
+  coverUrl         String    @map("cover_url")
+  description      String    @db.Text
+  category         String
+  tags             String[]
+  totalChapters    Int       @default(0) @map("total_chapters")
+  status           String    @default("ONGOING")
+  isFeatured       Boolean   @default(false) @map("is_featured")
+  freeChapterCount Int       @default(3) @map("free_chapter_count")
+  coinPerChapter   Int       @default(5) @map("coin_per_chapter")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  chapters Chapter[]
+  progress ReadingProgress[]
+
+  @@index([category])
+  @@index([isFeatured])
+  @@map("books")
+}
+
+model Chapter {
+  id          String    @id @default(uuid()) @db.Uuid
+  bookId      String    @map("book_id") @db.Uuid
+  order       Int
+  title       String
+  contentUrl  String    @map("content_url")
+  wordCount   Int       @map("word_count")
+  isFree      Boolean   @default(false) @map("is_free")
+  publishedAt DateTime  @default(now()) @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  book     Book              @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  unlocks  ChapterUnlock[]
+  progress ReadingProgress[]
+
+  @@unique([bookId, order])
+  @@index([bookId])
+  @@map("chapters")
+}
+
+/// Exactly one of userId or guestId must be set. Prisma schema cannot portably emit a CHECK constraint, so API services must enforce this invariant before writes.
+model ReadingProgress {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  guestId        String?  @map("guest_id")
+  bookId         String   @map("book_id") @db.Uuid
+  chapterId      String   @map("chapter_id") @db.Uuid
+  scrollPosition Int      @default(0) @map("scroll_position")
+  lastReadAt     DateTime @default(now()) @map("last_read_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@unique([guestId, chapterId])
+  @@index([userId])
+  @@index([guestId])
+  @@index([bookId])
+  @@index([chapterId])
+  @@map("reading_progress")
+}
+
+model ChapterUnlock {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  chapterId  String   @map("chapter_id") @db.Uuid
+  method     String
+  unlockedAt DateTime @default(now()) @map("unlocked_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId])
+  @@index([chapterId])
+  @@map("chapter_unlocks")
+}
+
+model CoinTransaction {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  amount       Int
+  type         String
+  relatedId    String?  @map("related_id")
+  balanceAfter Int      @map("balance_after")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  /// Restrict preserves the financial audit trail even if user deletion is requested.
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("coin_transactions")
+}
+
+model Subscription {
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @map("user_id") @db.Uuid
+  /// Stripe subscription ids remain globally unique so webhook replay/idempotency cannot attach to an archived duplicate.
+  stripeSubscriptionId String    @unique @map("stripe_subscription_id")
+  stripeCustomerId     String    @map("stripe_customer_id")
+  stripePriceId        String    @map("stripe_price_id")
+  status               String
+  currentPeriodStart   DateTime  @map("current_period_start")
+  currentPeriodEnd     DateTime  @map("current_period_end")
+  cancelAtPeriodEnd    Boolean   @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime? @map("canceled_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Order {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  stripeSessionId     String    @unique @map("stripe_session_id")
+  stripePaymentIntent String?   @unique @map("stripe_payment_intent")
+  type                String
+  amount              Int
+  currency            String    @default("usd")
+  coinsGranted        Int?      @map("coins_granted")
+  status              String
+  metadata            Json?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  completedAt         DateTime? @map("completed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model DailyCheckin {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  checkinDate  DateTime @map("checkin_date") @db.Date
+  streakCount  Int      @map("streak_count")
+  coinsAwarded Int      @map("coins_awarded")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, checkinDate])
+  @@index([userId])
+  @@map("daily_checkins")
+}
+
+model FbEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventName    String   @map("event_name")
+  eventId      String   @unique @map("event_id")
+  userId       String?  @map("user_id") @db.Uuid
+  payload      Json
+  responseCode Int?     @map("response_code")
+  responseBody String?  @map("response_body") @db.Text
+  sentAt       DateTime @default(now()) @map("sent_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([eventName])
+  @@index([eventId])
+  @@index([userId])
+  @@map("fb_events")
+}
