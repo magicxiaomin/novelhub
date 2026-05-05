@@ -19,3 +19,18 @@
 - name: needs-human-merge
   color: "FBCA04"
   description: Approved but blocked from auto-merge by policy (security/payment/launch)
+- name: needs-plan
+  color: "5319E7"
+  description: Issue is waiting for claude-plan.yml to generate an implementation plan
+- name: plan-ready
+  color: "1D76DB"
+  description: Plan generated; @codex has been pinged
+- name: staging-healthy
+  color: "0E8A16"
+  description: Last main commit passed staging healthcheck (set by staging-healthcheck.yml)
+- name: human-approved
+  color: "2EA44F"
+  description: User approved a high-risk PR via the go/no-go chat protocol
+- name: human-blocked
+  color: "B60205"
+  description: User rejected a high-risk PR via the go/no-go chat protocol

@@ -90,50 +90,29 @@ jobs:
           TICKET_SLUG: ${{ steps.pick.outputs.slug }}
         run: |
           set -euo pipefail
+          # Stub body only — no @codex mention, no assignee. The `needs-plan` label
+          # triggers claude-plan.yml, which generates the full implementation plan +
+          # acceptance script, appends them here, and ONLY THEN mentions @codex /
+          # assigns the Codex connector bot. Until that happens Codex must not start.
           cat > /tmp/body.md <<EOF
-          @codex
+          Ticket ${TICKET_NUM} — pending plan generation.
 
-          Implement Ticket ${TICKET_NUM}.
+          - Ticket file: \`${TICKET_FILE}\`
+          - Project conventions: \`AGENTS.md\`
+          - Target branch (Codex will create): \`feature/${TICKET_NUM}-${TICKET_SLUG}\`
 
-          **Read first (in full):**
-          - \`AGENTS.md\` - project conventions, strict
-          - \`${TICKET_FILE}\` - the ticket itself
-
-          **Steps:**
-          1. Target branch \`feature/${TICKET_NUM}-${TICKET_SLUG}\` from latest \`main\`
-          2. Implement everything in the ticket's "Tasks" section
-          3. Make every "Acceptance Criteria" item pass with concrete evidence
-          4. Write all tests required by the ticket
-          5. Run \`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test\`, plus any ticket-specific validation commands, and paste real output (not "all green") into the PR description
-          6. Open a PR with title following Conventional Commits, e.g. \`feat(<scope>): ${TICKET_TITLE}\`, linking to \`${TICKET_FILE}\`
-          7. Reference this issue with \`Closes #<issue-number>\` so it auto-closes on merge
-
-          **Codex Cloud publishing notes:**
-          - This issue is assigned to \`chatgpt-codex-connector[bot]\` because this repo uses Codex issue-assignment automation.
-          - The Codex workspace may be on branch \`work\`, may not have a git \`origin\` remote, and may not have \`gh\` installed. That is normal. Do not stop just because \`git remote -v\` is empty.
-          - Use the Codex/GitHub integration to publish changes to \`feature/${TICKET_NUM}-${TICKET_SLUG}\` and create the PR.
-          - If PR creation or branch publication fails, stop and comment here with the exact error. Do not claim a PR was opened unless a GitHub PR URL exists.
-
-          **Constraints:**
-          - Stay strictly within ticket scope. Do not add unrelated features.
-          - No \`any\` types without a justifying comment.
-          - No new dependencies beyond what AGENTS.md lists, unless flagged in the PR description with reason.
-          - JWT in HTTP-only cookie, not localStorage. Bcrypt cost factor 12. Stripe webhook signature verification mandatory. event_id passed end-to-end for FB CAPI.
-          - Stop and ask if anything in the ticket is ambiguous BEFORE coding.
-
-          After the PR opens, Claude will auto-review. If changes are requested, address every numbered fix in that review and update the same PR branch through the Codex/GitHub integration - review will re-run automatically (max 3 iterations).
+          The \`needs-plan\` label on this issue triggers \`claude-plan.yml\`, which
+          will append a full implementation plan and a machine-checkable acceptance
+          script to this body, then mention @codex and assign the Codex connector.
+          **Do not start coding until the plan is appended below** (label changes
+          to \`plan-ready\`).
           EOF
 
           ISSUE_URL=$(gh issue create \
             --title "[Ticket ${TICKET_NUM}] ${TICKET_TITLE}" \
-            --label "codex,ticket,auto-pipeline" \
+            --label "ticket,auto-pipeline,needs-plan" \
             --body-file /tmp/body.md)
           echo "Created issue: $ISSUE_URL"
-
-          ISSUE_NUMBER="${ISSUE_URL##*/}"
-          gh issue edit "$ISSUE_NUMBER" \
-            --add-assignee "chatgpt-codex-connector[bot]" || \
-            echo "Could not assign Codex connector bot; issue was still created."
 
       - name: Pipeline complete notice
         if: steps.pick.outputs.all_done == 'true'

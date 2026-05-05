@@ -1,0 +1,7 @@
+# Per-ticket acceptance scripts live here.
+#
+# Convention: acceptance/NN.sh, where NN is the two-digit ticket number.
+# claude-plan.yml generates the script content into the ticket issue body;
+# Codex must copy it verbatim into this directory in its feature branch.
+# sanity-check.yml runs the script as a required gate when the PR is from
+# branch feature/NN-*.
