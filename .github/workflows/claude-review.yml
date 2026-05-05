@@ -45,7 +45,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh pr comment ${{ github.event.pull_request.number }} --body "## Claude Review — STOPPED
+          gh pr comment ${{ github.event.pull_request.number }} --body "## Claude Review - STOPPED
 
           Maximum review iterations (3) reached. Halting auto-review loop to
           prevent runaway. A human needs to look at this PR before it can proceed."
@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.diff
-          # Cap at 200KB for context budget; if larger, leave a marker
+          # Cap at 200KB for context budget; if larger, leave a marker.
           if [ "$(wc -c < /tmp/pr.diff)" -gt 200000 ]; then
             head -c 200000 /tmp/pr.diff > /tmp/pr.diff.trimmed
             echo "" >> /tmp/pr.diff.trimmed
@@ -120,9 +120,9 @@ jobs:
         id: parse
         run: |
           set -euo pipefail
-          # Default to REQUEST_CHANGES (fail-safe) if we can't parse
+          # Default to REQUEST_CHANGES (fail-safe) if we cannot parse.
           VERDICT=$(grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md | tail -1 || echo "REQUEST_CHANGES")
-          # If the verdict heading explicitly says one of them, prefer that
+          # If the verdict heading explicitly says one of them, prefer that.
           HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md \
             | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
           if [ -n "${HEADING_VERDICT:-}" ]; then
@@ -166,6 +166,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      issues: write
     steps:
       - name: Ping Codex to address review
         env:
@@ -175,13 +176,16 @@ jobs:
           NEXT_ITER=$((ITERATION + 1))
           gh pr comment ${{ github.event.pull_request.number }} --body "@codex
 
-          The Claude review above requested changes. Please address every numbered fix in the most recent \`## Claude Review\` comment, push to this same branch, and the review will re-run automatically.
+          The Claude review above requested changes. Please address every numbered fix in the most recent \`## Claude Review\` comment and update this same PR branch. The review will re-run automatically.
+
+          Codex Cloud note: your workspace may be on branch \`work\`, may not have a git \`origin\` remote, and may not have \`gh\` installed. That is normal. Use the Codex/GitHub integration to update this PR branch instead of stopping on missing local git remotes.
 
           Constraints:
           - Stay strictly within ticket scope. Do not add unrelated work.
           - Do not introduce \`any\` types without a justifying comment.
           - Do not add new dependencies not in AGENTS.md without flagging.
           - Re-run \`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test\` and paste real output in a PR comment when done.
+          - If PR branch update fails, stop and comment with the exact error instead of claiming success.
 
           This is auto-iteration $NEXT_ITER of 3. After 3 iterations the pipeline halts for human review."
 
@@ -192,6 +196,7 @@ jobs:
       needs.review.outputs.verdict == 'APPROVE'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
       pull-requests: write
       checks: read
@@ -199,7 +204,7 @@ jobs:
       - name: Decide merge policy by ticket
         id: policy
         env:
-          # Tickets that REQUIRE human merge — security / payment / launch.
+          # Tickets that REQUIRE human merge - security / payment / launch.
           # Set to "" to enable full auto-merge across all tickets.
           BLOCKED: '03 05 06 11 14'
         run: |
@@ -227,14 +232,52 @@ jobs:
 
           Claude approved this PR, but tickets 03 (Auth), 05 (Coin Unlock), 06 (Stripe), 11 (FB CAPI), and 14 (Deployment) require human merge. Please review the diff yourself and merge manually."
 
+      - name: Wait for Sanity Checks
+        if: steps.policy.outputs.auto == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..60}; do
+            RUN_ID=$(gh run list \
+              --workflow "Sanity Checks" \
+              --commit "$HEAD_SHA" \
+              --event pull_request \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // ""')
+
+            if [ -z "$RUN_ID" ]; then
+              echo "Sanity Checks run not registered yet (attempt $attempt/60)"
+              sleep 5
+              continue
+            fi
+
+            STATUS=$(gh run view "$RUN_ID" --json status --jq '.status')
+            CONCLUSION=$(gh run view "$RUN_ID" --json conclusion --jq '.conclusion // ""')
+            echo "Sanity Checks run $RUN_ID: status=$STATUS conclusion=${CONCLUSION:-pending}"
+
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                exit 0
+              fi
+              echo "Sanity Checks did not pass: $CONCLUSION"
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "Timed out waiting for Sanity Checks"
+          exit 1
+
       - name: Auto-merge non-security tickets
         if: steps.policy.outputs.auto == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Wait briefly for Sanity Checks to register; then enable auto-merge
-          # which will fire as soon as required checks are green.
           gh pr merge ${{ github.event.pull_request.number }} \
             --squash --delete-branch --auto || \
           gh pr merge ${{ github.event.pull_request.number }} \
