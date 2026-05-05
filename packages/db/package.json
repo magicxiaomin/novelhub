@@ -6,6 +6,7 @@
   "types": "./index.d.ts",
   "scripts": {
     "lint": "node scripts/validate-prisma.mjs",
+    "postinstall": "prisma generate --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:seed": "node prisma/seed.mjs",
