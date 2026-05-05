@@ -1,0 +1,146 @@
+name: Staging Healthcheck
+
+# Runs after a successful Staging Deploy. Polls the staging /health endpoint
+# every 60s for 30 minutes. At t+5min, runs the smoke test bundle. Any failure
+# in the window halts the pipeline and labels the latest merged PR
+# `staging-failed`. A clean 30-minute window dispatches a `staging_healthy`
+# repository_dispatch event that next-ticket.yml listens for.
+#
+# Required secrets:
+#   STAGING_HEALTH_URL  - full URL of the /health endpoint, e.g.
+#                         https://staging.novelhub.example/health
+#
+# Optional repo variable:
+#   STAGING_HEALTHCHECK_DURATION_MIN  - override the 30-min window
+#                                        (useful for testing; defaults to 30)
+
+on:
+  workflow_run:
+    workflows: ["Staging Deploy"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: staging-healthcheck
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if staging not configured
+        id: gate
+        env:
+          URL: ${{ secrets.STAGING_HEALTH_URL }}
+        run: |
+          if [ -z "${URL:-}" ]; then
+            echo "STAGING_HEALTH_URL not set; staging not configured. Skipping healthcheck."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Identify last merged feature PR
+        if: steps.gate.outputs.configured == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Find the most recent merged PR from a feature/NN-* branch (which is
+          # what we want to flag if staging breaks). May be empty during early
+          # bootstrap when no feature PR has merged yet.
+          NUM=$(gh pr list --state merged --limit 20 \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("feature/"))] | .[0].number // ""')
+          echo "number=$NUM" >> "$GITHUB_OUTPUT"
+          echo "Latest merged feature PR: ${NUM:-<none>}"
+
+      - name: Healthcheck loop (30 minutes default)
+        if: steps.gate.outputs.configured == 'true'
+        id: watch
+        env:
+          URL: ${{ secrets.STAGING_HEALTH_URL }}
+          DUR_MIN: ${{ vars.STAGING_HEALTHCHECK_DURATION_MIN }}
+        run: |
+          set -euo pipefail
+          DUR_MIN="${DUR_MIN:-30}"
+          END=$(( $(date +%s) + (DUR_MIN * 60) ))
+          PROBE_INTERVAL=60
+          SMOKE_AT=300   # run smoke test 5 minutes in
+          START=$(date +%s)
+          SMOKE_DONE="false"
+          while [ "$(date +%s)" -lt "$END" ]; do
+            T=$(($(date +%s) - START))
+            HTTP=$(curl -s -o /tmp/health.body -w '%{http_code}' --max-time 10 "$URL" || echo "000")
+            if [ "$HTTP" != "200" ]; then
+              echo "FAIL t=${T}s HTTP=$HTTP body=$(head -c 200 /tmp/health.body)"
+              echo "fail_reason=health endpoint returned HTTP $HTTP at t=${T}s" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            if ! grep -q '"ok"\s*:\s*true' /tmp/health.body 2>/dev/null; then
+              echo "FAIL t=${T}s body lacks 'ok:true': $(head -c 200 /tmp/health.body)"
+              echo "fail_reason=health endpoint body did not contain ok:true at t=${T}s" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            echo "OK t=${T}s HTTP=200"
+
+            if [ "$SMOKE_DONE" = "false" ] && [ "$T" -ge "$SMOKE_AT" ]; then
+              echo "Running smoke tests at t=${T}s"
+              if ! bash .github/scripts/staging_smoke.sh; then
+                echo "fail_reason=staging_smoke.sh failed at t=${T}s" >> "$GITHUB_OUTPUT"
+                exit 1
+              fi
+              SMOKE_DONE="true"
+            fi
+
+            sleep "$PROBE_INTERVAL"
+          done
+          echo "30-minute window clean; staging is healthy."
+
+      - name: Tag main commit and dispatch staging_healthy
+        if: steps.gate.outputs.configured == 'true' && success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAIN_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUM: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          # Idempotent label
+          if [ -n "${PR_NUM:-}" ]; then
+            gh pr edit "$PR_NUM" --add-label "staging-healthy" || true
+          fi
+          # Dispatch the event next-ticket.yml listens for
+          gh api -X POST "repos/${{ github.repository }}/dispatches" \
+            -f "event_type=staging_healthy" \
+            -F "client_payload[head_sha]=$MAIN_SHA" \
+            -F "client_payload[pr_number]=${PR_NUM:-}"
+
+      - name: On failure, label PR and halt pipeline
+        if: failure() && steps.gate.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ steps.pr.outputs.number }}
+          REASON: ${{ steps.watch.outputs.fail_reason }}
+        run: |
+          set -euo pipefail
+          if [ -n "${PR_NUM:-}" ]; then
+            gh pr edit "$PR_NUM" --add-label "staging-failed,needs-human-review" || true
+            gh pr comment "$PR_NUM" --body "## Staging healthcheck — failed
+
+            ${REASON:-unknown failure during the 30-minute observation window}.
+
+            Pipeline halted. The next ticket will NOT be opened until staging is fixed and a clean healthcheck completes."
+          fi
+          # Open a tracking issue for visibility (non-fatal if it fails)
+          gh issue create \
+            --title "Staging healthcheck failed (commit ${{ github.event.workflow_run.head_sha }})" \
+            --body "Healthcheck workflow failed. Last merged feature PR was #${PR_NUM:-?}. Reason: ${REASON:-unknown}." \
+            --label "needs-human-review" || true

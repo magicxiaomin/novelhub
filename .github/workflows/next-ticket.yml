@@ -1,13 +1,28 @@
 name: Open Next Ticket
 
+# Two triggers:
+#   - repository_dispatch (event_type: staging_healthy): fired by
+#     staging-healthcheck.yml after a clean 30-min window. This is the
+#     production trigger once staging is wired up.
+#   - pull_request closed+merged: legacy fallback while staging is not yet
+#     configured. The job below skips this path when STAGING_REQUIRED repo
+#     variable is "true", so once you flip that variable, only the dispatch
+#     trigger opens new tickets.
+
 on:
   pull_request:
     types: [closed]
     branches: [main]
+  repository_dispatch:
+    types: [staging_healthy]
 
 jobs:
   open_next:
-    if: github.event.pull_request.merged == true
+    if: |
+      (github.event_name == 'repository_dispatch') ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       vars.STAGING_REQUIRED != 'true')
     runs-on: ubuntu-latest
     permissions:
       issues: write
