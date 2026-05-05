@@ -98,7 +98,7 @@ jobs:
         if: steps.ticket.outputs.skip == 'false'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install Anthropic SDK
         if: steps.ticket.outputs.skip == 'false'
@@ -144,12 +144,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr edit ${{ github.event.pull_request.number }} \
-            --remove-label "claude-approved" --remove-label "claude-changes-requested" 2>/dev/null || true
-          if [ "${{ steps.parse.outputs.verdict }}" = "APPROVE" ]; then
-            gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-approved"
-          else
-            gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-changes-requested"
-          fi
+            --remove-label "claude-approved" --remove-label "claude-changes-requested" --remove-label "needs-human-review" 2>/dev/null || true
+          case "${{ steps.parse.outputs.verdict }}" in
+            APPROVE)
+              gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-approved"
+              ;;
+            REQUEST_CHANGES)
+              gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-changes-requested"
+              ;;
+            *)
+              gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-review"
+              ;;
+          esac
 
   ping_codex_to_fix:
     needs: review
@@ -195,7 +201,7 @@ jobs:
         env:
           # Tickets that REQUIRE human merge — security / payment / launch.
           # Set to "" to enable full auto-merge across all tickets.
-          BLOCKED: "03 05 06 11 14"
+          BLOCKED: '03 05 06 11 14'
         run: |
           set -euo pipefail
           TICKET="${{ needs.review.outputs.ticket_id }}"

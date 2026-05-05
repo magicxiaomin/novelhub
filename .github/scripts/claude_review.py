@@ -17,7 +17,7 @@ import os
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic
+from anthropic import Anthropic, AnthropicError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SECURITY_TICKETS = {"03", "05", "06", "11"}
@@ -141,6 +141,30 @@ When in doubt, choose REQUEST_CHANGES. Do not approve to be polite.
     return prompt
 
 
+def build_unavailable_review(reason: str) -> str:
+    return f"""## Claude Review
+
+### Acceptance Criteria
+
+| Criterion | Status | Evidence |
+|-----------|--------|----------|
+| Automated Claude review completed | WARNING | {reason} |
+
+### AGENTS.md Compliance
+
+Automated review could not run because the Anthropic API was unavailable. A human should review the PR before merging.
+
+### Scope
+
+Cannot verify automatically while Claude review is unavailable.
+
+### Required Fixes
+
+None.
+
+### Verdict: COMMENT"""
+
+
 def main() -> int:
     ticket_num = os.environ.get("TICKET_NUM", "")
     ticket_file = os.environ.get("TICKET_FILE", "")
@@ -149,12 +173,16 @@ def main() -> int:
         return 2
 
     prompt = build_prompt(ticket_num, ticket_file)
-    client = Anthropic()
-    msg = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        client = Anthropic()
+        msg = client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except AnthropicError as exc:
+        print(build_unavailable_review(f"Anthropic API error: {exc.__class__.__name__}."))
+        return 0
 
     # Concatenate all text blocks
     parts = []
