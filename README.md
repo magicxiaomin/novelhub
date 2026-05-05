@@ -2,64 +2,71 @@
 
 Mobile-first English web novel PWA for paid acquisition via Facebook Ads.
 
-## For AI Coding Agents (Codex / Claude Code / Cursor)
+## For AI Coding Agents
 
-**START HERE**: Read `AGENTS.md` first. It contains all project conventions, tech stack rules, and standards you must follow.
+Start by reading `AGENTS.md`. It contains the project standards, tech stack rules, ticket workflow, and definition of done.
 
-Then work tickets in order from `docs/tickets/`:
+Work tickets in order from `docs/tickets/`. Ticket 01 initializes this pnpm monorepo; later tickets depend on this foundation.
 
-| # | Ticket | Depends On |
-|---|--------|------------|
-| 01 | Monorepo Setup | — |
-| 02 | Database Schema & Prisma | 01 |
-| 03 | Auth Module | 02 |
-| 04 | Books & Chapters API | 02, 03 |
-| 05 | Coin & Unlock System | 02, 03, 04 |
-| 06 | Stripe Payment Integration | 02, 03, 05 |
-| 07 | Frontend - Home & Book Detail | 04 |
-| 08 | Frontend - Reader & Paywall | 04, 05, 06, 07 |
-| 09 | Frontend - Auth, Account, Recharge | 03, 06, 08 |
-| 10 | Daily Check-in & Reading Progress | 05, 08 |
-| 11 | FB Pixel + CAPI | 03, 06, 09 |
-| 12 | PWA & OneSignal Push | 07, 08, 09 |
-| 13 | Compliance Pages & Admin Panel | 04, 06, 12 |
-| 14 | Deployment & Pre-launch QA | all prior |
+## Prerequisites
 
-## Quick Start
+- Node.js 20+
+- pnpm 10+
+- PostgreSQL 15 for database work in later tickets
+- Redis 7 for cache work in later tickets
+
+## Setup
 
 ```bash
 pnpm install
-cp .env.example .env  # fill in values
-pnpm --filter db prisma:migrate dev
-pnpm --filter db prisma:seed
-pnpm dev               # runs both web (3000) and api (4000)
+cp .env.example .env
 ```
 
-## Project Structure
+Fill in `.env` with local development values. Do not commit real secrets.
 
-```
-/
-├── apps/
-│   ├── web/        Next.js frontend
-│   └── api/        NestJS backend
-├── packages/
-│   ├── shared/     Shared types and constants
-│   └── db/         Prisma schema and migrations
-├── docs/
-│   ├── tickets/    Development tickets 01–14
-│   └── prd.md      Product requirements (MVP v1.0)
-└── AGENTS.md       AI agent project context
+## Development
+
+```bash
+pnpm --filter @novelhub/web dev
+pnpm --filter @novelhub/api start:dev
 ```
 
-## Goals
+The frontend runs on `http://localhost:3000`. The API runs on `http://localhost:4000`.
 
-- **MVP scope**: 4–6 weeks to launch
-- **First milestone**: Validate "FB ad → register → first purchase" funnel with $500–1000 test spend
-- **Target metrics**:
-  - Landing → register: ≥30%
-  - Register → first purchase: ≥5%
-  - First purchase ARPU: ≥$15
-  - D7 ROAS: ≥0.8
+## Quality Checks
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm --filter @novelhub/api test:e2e
+```
+
+## Workspace Structure
+
+```text
+apps/
+  web/        Next.js frontend
+  api/        NestJS backend
+packages/
+  shared/     Shared TypeScript types and constants
+  db/         Prisma schema and database tooling
+docs/
+  tickets/    Development tickets 01-14
+AGENTS.md     AI agent project context
+```
+
+## Database Package
+
+The Prisma schema lives in `packages/db/prisma/schema.prisma`.
+
+```bash
+pnpm --filter @novelhub/db prisma:generate
+pnpm --filter @novelhub/db prisma:migrate
+pnpm --filter @novelhub/db prisma:studio
+```
+
+Ticket 02 adds the domain schema and migrations.
 
 ## License
 
