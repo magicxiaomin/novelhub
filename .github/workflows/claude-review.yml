@@ -9,7 +9,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  review:
+  # =========================================================================
+  # Reviewer 1: correctness, scope, AGENTS.md conformance, ticket acceptance.
+  # Backed by claude_review.py.
+  # =========================================================================
+  correctness_review:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
@@ -84,7 +88,6 @@ jobs:
           set -euo pipefail
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.diff
-          # Cap at 200KB for context budget; if larger, leave a marker.
           if [ "$(wc -c < /tmp/pr.diff)" -gt 200000 ]; then
             head -c 200000 /tmp/pr.diff > /tmp/pr.diff.trimmed
             echo "" >> /tmp/pr.diff.trimmed
@@ -104,7 +107,7 @@ jobs:
         if: steps.ticket.outputs.skip == 'false'
         run: pip install --quiet "anthropic>=0.40.0"
 
-      - name: Run Claude review
+      - name: Run Claude correctness review
         if: steps.ticket.outputs.skip == 'false'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -112,7 +115,7 @@ jobs:
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
         run: |
           python3 .github/scripts/claude_review.py > /tmp/review.md
-          echo "--- Review preview ---"
+          echo "--- Correctness review preview ---"
           head -40 /tmp/review.md
 
       - name: Parse verdict
@@ -120,25 +123,23 @@ jobs:
         id: parse
         run: |
           set -euo pipefail
-          # Default to REQUEST_CHANGES (fail-safe) if we cannot parse.
           VERDICT=$(grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md | tail -1 || echo "REQUEST_CHANGES")
-          # If the verdict heading explicitly says one of them, prefer that.
           HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md \
             | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
           if [ -n "${HEADING_VERDICT:-}" ]; then
             VERDICT="$HEADING_VERDICT"
           fi
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
-          echo "Parsed verdict: $VERDICT"
+          echo "Parsed correctness verdict: $VERDICT"
 
-      - name: Post review comment
+      - name: Post correctness review comment
         if: steps.ticket.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/review.md
 
-      - name: Apply verdict label
+      - name: Apply correctness verdict label
         if: steps.ticket.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -157,12 +158,223 @@ jobs:
               ;;
           esac
 
+  # =========================================================================
+  # Reviewer 2: independent security pass with non-overlapping checklist.
+  # Backed by claude_security_review.py. Auto-merge needs both reviewers
+  # to APPROVE.
+  # =========================================================================
+  security_review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      verdict: ${{ steps.parse.outputs.verdict }}
+      skipped: ${{ steps.ticket.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Identify ticket from branch name
+        id: ticket
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]{2}' | head -1 | cut -d/ -f2 || true)
+          if [ -z "${TICKET_NUM:-}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "num=" >> "$GITHUB_OUTPUT"
+            echo "file=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TICKET_FILE=$(ls docs/tickets/${TICKET_NUM}-*.md 2>/dev/null | head -1 || true)
+          if [ -z "${TICKET_FILE:-}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
+            echo "file=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
+          echo "file=$TICKET_FILE" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Get PR diff
+        if: steps.ticket.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.diff
+          if [ "$(wc -c < /tmp/pr.diff)" -gt 200000 ]; then
+            head -c 200000 /tmp/pr.diff > /tmp/pr.diff.trimmed
+            echo "" >> /tmp/pr.diff.trimmed
+            echo "[... diff truncated at 200KB ...]" >> /tmp/pr.diff.trimmed
+          else
+            cp /tmp/pr.diff /tmp/pr.diff.trimmed
+          fi
+
+      - name: Set up Python
+        if: steps.ticket.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Anthropic SDK
+        if: steps.ticket.outputs.skip == 'false'
+        run: pip install --quiet "anthropic>=0.40.0"
+
+      - name: Run Claude security review
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TICKET_FILE: ${{ steps.ticket.outputs.file }}
+          TICKET_NUM: ${{ steps.ticket.outputs.num }}
+        run: |
+          python3 .github/scripts/claude_security_review.py > /tmp/security-review.md
+          echo "--- Security review preview ---"
+          head -40 /tmp/security-review.md
+
+      - name: Parse security verdict
+        if: steps.ticket.outputs.skip == 'false'
+        id: parse
+        run: |
+          set -euo pipefail
+          VERDICT=$(grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/security-review.md | tail -1 || echo "REQUEST_CHANGES")
+          HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/security-review.md \
+            | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
+          if [ -n "${HEADING_VERDICT:-}" ]; then
+            VERDICT="$HEADING_VERDICT"
+          fi
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+          echo "Parsed security verdict: $VERDICT"
+
+      - name: Post security review comment
+        if: steps.ticket.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/security-review.md
+
+  # =========================================================================
+  # Mechanical gates: path policy + diff size cap.
+  # =========================================================================
+  path_size_policy:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      restricted: ${{ steps.path.outputs.restricted }}
+      reason: ${{ steps.path.outputs.reason }}
+      oversize: ${{ steps.size.outputs.oversize }}
+      additions: ${{ steps.size.outputs.additions }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Get PR file list and stats
+        id: stats
+        run: |
+          set -euo pipefail
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.files
+          git diff --shortstat origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.shortstat || true
+          echo "Files changed:"
+          cat /tmp/pr.files
+          echo "Shortstat: $(cat /tmp/pr.shortstat)"
+
+      - name: Path policy
+        id: path
+        run: |
+          set -euo pipefail
+          RESTRICTED="false"
+          REASON=""
+          # Each pattern is a glob; matched as `find -path` style via grep.
+          # If any matches, the PR cannot auto-merge regardless of verdicts.
+          MATCHED=$(grep -E '^(prisma/migrations/|\.github/workflows/|\.github/scripts/|apps/[^/]+/src/auth/|apps/[^/]+/src/billing/|apps/[^/]+/src/webhook/)' /tmp/pr.files || true)
+
+          if [ -n "$MATCHED" ]; then
+            RESTRICTED="true"
+            REASON="Touches restricted path(s): $(echo "$MATCHED" | head -3 | tr '\n' ' ')"
+          fi
+
+          # package.json deps changes also gate. Detect by parsing diff for
+          # additions/removals inside dependencies / devDependencies blocks.
+          if grep -q 'package\.json$' /tmp/pr.files; then
+            DEPS_DIFF=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '**/package.json' \
+              | grep -E '^[+-]\s*"[^"]+"\s*:\s*"[^"]+"' \
+              | grep -vE '^[+-]\s*"(name|version|description|main|module|types|scripts|license|author|repository|homepage|bugs|engines|files|exports|bin|workspaces)"' \
+              || true)
+            if [ -n "$DEPS_DIFF" ]; then
+              RESTRICTED="true"
+              REASON="${REASON:+$REASON; }package.json dependencies changed: $(echo "$DEPS_DIFF" | head -3 | tr '\n' ' ')"
+            fi
+          fi
+
+          echo "restricted=$RESTRICTED" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "Path policy: restricted=$RESTRICTED reason=$REASON"
+
+      - name: Size policy
+        id: size
+        env:
+          SIZE_CAP: '800'
+        run: |
+          set -euo pipefail
+          ADDS=$(awk '{ for (i=1;i<=NF;i++) if ($i ~ /insertion/) print $(i-1) }' /tmp/pr.shortstat | head -1)
+          ADDS=${ADDS:-0}
+          OVER="false"
+          if [ "$ADDS" -gt "$SIZE_CAP" ]; then
+            OVER="true"
+          fi
+          echo "additions=$ADDS" >> "$GITHUB_OUTPUT"
+          echo "oversize=$OVER" >> "$GITHUB_OUTPUT"
+          echo "Size policy: additions=$ADDS oversize=$OVER (cap=$SIZE_CAP)"
+
+      - name: Label and comment if restricted path
+        if: steps.path.outputs.restricted == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-merge"
+          gh pr comment ${{ github.event.pull_request.number }} --body "## Path policy — auto-merge blocked
+
+          ${{ steps.path.outputs.reason }}
+
+          Restricted paths: \`prisma/migrations/**\`, \`.github/workflows/**\`, \`.github/scripts/**\`, \`apps/*/src/{auth,billing,webhook}/**\`, and any \`package.json\` dependency change.
+
+          Even if both Claude reviewers APPROVE, this PR will not auto-merge. A user must say \"PR #${{ github.event.pull_request.number }} go\" to Claude Code to proceed."
+
+      - name: Label and comment if oversize
+        if: steps.size.outputs.oversize == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-split"
+          gh pr comment ${{ github.event.pull_request.number }} --body "## Size policy — too large to auto-merge
+
+          This PR adds **${{ steps.size.outputs.additions }} lines**, above the 800-line auto-merge cap.
+
+          Either split the work into smaller PRs (each < 800 net additions), or label \`human-approved\` after explicit user go-ahead. The reviewers will continue to run for visibility, but auto-merge will not fire."
+
+  # =========================================================================
+  # Codex re-ping when EITHER reviewer requests changes (and within retry
+  # budget).
+  # =========================================================================
   ping_codex_to_fix:
-    needs: review
+    needs: [correctness_review, security_review]
     if: |
-      needs.review.outputs.skipped == 'false' &&
-      needs.review.outputs.verdict == 'REQUEST_CHANGES' &&
-      needs.review.outputs.retry_count < '3'
+      needs.correctness_review.outputs.skipped == 'false' &&
+      (needs.correctness_review.outputs.verdict == 'REQUEST_CHANGES' ||
+       needs.security_review.outputs.verdict == 'REQUEST_CHANGES') &&
+      needs.correctness_review.outputs.retry_count < '3'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -171,29 +383,39 @@ jobs:
       - name: Ping Codex to address review
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ITERATION: ${{ needs.review.outputs.retry_count }}
+          ITERATION: ${{ needs.correctness_review.outputs.retry_count }}
+          CORR: ${{ needs.correctness_review.outputs.verdict }}
+          SEC: ${{ needs.security_review.outputs.verdict }}
         run: |
           NEXT_ITER=$((ITERATION + 1))
           gh pr comment ${{ github.event.pull_request.number }} --body "@codex
 
-          The Claude review above requested changes. Please address every numbered fix in the most recent \`## Claude Review\` comment and update this same PR branch. The review will re-run automatically.
+          Review verdicts: correctness=${CORR}, security=${SEC}. Auto-merge requires BOTH to be APPROVE.
+
+          Please address every numbered fix in the most recent \`## Claude Review\` and \`## Claude Security Review\` comments and update this same PR branch. The reviews will re-run automatically.
 
           Codex Cloud note: your workspace may be on branch \`work\`, may not have a git \`origin\` remote, and may not have \`gh\` installed. That is normal. Use the Codex/GitHub integration to update this PR branch instead of stopping on missing local git remotes.
 
           Constraints:
           - Stay strictly within ticket scope. Do not add unrelated work.
-          - Do not introduce \`any\` types without a justifying comment.
-          - Do not add new dependencies not in AGENTS.md without flagging.
+          - No \`any\` types without a justifying comment.
+          - No new dependencies not in AGENTS.md without flagging.
           - Re-run \`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test\` and paste real output in a PR comment when done.
           - If PR branch update fails, stop and comment with the exact error instead of claiming success.
 
           This is auto-iteration $NEXT_ITER of 3. After 3 iterations the pipeline halts for human review."
 
+  # =========================================================================
+  # Auto-merge: needs all three gates green plus non-blacklisted ticket.
+  # =========================================================================
   auto_merge:
-    needs: review
+    needs: [correctness_review, security_review, path_size_policy]
     if: |
-      needs.review.outputs.skipped == 'false' &&
-      needs.review.outputs.verdict == 'APPROVE'
+      needs.correctness_review.outputs.skipped == 'false' &&
+      needs.correctness_review.outputs.verdict == 'APPROVE' &&
+      needs.security_review.outputs.verdict == 'APPROVE' &&
+      needs.path_size_policy.outputs.restricted == 'false' &&
+      needs.path_size_policy.outputs.oversize == 'false'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -205,14 +427,12 @@ jobs:
         id: policy
         env:
           # Tickets that REQUIRE human merge - security / payment / launch.
-          # Set to "" to enable full auto-merge across all tickets.
           BLOCKED: '03 05 06 11 14'
         run: |
           set -euo pipefail
-          TICKET="${{ needs.review.outputs.ticket_id }}"
+          TICKET="${{ needs.correctness_review.outputs.ticket_id }}"
           if [ -z "${BLOCKED:-}" ]; then
             echo "auto=true" >> "$GITHUB_OUTPUT"
-            echo "Full auto-merge enabled (BLOCKED list is empty)"
           elif echo " $BLOCKED " | grep -q " $TICKET "; then
             echo "auto=false" >> "$GITHUB_OUTPUT"
             echo "reason=Ticket $TICKET requires human review (security / payment / launch)" >> "$GITHUB_OUTPUT"
@@ -226,11 +446,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-merge"
-          gh pr comment ${{ github.event.pull_request.number }} --body "## Auto-merge blocked by policy
+          gh pr comment ${{ github.event.pull_request.number }} --body "## Auto-merge blocked by ticket policy
 
           ${{ steps.policy.outputs.reason }}.
 
-          Claude approved this PR, but tickets 03 (Auth), 05 (Coin Unlock), 06 (Stripe), 11 (FB CAPI), and 14 (Deployment) require human merge. Please review the diff yourself and merge manually."
+          Both Claude reviewers APPROVED, but tickets 03 (Auth), 05 (Coin Unlock), 06 (Stripe), 11 (FB CAPI), and 14 (Deployment) always require human go-ahead. Tell Claude Code \"PR #${{ github.event.pull_request.number }} go\" to merge."
 
       - name: Wait for Sanity Checks
         if: steps.policy.outputs.auto == 'true'
@@ -272,7 +492,7 @@ jobs:
           echo "Timed out waiting for Sanity Checks"
           exit 1
 
-      - name: Auto-merge non-security tickets
+      - name: Auto-merge non-blacklisted tickets
         if: steps.policy.outputs.auto == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
