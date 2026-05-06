@@ -10,6 +10,7 @@ import { BooksModule } from './modules/books/books.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { ChaptersModule } from './modules/chapters/chapters.module';
 import { CoinsModule } from './modules/coins/coins.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UnlocksModule } from './modules/unlocks/unlocks.module';
 
@@ -28,6 +29,7 @@ import { UnlocksModule } from './modules/unlocks/unlocks.module';
     ChaptersModule,
     CoinsModule,
     UnlocksModule,
+    PaymentsModule,
     AdminModule,
   ],
   controllers: [AppController],
