@@ -118,6 +118,7 @@ jobs:
         env:
           TICKET_FILE: ${{ steps.ticket.outputs.file }}
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
+          CLAUDE_TIMEOUT_SECONDS: '600'
         run: |
           python3 .github/scripts/claude_review.py > /tmp/review.md
           echo "--- Correctness review preview ---"
@@ -232,6 +233,7 @@ jobs:
         env:
           TICKET_FILE: ${{ steps.ticket.outputs.file }}
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
+          CLAUDE_TIMEOUT_SECONDS: '600'
         run: |
           python3 .github/scripts/claude_security_review.py > /tmp/security-review.md
           echo "--- Security review preview ---"
