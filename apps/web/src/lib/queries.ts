@@ -14,6 +14,8 @@ import type {
   ChapterReadingProgress,
   ChapterSummary,
   ChapterResponse,
+  CheckinClaim,
+  CheckinStatus,
   ChapterUnlock,
   CheckoutSession,
   CoinTransaction,
@@ -48,6 +50,7 @@ export const queryKeys = {
   readingProgress: ['reading-progress'] as const,
   readingProgressForChapter: (bookId: string, chapterId: string) =>
     ['reading-progress', bookId, chapterId] as const,
+  checkinStatus: ['checkin', 'status'] as const,
 };
 
 export const fetchMe = (): Promise<{ user: AuthUser }> => apiFetch('/auth/me');
@@ -180,3 +183,7 @@ export const saveReadingProgress = async (
     throw err;
   }
 };
+
+export const fetchCheckinStatus = (): Promise<CheckinStatus> => apiFetch('/checkin/status');
+
+export const claimCheckin = (): Promise<CheckinClaim> => apiFetch('/checkin', { method: 'POST' });
