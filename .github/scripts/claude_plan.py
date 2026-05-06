@@ -17,14 +17,13 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic, AnthropicError
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-7")
-MAX_TOKENS = int(os.environ.get("CLAUDE_MAX_TOKENS", "8000"))
+CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
+CLAUDE_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_TIMEOUT_SECONDS", "600"))
 MARKER = "=====ACCEPTANCE_SCRIPT====="
 
 
@@ -121,22 +120,35 @@ def main() -> int:
         print("ERROR: TICKET_NUM and TICKET_FILE env vars required", file=sys.stderr)
         return 2
 
+    prompt = build_prompt(ticket_num, ticket_file)
     try:
-        client = Anthropic()
-        msg = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            messages=[{"role": "user", "content": build_prompt(ticket_num, ticket_file)}],
+        result = subprocess.run(
+            [CLAUDE_BIN, "-p", "--output-format", "text"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_TIMEOUT_SECONDS,
+            check=False,
         )
-    except AnthropicError as exc:
-        print(f"ERROR: Anthropic API error: {exc.__class__.__name__}: {exc}", file=sys.stderr)
+    except FileNotFoundError:
+        print(f"ERROR: `{CLAUDE_BIN}` binary not on PATH on the runner host.", file=sys.stderr)
+        return 3
+    except subprocess.TimeoutExpired:
+        print(f"ERROR: `claude -p` timed out after {CLAUDE_TIMEOUT_SECONDS}s.", file=sys.stderr)
+        return 3
+    except OSError as exc:
+        print(f"ERROR: `claude -p` could not be launched: {exc}", file=sys.stderr)
         return 3
 
-    parts = []
-    for block in msg.content:
-        if getattr(block, "type", None) == "text":
-            parts.append(block.text)
-    response = "".join(parts).strip()
+    if result.returncode != 0:
+        stderr_tail = (result.stderr or "").strip()[-500:]
+        print(
+            f"ERROR: `claude -p` exited {result.returncode}: {stderr_tail or 'no stderr'}",
+            file=sys.stderr,
+        )
+        return 3
+
+    response = result.stdout.strip()
 
     if MARKER not in response:
         print("ERROR: model output missing marker", file=sys.stderr)

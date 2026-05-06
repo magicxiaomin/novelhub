@@ -19,27 +19,18 @@ Writes:
 from __future__ import annotations
 
 import os
-import re
+import subprocess
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic, AnthropicError
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-7")
-MAX_TOKENS = int(os.environ.get("CLAUDE_SECURITY_MAX_TOKENS", "3500"))
+CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
+CLAUDE_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_TIMEOUT_SECONDS", "300"))
 
 
 def read(path: str) -> str:
     full = REPO_ROOT / path
     return full.read_text(encoding="utf-8") if full.exists() else ""
-
-
-def summarize_anthropic_error(exc: AnthropicError) -> str:
-    details = re.sub(r"\s+", " ", str(exc)).strip()
-    if not details:
-        return f"Anthropic API error: {exc.__class__.__name__}."
-    return f"Anthropic API error: {exc.__class__.__name__}: {details[:700]}"
 
 
 def build_prompt(ticket_num: str, ticket_file: str) -> str:
@@ -186,6 +177,31 @@ Cannot verify automatically while Claude is unavailable.
 ### Verdict: COMMENT"""
 
 
+def run_claude(prompt: str) -> tuple[str, str | None]:
+    """Invoke `claude -p` and return (stdout, error_reason_or_None)."""
+    try:
+        result = subprocess.run(
+            [CLAUDE_BIN, "-p", "--output-format", "text"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except FileNotFoundError:
+        return ("", f"`{CLAUDE_BIN}` binary not on PATH on the runner host.")
+    except subprocess.TimeoutExpired:
+        return ("", f"`claude -p` timed out after {CLAUDE_TIMEOUT_SECONDS}s.")
+    except OSError as exc:
+        return ("", f"`claude -p` could not be launched: {exc}")
+
+    if result.returncode != 0:
+        stderr_tail = (result.stderr or "").strip()[-500:]
+        return ("", f"`claude -p` exited {result.returncode}: {stderr_tail or 'no stderr'}")
+
+    return (result.stdout.strip(), None)
+
+
 def main() -> int:
     ticket_num = os.environ.get("TICKET_NUM", "")
     ticket_file = os.environ.get("TICKET_FILE", "")
@@ -194,22 +210,11 @@ def main() -> int:
         return 2
 
     prompt = build_prompt(ticket_num, ticket_file)
-    try:
-        client = Anthropic()
-        msg = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except AnthropicError as exc:
-        print(build_unavailable_review(summarize_anthropic_error(exc)))
+    review, error = run_claude(prompt)
+    if error:
+        print(build_unavailable_review(error))
         return 0
 
-    parts = []
-    for block in msg.content:
-        if getattr(block, "type", None) == "text":
-            parts.append(block.text)
-    review = "".join(parts).strip()
     if not review:
         review = "## Claude Security Review\n\n(Empty response from model.)\n\n### Verdict: REQUEST_CHANGES"
 

@@ -21,7 +21,7 @@ jobs:
     if: |
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'feature/')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, self-hosted-novelhub]
     permissions:
       contents: write
       pull-requests: write
@@ -76,19 +76,16 @@ jobs:
             echo "(could not collect commit subjects)" > /tmp/pr.commits.txt
           echo "diff: $(wc -c < /tmp/pr.diff.trimmed) bytes; commits: $(wc -l < /tmp/pr.commits.txt) lines"
 
-      - uses: actions/setup-python@v5
+      - name: Verify Claude CLI
         if: steps.ticket.outputs.skip == 'false'
-        with:
-          python-version: '3.11'
-
-      - name: Install Anthropic SDK
-        if: steps.ticket.outputs.skip == 'false'
-        run: pip install --quiet "anthropic>=0.40.0"
+        run: |
+          set -euo pipefail
+          which claude
+          claude --version
 
       - name: Distill lesson
         if: steps.ticket.outputs.skip == 'false'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
           TICKET_FILE: ${{ steps.ticket.outputs.file }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

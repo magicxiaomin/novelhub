@@ -15,7 +15,7 @@ jobs:
   # =========================================================================
   correctness_review:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, self-hosted-novelhub]
     permissions:
       contents: read
       pull-requests: write
@@ -106,20 +106,16 @@ jobs:
           fi
           echo "Diff size: $(wc -c < /tmp/pr.diff.trimmed) bytes"
 
-      - name: Set up Python
+      - name: Verify Claude CLI
         if: steps.ticket.outputs.skip == 'false'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Anthropic SDK
-        if: steps.ticket.outputs.skip == 'false'
-        run: pip install --quiet "anthropic>=0.40.0"
+        run: |
+          set -euo pipefail
+          which claude
+          claude --version
 
       - name: Run Claude correctness review
         if: steps.ticket.outputs.skip == 'false'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TICKET_FILE: ${{ steps.ticket.outputs.file }}
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
         run: |
@@ -174,7 +170,7 @@ jobs:
   # =========================================================================
   security_review:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, self-hosted-novelhub]
     permissions:
       contents: read
       pull-requests: write
@@ -224,20 +220,16 @@ jobs:
             cp /tmp/pr.diff /tmp/pr.diff.trimmed
           fi
 
-      - name: Set up Python
+      - name: Verify Claude CLI
         if: steps.ticket.outputs.skip == 'false'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Anthropic SDK
-        if: steps.ticket.outputs.skip == 'false'
-        run: pip install --quiet "anthropic>=0.40.0"
+        run: |
+          set -euo pipefail
+          which claude
+          claude --version
 
       - name: Run Claude security review
         if: steps.ticket.outputs.skip == 'false'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TICKET_FILE: ${{ steps.ticket.outputs.file }}
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
         run: |

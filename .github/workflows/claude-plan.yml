@@ -24,7 +24,7 @@ jobs:
     if: |
       (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'needs-plan')) ||
       (github.event.action == 'labeled' && github.event.label.name == 'needs-plan')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, self-hosted-novelhub]
     permissions:
       contents: read
       issues: write
@@ -51,16 +51,14 @@ jobs:
           echo "file=$FILE" >> "$GITHUB_OUTPUT"
           echo "Ticket $NUM ($FILE)"
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Anthropic SDK
-        run: pip install --quiet "anthropic>=0.40.0"
+      - name: Verify Claude CLI
+        run: |
+          set -euo pipefail
+          which claude
+          claude --version
 
       - name: Generate plan and acceptance script
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
           TICKET_FILE: ${{ steps.ticket.outputs.file }}
         run: |
