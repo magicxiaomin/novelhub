@@ -150,7 +150,6 @@
   },
   "account": {
     "title": "Account",
-    "memberSince": "Member since {date}",
     "coins": "Coins",
     "getMoreCoins": "Get More Coins",
     "subscription": "Subscription",
@@ -180,6 +179,7 @@
     "deleteConfirm": "Delete Account",
     "deleteCancel": "Cancel",
     "deleteSuccess": "Account deleted.",
+    "invalidPassword": "Invalid password.",
     "deleteError": "Account could not be deleted."
   },
   "recharge": {

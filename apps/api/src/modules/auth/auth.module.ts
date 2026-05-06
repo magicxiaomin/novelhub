@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { EmailService } from './email.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalAuthGuard } from './guards/optional-auth.guard';
+import { StripeClientProvider } from '../payments/stripe.client';
 import { GoogleOAuthProvider } from './providers/google-oauth.provider';
 import { PrismaProvider } from './providers/prisma.provider';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -22,6 +23,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     OptionalAuthGuard,
     PrismaProvider,
     GoogleOAuthProvider,
+    StripeClientProvider,
   ],
   exports: [AuthService, JwtAuthGuard, OptionalAuthGuard, PrismaProvider],
 })

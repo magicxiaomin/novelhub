@@ -56,7 +56,10 @@ export class PaymentsController {
   }
 
   @Get('subscription')
-  @ApiOperation({ summary: 'Get the current user subscription summary' })
+  @ApiOperation({ summary: 'Return the active subscription summary' })
+  @ApiOkResponse({
+    description: 'The active subscription summary, or null when not subscribed',
+  })
   subscription(
     @CurrentUser() user: { id: string } | null,
   ): ReturnType<PaymentsService['getActiveSubscription']> {

@@ -89,11 +89,6 @@ export function MeClient(): JSX.Element {
           <div>
             <h1 className="text-2xl font-bold">{messages.account.title}</h1>
             <p className="text-sm text-muted-foreground">{user.email}</p>
-            {user.createdAt ? (
-              <p className="text-xs text-muted-foreground">
-                {fill(messages.account.memberSince, { date: formatAccountDate(user.createdAt) })}
-              </p>
-            ) : null}
           </div>
         </header>
 

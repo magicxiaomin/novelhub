@@ -191,12 +191,14 @@ export function AuthModal({
         />
       ) : null}
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent labelledBy="auth-modal-title" closeLabel={messages.auth.closeDialog}>
+        <DialogContent aria-describedby={resetOpen ? 'auth-modal-description' : undefined}>
           <DialogHeader>
-            <DialogTitle id="auth-modal-title">
-              {resetOpen ? messages.auth.resetTitle : title}
-            </DialogTitle>
-            {resetOpen ? <DialogDescription>{messages.auth.resetBody}</DialogDescription> : null}
+            <DialogTitle>{resetOpen ? messages.auth.resetTitle : title}</DialogTitle>
+            {resetOpen ? (
+              <DialogDescription id="auth-modal-description">
+                {messages.auth.resetBody}
+              </DialogDescription>
+            ) : null}
           </DialogHeader>
 
           {resetOpen ? (

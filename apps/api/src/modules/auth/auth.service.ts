@@ -23,6 +23,8 @@ import {
   SIGNUP_BONUS_COINS,
   SUBSCRIPTION_ACTIVE_STATUSES,
 } from './auth.constants';
+import { type StripeClient } from '../payments/stripe.client';
+import { STRIPE_CLIENT } from '../payments/stripe.constants';
 import { EmailService } from './email.service';
 
 export type TokenPair = { accessToken: string; refreshToken: string };
@@ -46,6 +48,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly email: EmailService,
     @Inject(GOOGLE_OAUTH_CLIENT) private readonly googleClient: OAuth2Client,
+    @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
   ) {}
 
   async register(email: string, password: string): Promise<AuthResult> {
@@ -224,13 +227,47 @@ export class AuthService {
     return this.toAuthUser(user, hasActiveSubscription);
   }
 
-  async deleteAccount(userId: string): Promise<void> {
+  async deleteAccount(userId: string, password: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, deletedAt: true },
+      select: { id: true, deletedAt: true, passwordHash: true },
     });
     if (!user || user.deletedAt) {
-      throw new UnauthorizedException();
+      return;
+    }
+    // Google-only accounts must set a password before deletion in this MVP flow.
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Password confirmation required');
+    }
+    const passwordOk = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordOk) {
+      throw new UnauthorizedException('Invalid password');
+    }
+    const activeSubs = await this.prisma.subscription.findMany({
+      where: { userId, status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] } },
+      select: { stripeSubscriptionId: true },
+    });
+    if (activeSubs.length > 0) {
+      let stripe: ReturnType<StripeClient['get']> | null = null;
+      try {
+        stripe = this.stripe.get();
+      } catch (err) {
+        this.logger.error(
+          `Failed to initialize Stripe while deleting user ${userId}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+      for (const sub of activeSubs) {
+        if (!stripe) break;
+        try {
+          await stripe.subscriptions.cancel(sub.stripeSubscriptionId);
+        } catch (err) {
+          this.logger.error(
+            `Failed to cancel subscription ${sub.stripeSubscriptionId}`,
+            err instanceof Error ? err.stack : String(err),
+          );
+        }
+      }
     }
     await this.prisma.user.update({
       where: { id: user.id },

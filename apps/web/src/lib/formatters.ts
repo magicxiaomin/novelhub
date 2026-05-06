@@ -1,4 +1,4 @@
-import type { SubscriptionPlanId } from '@novelhub/shared';
+import { SUBSCRIPTION_PLANS, type SubscriptionPlanId } from '@novelhub/shared';
 
 export const getInitials = (email: string): string => email.trim().slice(0, 1).toUpperCase();
 
@@ -40,4 +40,4 @@ export const formatTransactionAmount = (amount: number): string =>
   `${amount > 0 ? '+' : ''}${amount}`;
 
 export const formatSubscriptionPlanName = (plan: SubscriptionPlanId): string =>
-  plan === 'monthly' ? 'Monthly' : 'Weekly';
+  SUBSCRIPTION_PLANS[plan].label;

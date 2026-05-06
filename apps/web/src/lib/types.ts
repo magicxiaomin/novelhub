@@ -8,7 +8,6 @@ export type AuthUser = {
   email: string;
   coinBalance: number;
   hasActiveSubscription: boolean;
-  createdAt?: string;
 };
 
 export type BookSummary = {

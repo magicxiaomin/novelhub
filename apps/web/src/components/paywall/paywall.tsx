@@ -31,7 +31,7 @@ export function Paywall({
   currentUrl: string;
   onDismiss: () => void;
 }): JSX.Element {
-  const { user, isLoading, openAuthModal } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const [tab, setTab] = useState<PaywallTab>('subscribe');
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanId>(
     SUBSCRIPTION_PLANS.weekly.id,
@@ -39,18 +39,11 @@ export function Paywall({
   const [selectedPackage, setSelectedPackage] = useState<CoinPackageId>(COIN_PACKAGES.pack_120.id);
   const [submitting, setSubmitting] = useState(false);
 
-  const requireLogin = (afterSuccess: () => void): boolean => {
-    if (user || isLoading) return false;
-    openAuthModal({ mode: 'signin', reason: 'paywall', afterSuccess });
-    return true;
-  };
-
   const rememberReturnUrl = (): void => {
     window.sessionStorage.setItem(READER_RETURN_URL_KEY, currentUrl);
   };
 
-  const startSubscriptionCheckout = async (): Promise<void> => {
-    if (requireLogin(() => void startSubscriptionCheckout())) return;
+  const runSubscriptionCheckout = async (): Promise<void> => {
     setSubmitting(true);
     try {
       rememberReturnUrl();
@@ -62,8 +55,21 @@ export function Paywall({
     }
   };
 
-  const startCoinCheckout = async (): Promise<void> => {
-    if (requireLogin(() => void startCoinCheckout())) return;
+  const startSubscriptionCheckout = async (): Promise<void> => {
+    if (!user) {
+      openAuthModal({
+        mode: 'signin',
+        reason: 'paywall',
+        afterSuccess: () => {
+          void runSubscriptionCheckout();
+        },
+      });
+      return;
+    }
+    await runSubscriptionCheckout();
+  };
+
+  const runCoinCheckout = async (): Promise<void> => {
     setSubmitting(true);
     try {
       rememberReturnUrl();
@@ -73,6 +79,20 @@ export function Paywall({
       toast.error(messages.paywall.checkoutError);
       setSubmitting(false);
     }
+  };
+
+  const startCoinCheckout = async (): Promise<void> => {
+    if (!user) {
+      openAuthModal({
+        mode: 'signin',
+        reason: 'paywall',
+        afterSuccess: () => {
+          void runCoinCheckout();
+        },
+      });
+      return;
+    }
+    await runCoinCheckout();
   };
 
   return (

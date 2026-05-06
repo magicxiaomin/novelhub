@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { SUBSCRIPTION_PLANS } from '@novelhub/shared';
 
 import {
   formatRelativeTimestamp,
+  formatSubscriptionPlanName,
   formatTransactionAmount,
   getInitials,
   getTransactionAmountClass,
@@ -34,5 +36,10 @@ describe('formatters', () => {
     expect(formatTransactionAmount(-5)).toBe('-5');
     expect(getTransactionAmountClass(1)).toBe('text-emerald-600');
     expect(getTransactionAmountClass(-1)).toBe('text-red-600');
+  });
+
+  it('formatSubscriptionPlanName: uses shared plan labels', () => {
+    expect(formatSubscriptionPlanName('weekly')).toBe(SUBSCRIPTION_PLANS.weekly.label);
+    expect(formatSubscriptionPlanName('monthly')).toBe(SUBSCRIPTION_PLANS.monthly.label);
   });
 });

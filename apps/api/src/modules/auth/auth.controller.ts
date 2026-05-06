@@ -18,6 +18,7 @@ import { type AuthUser, COOKIE_REFRESH } from './auth.constants';
 import { AuthService } from './auth.service';
 import { clearAuthCookies, setAuthCookies } from './cookies';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { GoogleAuthDto } from './dto/google.dto';
 import { LoginDto } from './dto/login.dto';
@@ -97,17 +98,20 @@ export class AuthController {
   }
 
   @Delete('account')
+  @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @ApiCookieAuth()
-  @ApiOperation({ summary: 'Soft-delete the current authenticated account' })
+  @ApiOperation({ summary: 'Soft-delete the current account; requires password confirmation' })
+  @ApiBody({ type: DeleteAccountDto })
   async deleteAccount(
     @CurrentUser() user: { id: string } | null,
+    @Body() dto: DeleteAccountDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ ok: true }> {
     if (!user) {
       throw new UnauthorizedException();
     }
-    await this.authService.deleteAccount(user.id);
+    await this.authService.deleteAccount(user.id, dto.password);
     clearAuthCookies(res);
     return { ok: true };
   }
