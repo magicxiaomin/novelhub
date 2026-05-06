@@ -299,7 +299,7 @@ describe('WebhookService', () => {
     expect(state.users[0]?.coinBalance).toBe(120);
   });
 
-  it('checkout.session.completed (coin order, no pre-Order): creates Order completed AND grants coins', async () => {
+  it('checkout.session.completed (coin order, no pre-Order): recovers from packageId metadata, creates completed Order, grants coins atomically', async () => {
     const state = buildState();
     const event = {
       id: 'evt_2',
@@ -322,8 +322,10 @@ describe('WebhookService', () => {
     await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(state.orders).toHaveLength(1);
     expect(state.orders[0]?.status).toBe('completed');
-    // No coinsGranted on the recovered order → balance unchanged.
-    expect(state.users[0]?.coinBalance).toBe(0);
+    expect(state.orders[0]?.coinsGranted).toBe(50);
+    expect(state.orders[0]?.metadata).toMatchObject({ recovered: true });
+    // Recovery path looked up COIN_PACKAGES.pack_50 → 50 coins, granted in same tx.
+    expect(state.users[0]?.coinBalance).toBe(50);
   });
 
   it('customer.subscription.created: upserts a Subscription row', async () => {

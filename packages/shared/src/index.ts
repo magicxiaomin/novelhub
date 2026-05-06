@@ -5,6 +5,17 @@ export const SUBSCRIPTION_STATUSES = ['active', 'past_due', 'canceled', 'expired
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 /**
+ * Named lookups for the same status values, so call sites can write
+ * `SUBSCRIPTION_STATUS.CANCELED` instead of the literal `'canceled'`.
+ */
+export const SUBSCRIPTION_STATUS = {
+  ACTIVE: 'active',
+  PAST_DUE: 'past_due',
+  CANCELED: 'canceled',
+  EXPIRED: 'expired',
+} as const satisfies Record<string, SubscriptionStatus>;
+
+/**
  * Coin packages offered for one-time purchase. `priceUsd` is the customer-
  * facing price; the inline price_data sent to Stripe converts to cents.
  * Bonus tiers grow with pack size as a soft anchor toward the highest LTV pack.

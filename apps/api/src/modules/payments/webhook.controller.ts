@@ -3,6 +3,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  InternalServerErrorException,
   Post,
   RawBodyRequest,
   Req,
@@ -38,7 +39,9 @@ export class WebhookController {
   ): Promise<{ received: true; type: string }> {
     if (!req.rawBody) {
       // ValidationPipe / body-parser stripped the raw body. Configuration error.
-      throw new Error('Raw body unavailable on request — main.ts must enable rawBody:true');
+      throw new InternalServerErrorException(
+        'Raw body unavailable on request — main.ts must enable rawBody:true',
+      );
     }
     return this.webhook.handleEvent(req.rawBody, signature);
   }

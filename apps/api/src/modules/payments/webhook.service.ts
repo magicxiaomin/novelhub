@@ -1,6 +1,12 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
-import { ORDER_STATUS, ORDER_TYPE } from '@novelhub/shared';
+import {
+  COIN_PACKAGES,
+  type CoinPackageId,
+  ORDER_STATUS,
+  ORDER_TYPE,
+  SUBSCRIPTION_STATUS,
+} from '@novelhub/shared';
 import type Stripe from 'stripe';
 
 import { PRISMA } from '../auth/auth.constants';
@@ -112,10 +118,19 @@ export class WebhookService {
       return;
     }
 
-    // Atomic completion: only flips PENDING → COMPLETED if it's still PENDING.
-    // updateMany with status filter is the idempotency guard against duplicate
-    // webhook delivery — a second event sees count=0 and skips.
-    const completed = await this.prisma.$transaction(async (tx) => {
+    // Atomic completion + grant: order status flip and coin balance adjust
+    // happen in the same transaction so a crash between them rolls both back.
+    // Without this, a second webhook delivery would see status=COMPLETED and
+    // skip the grant — user charged, no coins.
+    //
+    // Idempotency comes from the `WHERE status='pending'` predicate on
+    // updateMany — a duplicate webhook sees count=0, hits the existing-Order
+    // branch, sees status already COMPLETED, and exits without touching the
+    // balance.
+    const paymentIntent =
+      typeof session.payment_intent === 'string' ? session.payment_intent : null;
+
+    await this.prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
         where: {
           stripeSessionId: session.id,
@@ -124,59 +139,72 @@ export class WebhookService {
         data: {
           status: ORDER_STATUS.COMPLETED,
           completedAt: new Date(),
-          stripePaymentIntent:
-            typeof session.payment_intent === 'string' ? session.payment_intent : null,
+          stripePaymentIntent: paymentIntent,
         },
       });
+
       if (result.count === 0) {
-        // Either the order wasn't pre-created (fall-through), or it's already
-        // completed (duplicate webhook). Try to find an existing completed
-        // row first; if none, create one now.
+        // Either already-completed (duplicate webhook) or no pre-Order at all
+        // (the pre-create call failed before this webhook landed).
         const existing = await tx.order.findUnique({
           where: { stripeSessionId: session.id },
-          select: { status: true, coinsGranted: true },
+          select: { id: true, status: true, coinsGranted: true },
         });
-        if (existing && existing.status === ORDER_STATUS.COMPLETED) {
-          return null;
+        if (existing) {
+          // Duplicate webhook on an already-completed (or refunded) order.
+          this.logger.log(
+            `Skipping coin grant for session ${session.id} — order already ${existing.status}`,
+          );
+          return;
         }
-        if (!existing) {
-          await tx.order.create({
-            data: {
-              userId,
-              stripeSessionId: session.id,
-              type: ORDER_TYPE.COIN_PURCHASE,
-              amount: session.amount_total ?? 0,
-              currency: (session.currency ?? 'usd').toLowerCase(),
-              status: ORDER_STATUS.COMPLETED,
-              completedAt: new Date(),
-              metadata: { packageId, recovered: true },
-              stripePaymentIntent:
-                typeof session.payment_intent === 'string' ? session.payment_intent : null,
-            },
-          });
+
+        // Recovery path: derive coin count from packageId metadata since we
+        // never wrote a pre-Order with coinsGranted.
+        const pkg = COIN_PACKAGES[packageId as CoinPackageId];
+        if (!pkg) {
+          this.logger.warn(`Recovery for session ${session.id}: unknown packageId ${packageId}`);
+          return;
         }
-        // Fall through — we just need to grant coins exactly once.
+        const recovered = await tx.order.create({
+          data: {
+            userId,
+            stripeSessionId: session.id,
+            type: ORDER_TYPE.COIN_PURCHASE,
+            amount: session.amount_total ?? Math.round(pkg.priceUsd * 100),
+            currency: (session.currency ?? 'usd').toLowerCase(),
+            coinsGranted: pkg.coins,
+            status: ORDER_STATUS.COMPLETED,
+            completedAt: new Date(),
+            metadata: { packageId, recovered: true },
+            stripePaymentIntent: paymentIntent,
+          },
+          select: { id: true },
+        });
+        await this.coins.adjustBalance(userId, pkg.coins, COIN_TXN_TYPE.PURCHASE, recovered.id, tx);
+        return;
       }
 
+      // Happy path: this thread won the PENDING → COMPLETED transition.
+      // Look up the order to read coinsGranted (set when the order was pre-created)
+      // and grant atomically inside the same transaction.
       const updated = await tx.order.findUnique({
         where: { stripeSessionId: session.id },
         select: { id: true, coinsGranted: true },
       });
-      return updated;
+      if (!updated || !updated.coinsGranted || updated.coinsGranted <= 0) {
+        this.logger.warn(
+          `Order for session ${session.id} has no coinsGranted — skipping balance adjust`,
+        );
+        return;
+      }
+      await this.coins.adjustBalance(
+        userId,
+        updated.coinsGranted,
+        COIN_TXN_TYPE.PURCHASE,
+        updated.id,
+        tx,
+      );
     });
-
-    if (!completed) {
-      this.logger.log(`Skipping coin grant for session ${session.id} — already completed`);
-      return;
-    }
-
-    const coins = completed.coinsGranted;
-    if (!coins || coins <= 0) {
-      this.logger.warn(`Coin order ${completed.id} has no coinsGranted — skipping balance adjust`);
-      return;
-    }
-
-    await this.coins.adjustBalance(userId, coins, COIN_TXN_TYPE.PURCHASE, completed.id);
   }
 
   private async markOrderCompleted(session: Stripe.Checkout.Session): Promise<void> {
@@ -202,14 +230,6 @@ export class WebhookService {
     }
     const priceId = sub.items.data[0]?.price?.id ?? '';
     const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
-    const periodStart = new Date(
-      (sub as Stripe.Subscription & { current_period_start?: number }).current_period_start ??
-        Math.floor(Date.now() / 1000),
-    );
-    const periodEnd = new Date(
-      ((sub as Stripe.Subscription & { current_period_end?: number }).current_period_end ??
-        Math.floor(Date.now() / 1000)) * 1000,
-    );
 
     await this.prisma.subscription.upsert({
       where: { stripeSubscriptionId: sub.id },
@@ -242,15 +262,13 @@ export class WebhookService {
         canceledAt: sub.canceled_at ? this.fromStripeTimestamp(sub.canceled_at) : null,
       },
     });
-    void periodStart;
-    void periodEnd;
   }
 
   private async onSubscriptionDeleted(sub: Stripe.Subscription): Promise<void> {
     await this.prisma.subscription.updateMany({
       where: { stripeSubscriptionId: sub.id },
       data: {
-        status: 'canceled',
+        status: SUBSCRIPTION_STATUS.CANCELED,
         canceledAt: new Date(),
         cancelAtPeriodEnd: false,
       },
@@ -262,7 +280,7 @@ export class WebhookService {
     if (!subId || typeof subId !== 'string') return;
     await this.prisma.subscription.updateMany({
       where: { stripeSubscriptionId: subId },
-      data: { status: 'past_due' },
+      data: { status: SUBSCRIPTION_STATUS.PAST_DUE },
     });
   }
 
