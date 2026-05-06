@@ -1,4 +1,9 @@
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, type TestingModule } from '@nestjs/testing';
 import bcrypt from 'bcryptjs';
@@ -185,6 +190,7 @@ describe('AuthService', () => {
     const result = await service.register('Luna@Example.com', 'password123');
     expect(result.user.email).toBe('luna@example.com');
     expect(result.user.coinBalance).toBe(SIGNUP_BONUS_COINS);
+    expect(result.user.hasPassword).toBe(true);
     expect(result.tokens.accessToken).toBeTruthy();
     expect(result.tokens.refreshToken).toBeTruthy();
     expect(prismaStub.coinTxns).toHaveLength(1);
@@ -245,6 +251,7 @@ describe('AuthService', () => {
     expect(result.isNewUser).toBe(true);
     expect(result.user.email).toBe('new@example.com');
     expect(result.user.coinBalance).toBe(SIGNUP_BONUS_COINS);
+    expect(result.user.hasPassword).toBe(false);
     expect(emailStub.sendWelcomeEmail).toHaveBeenCalled();
   });
 
@@ -364,6 +371,21 @@ describe('AuthService', () => {
     );
   });
 
+  it('deleteAccount: soft-deletes a Google-only user without password check', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-delete',
+        email: 'google-delete@example.com',
+        email_verified: true,
+      }),
+    });
+    const result = await service.loginWithGoogle('fake-id-token');
+
+    await service.deleteAccount(result.user.id, '');
+
+    expect(prismaStub.users.get(result.user.id)?.deletedAt).toBeInstanceOf(Date);
+  });
+
   it('deleteAccount: returns success for an already-deleted user', async () => {
     const reg = await service.register('luna@example.com', 'password123');
     const stored = prismaStub.users.get(reg.user.id);
@@ -391,5 +413,22 @@ describe('AuthService', () => {
 
     expect(stripeStub.stripe.subscriptions.cancel).toHaveBeenCalledWith('stripe-sub-1');
     expect(stripeStub.stripe.subscriptions.cancel).not.toHaveBeenCalledWith('stripe-sub-2');
+  });
+
+  it('deleteAccount: does not soft-delete when Stripe cancellation fails', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    prismaStub.subscriptions.push({
+      id: 'sub-1',
+      userId: reg.user.id,
+      status: 'active',
+      stripeSubscriptionId: 'stripe-sub-1',
+    });
+    stripeStub.stripe.subscriptions.cancel.mockRejectedValueOnce(new Error('stripe unavailable'));
+
+    await expect(service.deleteAccount(reg.user.id, 'password123')).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+
+    expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeNull();
   });
 });

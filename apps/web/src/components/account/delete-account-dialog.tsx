@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -23,15 +23,8 @@ import { ApiError } from '@/lib/api';
 import { deleteAccount } from '@/lib/queries';
 import messages from '@/../messages/en.json';
 
-const deleteAccountSchema = z.object({
-  password: z.string().min(8, messages.auth.validationPassword),
-  confirmation: z.string().refine((value) => value === 'DELETE', {
-    message: messages.account.deletePlaceholder,
-  }),
-});
-
 type DeleteAccountValues = {
-  password: string;
+  password?: string;
   confirmation: string;
 };
 
@@ -44,14 +37,28 @@ export function DeleteAccountDialog({
 }): JSX.Element {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const { refetch } = useAuth();
+  const { refetch, user } = useAuth();
+  const hasPassword = user?.hasPassword === true;
+  const deleteAccountSchema = useMemo(
+    () =>
+      z.object({
+        password: hasPassword
+          ? z.string().min(8, messages.auth.validationPassword)
+          : z.string().optional(),
+        confirmation: z.string().refine((value) => value === 'DELETE', {
+          message: messages.account.deletePlaceholder,
+        }),
+      }),
+    [hasPassword],
+  );
   const form = useForm<DeleteAccountValues>({
     resolver: zodResolver(deleteAccountSchema),
     defaultValues: { password: '', confirmation: '' },
   });
 
   const mutation = useMutation({
-    mutationFn: (values: DeleteAccountValues) => deleteAccount(values.password),
+    mutationFn: (values: DeleteAccountValues) =>
+      deleteAccount(hasPassword ? values.password : undefined),
     onSuccess: async () => {
       queryClient.clear();
       await refetch();
@@ -62,7 +69,11 @@ export function DeleteAccountDialog({
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 401) {
-        form.setError('password', { type: 'server', message: messages.account.invalidPassword });
+        if (hasPassword) {
+          form.setError('password', { type: 'server', message: messages.account.invalidPassword });
+        } else {
+          toast.error(messages.account.deleteError);
+        }
         return;
       }
       toast.error(messages.account.deleteError);
@@ -74,7 +85,7 @@ export function DeleteAccountDialog({
   }, [form, open]);
 
   const confirmation = form.watch('confirmation');
-  const password = form.watch('password');
+  const password = form.watch('password') ?? '';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -87,18 +98,20 @@ export function DeleteAccountDialog({
           className="space-y-4"
           onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
         >
-          <div className="space-y-2">
-            <Label htmlFor="delete-account-password">{messages.auth.password}</Label>
-            <Input
-              id="delete-account-password"
-              type="password"
-              autoComplete="current-password"
-              {...form.register('password')}
-            />
-            {form.formState.errors.password?.message ? (
-              <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
-            ) : null}
-          </div>
+          {hasPassword ? (
+            <div className="space-y-2">
+              <Label htmlFor="delete-account-password">{messages.auth.password}</Label>
+              <Input
+                id="delete-account-password"
+                type="password"
+                autoComplete="current-password"
+                {...form.register('password')}
+              />
+              {form.formState.errors.password?.message ? (
+                <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="delete-account-confirmation">
               {messages.account.deletePlaceholder}
@@ -118,7 +131,11 @@ export function DeleteAccountDialog({
             </Button>
             <Button
               type="submit"
-              disabled={confirmation !== 'DELETE' || password.length < 8 || mutation.isPending}
+              disabled={
+                confirmation !== 'DELETE' ||
+                (hasPassword && password.length < 8) ||
+                mutation.isPending
+              }
               className="bg-red-600 text-white hover:bg-red-700"
             >
               {messages.account.deleteConfirm}

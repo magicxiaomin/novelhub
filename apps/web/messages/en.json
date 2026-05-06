@@ -115,7 +115,6 @@
     "home": "Home"
   },
   "auth": {
-    "closeDialog": "Close dialog",
     "title": "Sign in to NovelHub",
     "signupTitle": "Create your account",
     "signinTab": "Sign In",
@@ -147,6 +146,9 @@
     "resetSuccess": "Password reset. Sign in to continue.",
     "requestNewLink": "Request a new one",
     "home": "Home"
+  },
+  "resetPassword": {
+    "networkError": "Something went wrong. Please try again."
   },
   "account": {
     "title": "Account",

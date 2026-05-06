@@ -7,6 +7,7 @@ export type AuthUser = {
   id: string;
   email: string;
   coinBalance: number;
+  hasPassword: boolean;
   hasActiveSubscription: boolean;
 };
 

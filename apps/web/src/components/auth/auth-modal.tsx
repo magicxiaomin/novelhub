@@ -338,7 +338,11 @@ export function AuthModal({
 
               {googleClientId ? (
                 <div className="mt-4 flex justify-center" ref={googleButtonRef} />
-              ) : null}
+              ) : (
+                <p className="mt-4 text-center text-xs text-muted-foreground">
+                  {messages.auth.googleNotConfigured}
+                </p>
+              )}
             </>
           )}
         </DialogContent>

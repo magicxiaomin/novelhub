@@ -135,8 +135,11 @@ export const resetPassword = (body: { token: string; password: string }): Promis
 
 export const logout = (): Promise<{ ok: true }> => apiFetch('/auth/logout', { method: 'POST' });
 
-export const deleteAccount = (password: string): Promise<{ ok: true }> =>
-  apiFetch('/auth/account', { method: 'DELETE', body: { password } });
+export const deleteAccount = (password?: string): Promise<{ ok: true }> =>
+  apiFetch('/auth/account', {
+    method: 'DELETE',
+    body: password ? { password } : undefined,
+  });
 
 export const fetchReadingProgress = async (): Promise<ReadingProgressEntry[]> => {
   try {

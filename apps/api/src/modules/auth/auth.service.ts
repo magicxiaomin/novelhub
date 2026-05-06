@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -227,7 +228,7 @@ export class AuthService {
     return this.toAuthUser(user, hasActiveSubscription);
   }
 
-  async deleteAccount(userId: string, password: string): Promise<void> {
+  async deleteAccount(userId: string, password?: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, deletedAt: true, passwordHash: true },
@@ -235,13 +236,14 @@ export class AuthService {
     if (!user || user.deletedAt) {
       return;
     }
-    // Google-only accounts must set a password before deletion in this MVP flow.
-    if (!user.passwordHash) {
-      throw new UnauthorizedException('Password confirmation required');
-    }
-    const passwordOk = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordOk) {
-      throw new UnauthorizedException('Invalid password');
+    if (user.passwordHash) {
+      if (!password || password.length < 8) {
+        throw new UnauthorizedException('Invalid password');
+      }
+      const passwordOk = await bcrypt.compare(password, user.passwordHash);
+      if (!passwordOk) {
+        throw new UnauthorizedException('Invalid password');
+      }
     }
     const activeSubs = await this.prisma.subscription.findMany({
       where: { userId, status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] } },
@@ -256,15 +258,20 @@ export class AuthService {
           `Failed to initialize Stripe while deleting user ${userId}`,
           err instanceof Error ? err.stack : String(err),
         );
+        throw new InternalServerErrorException(
+          'Failed to cancel active subscription. Please try again or contact support.',
+        );
       }
       for (const sub of activeSubs) {
-        if (!stripe) break;
         try {
           await stripe.subscriptions.cancel(sub.stripeSubscriptionId);
         } catch (err) {
           this.logger.error(
             `Failed to cancel subscription ${sub.stripeSubscriptionId}`,
             err instanceof Error ? err.stack : String(err),
+          );
+          throw new InternalServerErrorException(
+            'Failed to cancel active subscription. Please try again or contact support.',
           );
         }
       }
@@ -349,13 +356,14 @@ export class AuthService {
   }
 
   private toAuthUser(
-    user: { id: string; email: string; coinBalance: number },
+    user: { id: string; email: string; coinBalance: number; passwordHash: string | null },
     hasActiveSubscription: boolean,
   ): AuthUser {
     return {
       id: user.id,
       email: user.email,
       coinBalance: user.coinBalance,
+      hasPassword: user.passwordHash != null,
       hasActiveSubscription,
     };
   }

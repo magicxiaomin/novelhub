@@ -34,6 +34,8 @@ const fill = (template: string, values: Record<string, string>): string => {
 
 export function MeClient(): JSX.Element {
   const router = useRouter();
+  // Keep a build-time fallback so local environments still render a contact link.
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@novelhub.com';
   const { user, isLoading, openAuthModal, refetch } = useAuth();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -202,7 +204,7 @@ export function MeClient(): JSX.Element {
             <SettingsLink href="/privacy" icon={<Shield />} label={messages.account.privacy} />
             <SettingsLink href="/terms" icon={<Shield />} label={messages.account.terms} />
             <SettingsLink
-              href="mailto:support@novelhub.com"
+              href={`mailto:${supportEmail}`}
               icon={<Mail />}
               label={messages.account.contact}
             />
