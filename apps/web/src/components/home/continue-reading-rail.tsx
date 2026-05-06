@@ -25,8 +25,8 @@ export function ContinueReadingRail(): JSX.Element | null {
       <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto scroll-smooth px-4">
         {data.map((entry) => {
           const progressText = messages.home.progress
-            .replace('{chapterNumber}', entry.chapterNumber.toString())
-            .replace('{scrollPercent}', Math.round(entry.scrollPercent).toString());
+            .replaceAll('{chapterNumber}', () => entry.chapterNumber.toString())
+            .replaceAll('{scrollPercent}', () => Math.round(entry.scrollPercent).toString());
 
           return (
             <Link

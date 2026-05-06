@@ -59,14 +59,15 @@ export const fetchBooks = (params: {
   limit?: number;
 }): Promise<Paginated<BookSummary>> => apiFetch('/books', { query: params });
 
-export const fetchBook = (id: string): Promise<BookDetail> => apiFetch(`/books/${id}`);
+export const fetchBook = (id: string): Promise<BookDetail> =>
+  apiFetch(`/books/${encodeURIComponent(id)}`);
 
 export const fetchBookChapters = (
   id: string,
   page: number,
   limit: number,
 ): Promise<Paginated<ChapterSummary>> =>
-  apiFetch(`/books/${id}/chapters`, { query: { page, limit } });
+  apiFetch(`/books/${encodeURIComponent(id)}/chapters`, { query: { page, limit } });
 
 export const fetchReadingProgress = async (): Promise<ReadingProgressEntry[]> => {
   try {

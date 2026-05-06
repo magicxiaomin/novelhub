@@ -14,7 +14,7 @@ import type { BookDetail } from './types';
 const apiBase = (): string => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export async function fetchBookServer(id: string): Promise<BookDetail | null> {
-  const res = await fetch(`${apiBase()}/books/${id}`, {
+  const res = await fetch(`${apiBase()}/books/${encodeURIComponent(id)}`, {
     // Avoid Next's default fetch caching — book detail can change as
     // chapters land. ISR could be added later if traffic warrants.
     cache: 'no-store',
