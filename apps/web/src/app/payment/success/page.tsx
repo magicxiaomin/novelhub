@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 
 import { PaymentSuccessClient } from '@/components/paywall/payment-success-client';
+import { Skeleton } from '@/components/ui/skeleton';
 import messages from '@/../messages/en.json';
 
 export default function PaymentSuccessPage(): JSX.Element {
@@ -14,7 +15,10 @@ export default function PaymentSuccessPage(): JSX.Element {
 function PaymentSuccessFallback(): JSX.Element {
   return (
     <main className="mx-auto flex min-h-dvh max-w-mobile flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-2xl font-bold">{messages.payment.confirming}</h1>
+      <div aria-label={messages.payment.confirming} className="w-full max-w-56 space-y-4">
+        <Skeleton className="mx-auto h-7 w-40" />
+        <Skeleton className="mx-auto h-4 w-52" />
+      </div>
     </main>
   );
 }

@@ -36,6 +36,7 @@ export const queryKeys = {
   bookChapters: (id: string, page: number, limit: number) =>
     ['books', 'chapters', id, page, limit] as const,
   chapter: (id: string) => ['chapters', 'detail', id] as const,
+  chapterContent: (id: string) => ['chapters', 'content', id] as const,
   unlocks: (page: number, limit: number) => ['unlocks', page, limit] as const,
   order: (sessionId: string) => ['payments', 'orders', sessionId] as const,
   readingProgress: ['reading-progress'] as const,

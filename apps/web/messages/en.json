@@ -58,6 +58,7 @@
     "unlocked": "Unlocked",
     "free": "Free",
     "loadingContent": "Loading chapter...",
+    "chapterDescription": "Read {title} on NovelHub.",
     "contentError": "Chapter content could not be loaded.",
     "toggleControls": "Toggle reader controls",
     "drawerClose": "Close",
@@ -100,11 +101,10 @@
     "privacy": "Privacy",
     "refund": "Refund",
     "loginRequired": "Sign in to continue checkout.",
+    "loginBody": "Create an account or sign in to keep your reading access connected to you.",
     "loginCta": "Go to login",
-    "checkoutError": "Checkout could not be started.",
-    "unlockWithCoins": "Unlock with {coins} coins",
-    "insufficientCoins": "Not enough coins",
-    "unlockError": "Chapter could not be unlocked."
+    "cancel": "Cancel",
+    "checkoutError": "Checkout could not be started."
   },
   "payment": {
     "confirming": "Confirming...",

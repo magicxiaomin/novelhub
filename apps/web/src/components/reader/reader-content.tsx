@@ -12,6 +12,7 @@ import { ChapterListDrawer } from '@/components/reader/chapter-list-drawer';
 import { SettingsDrawer } from '@/components/reader/settings-drawer';
 import { ReaderTopBar } from '@/components/reader/top-bar';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/providers';
 import {
   fetchBookChapters,
@@ -31,6 +32,7 @@ import type { ChapterResponse, ChapterSummary, Paginated } from '@/lib/types';
 import messages from '@/../messages/en.json';
 
 const CHAPTER_LIMIT = 200;
+const MIN_PROGRESS_DELTA_PX = 8;
 let warnedProgressUnavailable = false;
 
 export function ReaderContent({
@@ -49,9 +51,8 @@ export function ReaderContent({
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_READER_SETTINGS);
   const [chapters, setChapters] = useState<ChapterSummary[]>(initialChapters.items);
-  const [content, setContent] = useState<string | null>(null);
-  const [contentError, setContentError] = useState(false);
-  const lastScrollY = useRef(0);
+  const lastToolbarScrollY = useRef(0);
+  const lastPersistedScrollY = useRef(0);
   const restored = useRef(false);
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -59,6 +60,20 @@ export function ReaderContent({
     queryKey: queryKeys.unlocks(1, 1000),
     queryFn: () => fetchUnlocks(1, 1000),
     enabled: Boolean(user),
+  });
+  const contentQuery = useQuery({
+    queryKey: queryKeys.chapterContent(chapter.id),
+    queryFn: () => {
+      if (chapter.isLocked) throw new Error('Locked chapter has no content URL');
+      return fetchChapterContent(chapter.contentUrl);
+    },
+    enabled: !chapter.isLocked,
+    retry: (count, err) => {
+      if (err instanceof ChapterContentError && err.status >= 400 && err.status < 500) {
+        return false;
+      }
+      return count < 1;
+    },
   });
 
   useEffect(() => {
@@ -86,32 +101,11 @@ export function ReaderContent({
   }, [chapter.bookId, initialChapters.total]);
 
   useEffect(() => {
-    if (chapter.isLocked) return;
-    let cancelled = false;
-    setContent(null);
-    setContentError(false);
-    fetch(chapter.contentUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`content ${res.status}`);
-        return res.text();
-      })
-      .then((text) => {
-        if (!cancelled) setContent(text);
-      })
-      .catch(() => {
-        if (!cancelled) setContentError(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [chapter]);
-
-  useEffect(() => {
     const onScroll = (): void => {
       const nextY = window.scrollY;
-      const delta = nextY - lastScrollY.current;
+      const delta = nextY - lastToolbarScrollY.current;
       if (Math.abs(delta) > 6) setBarsVisible(delta < 0);
-      lastScrollY.current = nextY;
+      lastToolbarScrollY.current = nextY;
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -133,12 +127,21 @@ export function ReaderContent({
 
   useEffect(() => {
     if (chapter.isLocked || !user) return;
-    const save = (): void => {
-      void persistProgress(chapter.bookId, chapter.id, chapter.chapterNumber);
+    lastPersistedScrollY.current = window.scrollY;
+    const save = async (): Promise<void> => {
+      const scrollY = window.scrollY;
+      if (await persistProgress(chapter.bookId, chapter.id, chapter.chapterNumber)) {
+        lastPersistedScrollY.current = scrollY;
+      }
     };
-    const interval = window.setInterval(save, 5_000);
+    const check = (): void => {
+      if (Math.abs(window.scrollY - lastPersistedScrollY.current) >= MIN_PROGRESS_DELTA_PX) {
+        void save();
+      }
+    };
+    const interval = window.setInterval(check, 5_000);
     const onVisibility = (): void => {
-      if (document.visibilityState === 'hidden') save();
+      if (document.visibilityState === 'hidden') void save();
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
@@ -194,12 +197,12 @@ export function ReaderContent({
       />
       <article className="mx-auto max-w-mobile px-5 pb-28 pt-20">
         <h1 className="mb-8 text-2xl font-bold leading-tight">{chapter.title}</h1>
-        {contentError ? (
+        {contentQuery.isError ? (
           <p className="text-sm text-muted-foreground">{messages.reader.contentError}</p>
-        ) : content === null ? (
-          <p className="text-sm text-muted-foreground">{messages.reader.loadingContent}</p>
+        ) : contentQuery.isLoading ? (
+          <ChapterTextSkeleton />
         ) : (
-          <ChapterText content={content} />
+          <ChapterText content={contentQuery.data ?? ''} />
         )}
         {nextHref ? (
           <div className="pt-8 text-center">
@@ -249,6 +252,19 @@ function ChapterText({ content }: { content: string }): JSX.Element {
   );
 }
 
+function ChapterTextSkeleton(): JSX.Element {
+  return (
+    <div aria-label={messages.reader.loadingContent} className="space-y-4">
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-[92%]" />
+      <Skeleton className="h-4 w-[96%]" />
+      <Skeleton className="h-4 w-[82%]" />
+      <Skeleton className="h-4 w-[88%]" />
+      <Skeleton className="h-4 w-[64%]" />
+    </div>
+  );
+}
+
 function mergeChapters(current: ChapterSummary[], incoming: ChapterSummary[]): ChapterSummary[] {
   const byId = new Map<string, ChapterSummary>();
   for (const chapter of [...current, ...incoming]) byId.set(chapter.id, chapter);
@@ -287,14 +303,47 @@ async function persistProgress(
   bookId: string,
   chapterId: string,
   chapterNumber: number,
-): Promise<void> {
+): Promise<boolean> {
   const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
   const scrollPercent = Math.min(100, Math.max(0, Math.round((window.scrollY / maxScroll) * 100)));
   const saved = await saveReadingProgress(bookId, chapterId, chapterNumber, scrollPercent);
   if (!saved && !warnedProgressUnavailable) {
     warnedProgressUnavailable = true;
-    // eslint-disable-next-line no-console -- Expected temporary backend gap; warn once per session.
-    console.warn(messages.reader.progressUnavailable);
     toast.error(messages.reader.progressUnavailable);
+  }
+  return saved;
+}
+
+async function fetchChapterContent(contentUrl: string): Promise<string> {
+  const url = new URL(contentUrl);
+  if (url.protocol !== 'https:' || !isAllowedChapterContentHost(url.hostname)) {
+    throw new Error('chapter content host is not allowed');
+  }
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new ChapterContentError(res.status);
+  return res.text();
+}
+
+class ChapterContentError extends Error {
+  constructor(readonly status: number) {
+    super(`content ${status}`);
+  }
+}
+
+function isAllowedChapterContentHost(hostname: string): boolean {
+  const allowedHosts = new Set(['cdn.novelhub.local']);
+  const apiHost = hostFromEnvUrl(process.env.NEXT_PUBLIC_API_URL);
+  const r2Host = process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
+  if (apiHost) allowedHosts.add(apiHost);
+  if (r2Host) allowedHosts.add(r2Host);
+  return allowedHosts.has(hostname);
+}
+
+function hostFromEnvUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return null;
   }
 }

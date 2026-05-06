@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -15,16 +14,10 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/providers';
 import { CoinsTab } from '@/components/paywall/coins-tab';
 import { SubscribeTab } from '@/components/paywall/subscribe-tab';
-import {
-  createCoinCheckout,
-  createSubscriptionCheckout,
-  queryKeys,
-  unlockChapter,
-} from '@/lib/queries';
+import { createCoinCheckout, createSubscriptionCheckout } from '@/lib/queries';
 import { READER_RETURN_URL_KEY } from '@/lib/payment-success';
 import { cn } from '@/lib/utils';
 import type { LockedChapter } from '@/lib/types';
-import { useQueryClient } from '@tanstack/react-query';
 import messages from '@/../messages/en.json';
 
 type PaywallTab = 'subscribe' | 'coins';
@@ -38,8 +31,6 @@ export function Paywall({
   currentUrl: string;
   onDismiss: () => void;
 }): JSX.Element {
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const { user, isLoading } = useAuth();
   const [tab, setTab] = useState<PaywallTab>('subscribe');
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanId>(
@@ -81,19 +72,6 @@ export function Paywall({
       window.location.assign(checkout.url);
     } catch {
       toast.error(messages.paywall.checkoutError);
-      setSubmitting(false);
-    }
-  };
-
-  const unlockWithCoins = async (): Promise<void> => {
-    if (requireLogin()) return;
-    setSubmitting(true);
-    try {
-      await unlockChapter(chapter.id);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.chapter(chapter.id) });
-      router.refresh();
-    } catch {
-      toast.error(messages.paywall.unlockError);
       setSubmitting(false);
     }
   };
@@ -146,33 +124,11 @@ export function Paywall({
           </div>
 
           {showLogin ? (
-            <div className="mt-4 rounded-lg border border-brand/30 bg-brand/10 p-3 text-sm">
-              <p className="font-medium">{messages.paywall.loginRequired}</p>
-              <Button
-                asChild
-                className="mt-3 w-full bg-brand text-brand-foreground hover:bg-brand/90"
-              >
-                <Link href={`/login?next=${encodeURIComponent(currentUrl)}`}>
-                  {messages.paywall.loginCta}
-                </Link>
-              </Button>
-            </div>
+            <LoginRequiredDialog currentUrl={currentUrl} onClose={() => setShowLogin(false)} />
           ) : null}
         </div>
 
         <div className="space-y-3 border-t pt-4">
-          {chapter.unlockOptions.canUnlockWithCoins ? (
-            <Button
-              type="button"
-              onClick={unlockWithCoins}
-              disabled={submitting}
-              className="h-12 w-full bg-brand text-base font-semibold text-brand-foreground hover:bg-brand/90"
-            >
-              {messages.paywall.unlockWithCoins.replaceAll('{coins}', () =>
-                chapter.unlockOptions.coinCost.toString(),
-              )}
-            </Button>
-          ) : null}
           <Button
             type="button"
             onClick={tab === 'subscribe' ? startSubscriptionCheckout : startCoinCheckout}
@@ -193,6 +149,44 @@ export function Paywall({
           >
             {messages.paywall.maybeLater}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoginRequiredDialog({
+  currentUrl,
+  onClose,
+}: {
+  currentUrl: string;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-5"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="paywall-login-title"
+        className="w-full max-w-sm rounded-lg bg-background p-5 text-foreground shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="paywall-login-title" className="text-lg font-semibold">
+          {messages.paywall.loginRequired}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{messages.paywall.loginBody}</p>
+        <div className="mt-5 grid gap-3">
+          <Button asChild className="w-full bg-brand text-brand-foreground hover:bg-brand/90">
+            <Link href={`/login?next=${encodeURIComponent(currentUrl)}`}>
+              {messages.paywall.loginCta}
+            </Link>
+          </Button>
+          <Button type="button" variant="outline" onClick={onClose} className="w-full">
+            {messages.paywall.cancel}
+          </Button>
         </div>
       </div>
     </div>

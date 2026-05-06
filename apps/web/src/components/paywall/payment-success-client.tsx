@@ -15,6 +15,8 @@ import {
 import type { PaymentOrder } from '@/lib/types';
 import messages from '@/../messages/en.json';
 
+const SAFE_RETURN_URL = /^\/(?!\/)/;
+
 export function PaymentSuccessClient(): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -53,9 +55,10 @@ export function PaymentSuccessClient(): JSX.Element {
   useEffect(() => {
     if (state !== 'completed' || redirected.current) return;
     redirected.current = true;
-    const returnUrl = window.sessionStorage.getItem(READER_RETURN_URL_KEY) ?? '/';
+    const returnUrl = window.sessionStorage.getItem(READER_RETURN_URL_KEY);
+    const target = returnUrl && SAFE_RETURN_URL.test(returnUrl) ? returnUrl : '/';
     window.sessionStorage.removeItem(READER_RETURN_URL_KEY);
-    const timeout = window.setTimeout(() => router.push(returnUrl), 600);
+    const timeout = window.setTimeout(() => router.push(target), 600);
     return () => window.clearTimeout(timeout);
   }, [router, state]);
 
