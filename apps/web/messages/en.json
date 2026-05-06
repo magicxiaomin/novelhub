@@ -100,9 +100,6 @@
     "terms": "Terms",
     "privacy": "Privacy",
     "refund": "Refund",
-    "loginRequired": "Sign in to continue checkout.",
-    "loginBody": "Create an account or sign in to keep your reading access connected to you.",
-    "loginCta": "Go to login",
     "cancel": "Cancel",
     "checkoutError": "Checkout could not be started."
   },

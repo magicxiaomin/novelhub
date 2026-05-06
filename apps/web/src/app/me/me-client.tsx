@@ -34,16 +34,14 @@ const fill = (template: string, values: Record<string, string>): string => {
 
 export function MeClient(): JSX.Element {
   const router = useRouter();
-  // Keep a build-time fallback so local environments still render a contact link.
-  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@novelhub.com';
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
   const { user, isLoading, openAuthModal, refetch } = useAuth();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (isLoading || user) return;
     openAuthModal({ mode: 'signin' });
-    router.replace('/');
-  }, [isLoading, openAuthModal, router, user]);
+  }, [isLoading, openAuthModal, user]);
 
   const subscription = useQuery({
     queryKey: queryKeys.subscription,
@@ -203,11 +201,13 @@ export function MeClient(): JSX.Element {
             />
             <SettingsLink href="/privacy" icon={<Shield />} label={messages.account.privacy} />
             <SettingsLink href="/terms" icon={<Shield />} label={messages.account.terms} />
-            <SettingsLink
-              href={`mailto:${supportEmail}`}
-              icon={<Mail />}
-              label={messages.account.contact}
-            />
+            {supportEmail ? (
+              <SettingsLink
+                href={`mailto:${supportEmail}`}
+                icon={<Mail />}
+                label={messages.account.contact}
+              />
+            ) : null}
             <SettingsButton
               label={messages.account.logout}
               onClick={() => logoutMutation.mutate()}

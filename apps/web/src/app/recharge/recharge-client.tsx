@@ -60,8 +60,7 @@ export function RechargeClient(): JSX.Element {
   useEffect(() => {
     if (isLoading || user) return;
     openAuthModal({ mode: 'signin' });
-    router.replace('/');
-  }, [isLoading, openAuthModal, router, user]);
+  }, [isLoading, openAuthModal, user]);
 
   const transactions = useQuery({
     queryKey: queryKeys.coinTransactions(1, 20),

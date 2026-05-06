@@ -266,6 +266,15 @@ export class AuthService {
         try {
           await stripe.subscriptions.cancel(sub.stripeSubscriptionId);
         } catch (err) {
+          const stripeError = err as { code?: string; type?: string };
+          if (
+            stripeError.code === 'resource_missing' ||
+            stripeError.code === 'no_such_subscription' ||
+            stripeError.code === 'subscription_already_canceled' ||
+            stripeError.type === 'StripeInvalidRequestError'
+          ) {
+            continue;
+          }
           this.logger.error(
             `Failed to cancel subscription ${sub.stripeSubscriptionId}`,
             err instanceof Error ? err.stack : String(err),

@@ -415,6 +415,25 @@ describe('AuthService', () => {
     expect(stripeStub.stripe.subscriptions.cancel).not.toHaveBeenCalledWith('stripe-sub-2');
   });
 
+  it('deleteAccount: treats missing Stripe subscription as already canceled', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    prismaStub.subscriptions.push({
+      id: 'sub-1',
+      userId: reg.user.id,
+      status: 'active',
+      stripeSubscriptionId: 'stripe-sub-missing',
+    });
+    stripeStub.stripe.subscriptions.cancel.mockRejectedValueOnce({
+      code: 'resource_missing',
+      type: 'StripeInvalidRequestError',
+    });
+
+    await expect(service.deleteAccount(reg.user.id, 'password123')).resolves.toBeUndefined();
+
+    expect(stripeStub.stripe.subscriptions.cancel).toHaveBeenCalledWith('stripe-sub-missing');
+    expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeInstanceOf(Date);
+  });
+
   it('deleteAccount: does not soft-delete when Stripe cancellation fails', async () => {
     const reg = await service.register('luna@example.com', 'password123');
     prismaStub.subscriptions.push({
