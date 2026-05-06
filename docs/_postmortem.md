@@ -11,6 +11,30 @@ to "fix" them — they reflect what we learned at that point in time.
 
 ---
 
+## Ticket 06 — feat(api): Stripe Subscriptions and One-time Purchases
+
+**What worked:** PR merged successfully via the auto-pipeline.
+
+**Pitfalls hit:** Postmerge analysis could not run — model output did not match expected format. A human should review the merged diff and append a manual lesson if anything is worth remembering.
+
+**Rule for future tickets:** None recorded for this ticket.
+
+---
+
+## Ticket 06 — Stripe Subscriptions and One-time Purchases
+
+**What worked:** Defence-in-depth idempotency in `apps/api/src/modules/payments/webhook.service.ts` — `WebhookEvent.stripeEventId @unique` insert-first gate, plus `updateMany` predicates on `status` for coin grants/refunds, plus upsert keyed on `stripeSubscriptionId`. Coin grant + Order status flip wrapped in `$transaction`, with `purchasePublisher.publish` called *after* commit so a downstream CAPI failure can't roll back coins.
+
+**Pitfalls hit:**
+
+- **Stripe SDK type drift on subscription periods.** Stripe SDK v17 dropped `current_period_start`/`current_period_end` from the top-level `Stripe.Subscription` type. The fix in `webhook.service.ts` casts via `SubscriptionWithPeriods` and, critically, `subscriptionPeriods()` returns null and SKIPS the upsert when periods are missing — writing `now()` would have marked a real subscription instantly expired. Test `customer.subscription.updated with missing current_period_*` locks this in.
+- **Missing webhook secret returned 400.** A 4xx tells Stripe "delivered, stop retrying" and silently swallows the event. Fixed to throw `InternalServerErrorException` (5xx) so Stripe retries through the misconfig.
+- **Duplicate Stripe Customers via `customer_email`.** Added `User.stripeCustomerId @unique` and `captureStripeCustomer()` so re-checkout reuses the cached customer instead of minting duplicates that break Customer Portal lookup.
+
+**Rule for future tickets:** Webhook handlers must (a) gate on `event.id @unique` BEFORE any handler runs, (b) return 5xx on server-side misconfig (never 4xx), and (c) skip-and-log when required fields are absent rather than substituting defaults. Cache external-provider customer/account ids on the `User` row on first observation.
+
+---
+
 ## Ticket 01 — Initialize Monorepo and Tooling
 
 **What worked:** pnpm workspace + tsconfig path aliases set up cleanly; eslint
