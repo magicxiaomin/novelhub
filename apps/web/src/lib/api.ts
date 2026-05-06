@@ -1,0 +1,86 @@
+/**
+ * Browser-side API client.
+ *
+ * - Sends cookies automatically (`credentials: 'include'`) so the JWT cookie
+ *   set by the API on login flows through.
+ * - On a 401 from a guarded endpoint, callers can react via React Query's
+ *   `enabled` / `retry` options; we don't auto-redirect here because pages
+ *   like Home want to render anonymously when the auth check 401s.
+ *
+ * The base URL is read from `NEXT_PUBLIC_API_URL` (the public env that
+ * Next.js exposes to the browser bundle). It defaults to localhost:4000
+ * matching apps/api's default port.
+ */
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly body: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+const getBaseUrl = (): string => {
+  // Next.js inlines NEXT_PUBLIC_* at build time on the client, and reads
+  // process.env at runtime on the server — same access pattern works for
+  // both. The defaulted localhost:4000 mirrors apps/api's PORT default.
+  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+};
+
+type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
+
+const buildUrl = (
+  path: string,
+  query?: Record<string, string | number | boolean | undefined>,
+): string => {
+  const url = new URL(path.startsWith('/') ? path : `/${path}`, getBaseUrl());
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      if (v === undefined) continue;
+      url.searchParams.set(k, String(v));
+    }
+  }
+  return url.toString();
+};
+
+export async function apiFetch<T>(
+  path: string,
+  init: RequestOptions & { query?: Record<string, string | number | boolean | undefined> } = {},
+): Promise<T> {
+  const { body, query, headers, ...rest } = init;
+  const res = await fetch(buildUrl(path, query), {
+    credentials: 'include',
+    ...rest,
+    headers: {
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(headers as Record<string, string> | undefined),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  let parsed: unknown = undefined;
+  if (text.length > 0) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
+  }
+
+  if (!res.ok) {
+    const message =
+      (typeof parsed === 'object' && parsed !== null && 'message' in parsed
+        ? String((parsed as { message: unknown }).message)
+        : null) ?? `Request failed: ${res.status}`;
+    throw new ApiError(message, res.status, parsed);
+  }
+  return parsed as T;
+}

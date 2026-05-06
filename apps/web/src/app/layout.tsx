@@ -1,23 +1,39 @@
-import type { Metadata } from 'next';
-import { Lora } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 
+import { Providers } from '@/components/providers';
+import { Toaster } from '@/components/ui/toaster';
 import messages from '../../messages/en.json';
+
 import './globals.css';
 
-const bodyFont = Lora({
+const bodyFont = Inter({
   subsets: ['latin'],
   variable: '--font-body',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
   title: messages.metadata.title,
   description: messages.metadata.description,
+  applicationName: 'NovelHub',
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  userScalable: true,
+  themeColor: '#FF4D4F',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={bodyFont.variable}>{children}</body>
+    <html lang="en" className={bodyFont.variable}>
+      <body>
+        <Providers>{children}</Providers>
+        <Toaster />
+      </body>
     </html>
   );
 }

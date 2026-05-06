@@ -1,9 +1,17 @@
-export default function Loading() {
+import { Skeleton } from '@/components/ui/skeleton';
+
+export default function Loading(): JSX.Element {
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 px-6 py-10">
-      <div className="h-5 w-32 rounded-full bg-muted" />
-      <div className="h-12 w-full rounded-2xl bg-muted" />
-      <div className="h-28 w-full rounded-3xl bg-muted" />
+    <main className="mx-auto min-h-dvh max-w-mobile px-4 pt-4">
+      <Skeleton className="aspect-[16/9] rounded-2xl" />
+      <div className="mt-6">
+        <Skeleton className="h-5 w-32" />
+        <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-48 w-36 shrink-0 rounded-xl" />
+          ))}
+        </div>
+      </div>
     </main>
   );
 }
