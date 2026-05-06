@@ -11,6 +11,20 @@ to "fix" them — they reflect what we learned at that point in time.
 
 ---
 
+## Ticket 08 — Reader Page and Paywall
+
+**What worked:** Pure-function state machine for payment polling (`getPaymentSuccessState` in `apps/web/src/lib/payment-success.ts`) made the 60s timeout / 2s poll behavior unit-testable without React. Per-field sanitization in `parseReaderSettings` (each enum checked independently against an allowlist before applying) is the right shape for any localStorage-loaded config and should be copied for future client-persisted state.
+
+**Pitfalls hit:**
+
+- **Untrusted URLs reaching `fetch` / `router.push`.** Backend-signed chapter URLs and the `READER_RETURN_URL_KEY` value from `sessionStorage` are both attacker-influenceable. The diff guards both: `isAllowedChapterContentHost` validates against `NEXT_PUBLIC_R2_PUBLIC_HOST` / API host and enforces `https:` (`reader-content.tsx`); `isSafeReturnUrl` enforces same-origin (`payment-success-client.tsx`). Without these, a poisoned value becomes SSRF (via `next/image` `remotePatterns`) or an open redirect after Stripe.
+- **SSR auth state for locked content.** `fetchChapterServer` / `fetchBookChaptersServer` forward `cookies().toString()` — without that header, server-render always treats the user as anonymous and the locked/unlocked split flickers on hydrate.
+- **Frontend coupled to not-yet-shipped backend endpoints.** `saveReadingProgress` swallows 404s and `warnedProgressUnavailable` fires the toast once per session — no retry storm if a controller is still missing.
+
+**Rule for future tickets:** Any URL originating outside our code (backend-signed, `sessionStorage`, query param) must pass an explicit allowlist before reaching `fetch`, `router.push`, `window.location.assign`, or `next/image`. SSR fetches in `apps/web/src/lib/server-api.ts` that gate on user state must forward cookies.
+
+---
+
 ## Ticket 01 — Initialize Monorepo and Tooling
 
 **What worked:** pnpm workspace + tsconfig path aliases set up cleanly; eslint
