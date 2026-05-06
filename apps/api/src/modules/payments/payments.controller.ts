@@ -55,6 +55,18 @@ export class PaymentsController {
     return this.payments.createPortalSession(user.id);
   }
 
+  @Get('subscription')
+  @ApiOperation({ summary: 'Return the active subscription summary' })
+  @ApiOkResponse({
+    description: 'The active subscription summary, or null when not subscribed',
+  })
+  subscription(
+    @CurrentUser() user: { id: string } | null,
+  ): ReturnType<PaymentsService['getActiveSubscription']> {
+    if (!user) throw new UnauthorizedException();
+    return this.payments.getActiveSubscription(user.id);
+  }
+
   @Get('orders/:sessionId')
   @ApiOperation({ summary: 'Poll order status by Stripe session id' })
   orderStatus(

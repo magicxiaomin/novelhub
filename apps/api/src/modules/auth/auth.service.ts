@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -23,6 +24,8 @@ import {
   SIGNUP_BONUS_COINS,
   SUBSCRIPTION_ACTIVE_STATUSES,
 } from './auth.constants';
+import { type StripeClient } from '../payments/stripe.client';
+import { STRIPE_CLIENT } from '../payments/stripe.constants';
 import { EmailService } from './email.service';
 
 export type TokenPair = { accessToken: string; refreshToken: string };
@@ -46,6 +49,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly email: EmailService,
     @Inject(GOOGLE_OAUTH_CLIENT) private readonly googleClient: OAuth2Client,
+    @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
   ) {}
 
   async register(email: string, password: string): Promise<AuthResult> {
@@ -224,6 +228,69 @@ export class AuthService {
     return this.toAuthUser(user, hasActiveSubscription);
   }
 
+  async deleteAccount(userId: string, password?: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, deletedAt: true, passwordHash: true },
+    });
+    if (!user || user.deletedAt) {
+      return;
+    }
+    if (user.passwordHash) {
+      if (!password || password.length < 8) {
+        throw new UnauthorizedException('Invalid password');
+      }
+      const passwordOk = await bcrypt.compare(password, user.passwordHash);
+      if (!passwordOk) {
+        throw new UnauthorizedException('Invalid password');
+      }
+    }
+    const activeSubs = await this.prisma.subscription.findMany({
+      where: { userId, status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] } },
+      select: { stripeSubscriptionId: true },
+    });
+    if (activeSubs.length > 0) {
+      let stripe: ReturnType<StripeClient['get']> | null = null;
+      try {
+        stripe = this.stripe.get();
+      } catch (err) {
+        this.logger.error(
+          `Failed to initialize Stripe while deleting user ${userId}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+        throw new InternalServerErrorException(
+          'Failed to cancel active subscription. Please try again or contact support.',
+        );
+      }
+      for (const sub of activeSubs) {
+        try {
+          await stripe.subscriptions.cancel(sub.stripeSubscriptionId);
+        } catch (err) {
+          const stripeError = err as { code?: string; type?: string };
+          if (
+            stripeError.code === 'resource_missing' ||
+            stripeError.code === 'no_such_subscription' ||
+            stripeError.code === 'subscription_already_canceled' ||
+            stripeError.type === 'StripeInvalidRequestError'
+          ) {
+            continue;
+          }
+          this.logger.error(
+            `Failed to cancel subscription ${sub.stripeSubscriptionId}`,
+            err instanceof Error ? err.stack : String(err),
+          );
+          throw new InternalServerErrorException(
+            'Failed to cancel active subscription. Please try again or contact support.',
+          );
+        }
+      }
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
   async forgotPassword(email: string): Promise<void> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
@@ -298,13 +365,14 @@ export class AuthService {
   }
 
   private toAuthUser(
-    user: { id: string; email: string; coinBalance: number },
+    user: { id: string; email: string; coinBalance: number; passwordHash: string | null },
     hasActiveSubscription: boolean,
   ): AuthUser {
     return {
       id: user.id,
       email: user.email,
       coinBalance: user.coinBalance,
+      hasPassword: user.passwordHash != null,
       hasActiveSubscription,
     };
   }

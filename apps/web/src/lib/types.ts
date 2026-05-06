@@ -7,6 +7,7 @@ export type AuthUser = {
   id: string;
   email: string;
   coinBalance: number;
+  hasPassword: boolean;
   hasActiveSubscription: boolean;
 };
 
@@ -117,4 +118,21 @@ export type PaymentOrder = {
   type: string;
   coinsGranted: number | null;
   completedAt: string | null;
+};
+
+export type SubscriptionSummary = {
+  plan: 'weekly' | 'monthly';
+  status: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: string | null;
+};
+
+export type CoinTransaction = {
+  id: string;
+  amount: number;
+  type: string;
+  relatedId: string | null;
+  balanceAfter: number;
+  createdAt: string;
 };

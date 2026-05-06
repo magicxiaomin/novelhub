@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
+import type { PrismaClient } from '@prisma/client';
 import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
-import { COOKIE_ACCESS, type JwtPayload } from '../auth.constants';
+import { COOKIE_ACCESS, type JwtPayload, PRISMA } from '../auth.constants';
 
 type JwtUser = { id: string; email?: string };
 
@@ -14,7 +15,7 @@ const cookieExtractor = (req: Request): string | null => {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         cookieExtractor,
@@ -25,10 +26,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): JwtUser {
+  async validate(payload: JwtPayload): Promise<JwtUser> {
     if (payload.type !== 'access' || !payload.sub) {
       throw new UnauthorizedException();
     }
-    return { id: payload.sub, email: payload.email };
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, deletedAt: true },
+    });
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException();
+    }
+    return { id: user.id, email: user.email };
   }
 }

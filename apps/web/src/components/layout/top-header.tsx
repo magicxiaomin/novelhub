@@ -7,7 +7,7 @@ import { useAuth } from '@/components/providers';
 import messages from '@/../messages/en.json';
 
 export function TopHeader(): JSX.Element {
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const brandPrefix = messages.brand.name.slice(0, 5);
   const brandSuffix = messages.brand.name.slice(5);
 
@@ -34,12 +34,13 @@ export function TopHeader(): JSX.Element {
             <User className="h-5 w-5" />
           </Link>
         ) : (
-          <Link
-            href="/login"
+          <button
+            type="button"
+            onClick={() => openAuthModal({ mode: 'signin' })}
             className="rounded-full bg-brand px-3.5 py-1.5 text-sm font-medium text-brand-foreground"
           >
             {messages.header.signIn}
-          </Link>
+          </button>
         )}
       </div>
     </header>

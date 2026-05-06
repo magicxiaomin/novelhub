@@ -1,4 +1,9 @@
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, type TestingModule } from '@nestjs/testing';
 import bcrypt from 'bcryptjs';
@@ -6,6 +11,7 @@ import bcrypt from 'bcryptjs';
 import { GOOGLE_OAUTH_CLIENT, PRISMA, SIGNUP_BONUS_COINS } from './auth.constants';
 import { AuthService } from './auth.service';
 import { EmailService } from './email.service';
+import { STRIPE_CLIENT } from '../payments/stripe.constants';
 
 type StoredUser = {
   id: string;
@@ -28,8 +34,16 @@ type CoinTxn = {
   balanceAfter: number;
 };
 
+type StoredSubscription = {
+  id: string;
+  userId: string;
+  status: string;
+  stripeSubscriptionId: string;
+};
+
 const makePrismaStub = () => {
   const users = new Map<string, StoredUser>();
+  const subscriptions: StoredSubscription[] = [];
   const coinTxns: CoinTxn[] = [];
   let userIdCounter = 0;
   let txnIdCounter = 0;
@@ -91,6 +105,11 @@ const makePrismaStub = () => {
 
   const subscriptionClient = {
     findFirst: jest.fn(async () => null),
+    findMany: jest.fn(async ({ where }: { where: { userId: string; status: { in: string[] } } }) =>
+      subscriptions.filter(
+        (sub) => sub.userId === where.userId && where.status.in.includes(sub.status),
+      ),
+    ),
   };
 
   const tx = {
@@ -105,7 +124,7 @@ const makePrismaStub = () => {
     $transaction: jest.fn(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx)),
   };
 
-  return { prisma, users, coinTxns };
+  return { prisma, users, subscriptions, coinTxns };
 };
 
 const makeEmailStub = () => ({
@@ -117,12 +136,25 @@ const makeGoogleStub = () => ({
   verifyIdToken: jest.fn(),
 });
 
+const makeStripeStub = () => {
+  const stripe = {
+    subscriptions: {
+      cancel: jest.fn(async () => ({})),
+    },
+  };
+  return {
+    stripe,
+    get: jest.fn(() => stripe),
+  };
+};
+
 describe('AuthService', () => {
   const ORIGINAL_ENV = { ...process.env };
   let service: AuthService;
   let prismaStub: ReturnType<typeof makePrismaStub>;
   let emailStub: ReturnType<typeof makeEmailStub>;
   let googleStub: ReturnType<typeof makeGoogleStub>;
+  let stripeStub: ReturnType<typeof makeStripeStub>;
 
   beforeEach(async () => {
     process.env.JWT_SECRET = 'test-access-secret';
@@ -133,6 +165,7 @@ describe('AuthService', () => {
     prismaStub = makePrismaStub();
     emailStub = makeEmailStub();
     googleStub = makeGoogleStub();
+    stripeStub = makeStripeStub();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -141,6 +174,7 @@ describe('AuthService', () => {
         { provide: PRISMA, useValue: prismaStub.prisma },
         { provide: EmailService, useValue: emailStub },
         { provide: GOOGLE_OAUTH_CLIENT, useValue: googleStub },
+        { provide: STRIPE_CLIENT, useValue: stripeStub },
       ],
     }).compile();
 
@@ -156,6 +190,7 @@ describe('AuthService', () => {
     const result = await service.register('Luna@Example.com', 'password123');
     expect(result.user.email).toBe('luna@example.com');
     expect(result.user.coinBalance).toBe(SIGNUP_BONUS_COINS);
+    expect(result.user.hasPassword).toBe(true);
     expect(result.tokens.accessToken).toBeTruthy();
     expect(result.tokens.refreshToken).toBeTruthy();
     expect(prismaStub.coinTxns).toHaveLength(1);
@@ -216,6 +251,7 @@ describe('AuthService', () => {
     expect(result.isNewUser).toBe(true);
     expect(result.user.email).toBe('new@example.com');
     expect(result.user.coinBalance).toBe(SIGNUP_BONUS_COINS);
+    expect(result.user.hasPassword).toBe(false);
     expect(emailStub.sendWelcomeEmail).toHaveBeenCalled();
   });
 
@@ -320,5 +356,98 @@ describe('AuthService', () => {
     if (!stored) throw new Error('no user');
     stored.deletedAt = new Date();
     await expect(service.getCurrentUser(reg.user.id)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('deleteAccount: soft-deletes an active user', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    await service.deleteAccount(reg.user.id, 'password123');
+    expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('deleteAccount: 401 on invalid password', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    await expect(service.deleteAccount(reg.user.id, 'wrongpass')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('deleteAccount: soft-deletes a Google-only user without password check', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-delete',
+        email: 'google-delete@example.com',
+        email_verified: true,
+      }),
+    });
+    const result = await service.loginWithGoogle('fake-id-token');
+
+    await service.deleteAccount(result.user.id, '');
+
+    expect(prismaStub.users.get(result.user.id)?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('deleteAccount: returns success for an already-deleted user', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    const stored = prismaStub.users.get(reg.user.id);
+    if (!stored) throw new Error('no user');
+    stored.deletedAt = new Date();
+    await expect(service.deleteAccount(reg.user.id, 'password123')).resolves.toBeUndefined();
+  });
+
+  it('deleteAccount: cancels active Stripe subscriptions before soft-delete', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    prismaStub.subscriptions.push({
+      id: 'sub-1',
+      userId: reg.user.id,
+      status: 'active',
+      stripeSubscriptionId: 'stripe-sub-1',
+    });
+    prismaStub.subscriptions.push({
+      id: 'sub-2',
+      userId: reg.user.id,
+      status: 'expired',
+      stripeSubscriptionId: 'stripe-sub-2',
+    });
+
+    await service.deleteAccount(reg.user.id, 'password123');
+
+    expect(stripeStub.stripe.subscriptions.cancel).toHaveBeenCalledWith('stripe-sub-1');
+    expect(stripeStub.stripe.subscriptions.cancel).not.toHaveBeenCalledWith('stripe-sub-2');
+  });
+
+  it('deleteAccount: treats missing Stripe subscription as already canceled', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    prismaStub.subscriptions.push({
+      id: 'sub-1',
+      userId: reg.user.id,
+      status: 'active',
+      stripeSubscriptionId: 'stripe-sub-missing',
+    });
+    stripeStub.stripe.subscriptions.cancel.mockRejectedValueOnce({
+      code: 'resource_missing',
+      type: 'StripeInvalidRequestError',
+    });
+
+    await expect(service.deleteAccount(reg.user.id, 'password123')).resolves.toBeUndefined();
+
+    expect(stripeStub.stripe.subscriptions.cancel).toHaveBeenCalledWith('stripe-sub-missing');
+    expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('deleteAccount: does not soft-delete when Stripe cancellation fails', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    prismaStub.subscriptions.push({
+      id: 'sub-1',
+      userId: reg.user.id,
+      status: 'active',
+      stripeSubscriptionId: 'stripe-sub-1',
+    });
+    stripeStub.stripe.subscriptions.cancel.mockRejectedValueOnce(new Error('stripe unavailable'));
+
+    await expect(service.deleteAccount(reg.user.id, 'password123')).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+
+    expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeNull();
   });
 });

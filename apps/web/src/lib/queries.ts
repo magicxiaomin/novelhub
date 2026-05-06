@@ -16,9 +16,11 @@ import type {
   ChapterResponse,
   ChapterUnlock,
   CheckoutSession,
+  CoinTransaction,
   Paginated,
   PaymentOrder,
   ReadingProgressEntry,
+  SubscriptionSummary,
 } from './types';
 
 export const queryKeys = {
@@ -40,6 +42,9 @@ export const queryKeys = {
   chapterContent: (id: string) => ['chapters', 'content', id] as const,
   unlocks: (page: number, limit: number) => ['unlocks', page, limit] as const,
   order: (sessionId: string) => ['payments', 'orders', sessionId] as const,
+  subscription: ['payments', 'subscription'] as const,
+  coinTransactions: (page: number, limit: number) =>
+    ['coins', 'transactions', page, limit] as const,
   readingProgress: ['reading-progress'] as const,
   readingProgressForChapter: (bookId: string, chapterId: string) =>
     ['reading-progress', bookId, chapterId] as const,
@@ -97,6 +102,44 @@ export const createSubscriptionCheckout = (plan: string): Promise<CheckoutSessio
 
 export const fetchPaymentOrder = (sessionId: string): Promise<PaymentOrder> =>
   apiFetch(`/payments/orders/${encodeURIComponent(sessionId)}`);
+
+export const fetchSubscription = (): Promise<SubscriptionSummary | null> =>
+  apiFetch('/payments/subscription');
+
+export const fetchPortal = (): Promise<{ url: string }> => apiFetch('/payments/portal');
+
+export const fetchCoinTransactions = (
+  page: number,
+  limit: number,
+): Promise<Paginated<CoinTransaction>> =>
+  apiFetch('/coins/transactions', { query: { page, limit } });
+
+export const loginWithEmail = (body: {
+  email: string;
+  password: string;
+}): Promise<{ user: AuthUser }> => apiFetch('/auth/login', { method: 'POST', body });
+
+export const registerWithEmail = (body: {
+  email: string;
+  password: string;
+}): Promise<{ user: AuthUser }> => apiFetch('/auth/register', { method: 'POST', body });
+
+export const loginWithGoogle = (idToken: string): Promise<{ user: AuthUser }> =>
+  apiFetch('/auth/google', { method: 'POST', body: { idToken } });
+
+export const requestPasswordReset = (email: string): Promise<void> =>
+  apiFetch('/auth/forgot-password', { method: 'POST', body: { email } });
+
+export const resetPassword = (body: { token: string; password: string }): Promise<void> =>
+  apiFetch('/auth/reset-password', { method: 'POST', body });
+
+export const logout = (): Promise<{ ok: true }> => apiFetch('/auth/logout', { method: 'POST' });
+
+export const deleteAccount = (password?: string): Promise<{ ok: true }> =>
+  apiFetch('/auth/account', {
+    method: 'DELETE',
+    body: password ? { password } : undefined,
+  });
 
 export const fetchReadingProgress = async (): Promise<ReadingProgressEntry[]> => {
   try {

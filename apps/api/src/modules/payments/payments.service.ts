@@ -19,7 +19,7 @@ import {
 } from '@novelhub/shared';
 import type Stripe from 'stripe';
 
-import { PRISMA } from '../auth/auth.constants';
+import { PRISMA, SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 
 import { type StripeClient } from './stripe.client';
 import { METADATA_KEY, STRIPE_CLIENT } from './stripe.constants';
@@ -33,6 +33,14 @@ const getSubscriptionPriceId = (plan: SubscriptionPlanId): string => {
     throw new BadRequestException(`Subscription plan ${plan} is not configured (${envKey} unset)`);
   }
   return value;
+};
+
+export type SubscriptionSummary = {
+  plan: SubscriptionPlanId;
+  status: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: string | null;
 };
 
 @Injectable()
@@ -166,6 +174,47 @@ export class PaymentsService {
       return_url: `${getAppUrl()}${PAYMENT_PATHS.PORTAL_RETURN}`,
     });
     return { url: portal.url };
+  }
+
+  async getActiveSubscription(userId: string): Promise<SubscriptionSummary | null> {
+    await this.requireUser(userId);
+    const sub = await this.prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+        currentPeriodEnd: { gt: new Date() },
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        stripePriceId: true,
+        status: true,
+        currentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+        canceledAt: true,
+      },
+    });
+    if (!sub) return null;
+
+    const plan =
+      (Object.values(SUBSCRIPTION_PLANS).find((candidate) => {
+        const priceId =
+          candidate.id === 'weekly'
+            ? process.env.STRIPE_PRICE_WEEKLY
+            : process.env.STRIPE_PRICE_MONTHLY;
+        return priceId === sub.stripePriceId;
+      })?.id as SubscriptionPlanId | undefined) ?? 'weekly';
+
+    if (plan === 'weekly' && sub.stripePriceId !== process.env.STRIPE_PRICE_WEEKLY) {
+      this.logger.warn(`Unknown subscription price id ${sub.stripePriceId}; defaulting to weekly`);
+    }
+
+    return {
+      plan,
+      status: sub.status,
+      currentPeriodEnd: sub.currentPeriodEnd.toISOString(),
+      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+      canceledAt: sub.canceledAt?.toISOString() ?? null,
+    };
   }
 
   async getOrderStatus(

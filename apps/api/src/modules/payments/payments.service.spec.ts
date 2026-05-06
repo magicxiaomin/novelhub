@@ -14,6 +14,11 @@ const buildPrismaStub = () => {
   const subscriptions: Array<{
     userId: string;
     stripeCustomerId: string;
+    stripePriceId: string;
+    status: string;
+    currentPeriodEnd: Date;
+    cancelAtPeriodEnd: boolean;
+    canceledAt: Date | null;
     updatedAt: Date;
   }> = [];
   const orders: Array<{
@@ -228,10 +233,74 @@ describe('PaymentsService', () => {
     prisma.subscriptions.push({
       userId: 'user-1',
       stripeCustomerId: 'cus_test_123',
+      stripePriceId: 'price_weekly_test',
+      status: 'active',
+      currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
       updatedAt: new Date(),
     });
     const result = await service.createPortalSession('user-1');
     expect(result.url).toMatch(/portal\.stripe\.test/);
+  });
+
+  it('getActiveSubscription: returns the most recent active subscription with ISO timestamps', async () => {
+    prisma.users.set('user-1', {
+      id: 'user-1',
+      email: 'luna@example.com',
+      stripeCustomerId: null,
+      deletedAt: null,
+    });
+    prisma.subscriptions.push({
+      userId: 'user-1',
+      stripeCustomerId: 'cus_test_123',
+      stripePriceId: 'price_weekly_test',
+      status: 'active',
+      currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      updatedAt: new Date('2026-05-01T00:00:00.000Z'),
+    });
+    const result = await service.getActiveSubscription('user-1');
+    expect(result).toEqual({
+      plan: 'weekly',
+      status: 'active',
+      currentPeriodEnd: '2026-06-01T00:00:00.000Z',
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+    });
+  });
+
+  it('getActiveSubscription: derives monthly plan from stripePriceId', async () => {
+    prisma.users.set('user-1', {
+      id: 'user-1',
+      email: 'luna@example.com',
+      stripeCustomerId: null,
+      deletedAt: null,
+    });
+    prisma.subscriptions.push({
+      userId: 'user-1',
+      stripeCustomerId: 'cus_test_123',
+      stripePriceId: 'price_monthly_test',
+      status: 'canceled',
+      currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      cancelAtPeriodEnd: true,
+      canceledAt: new Date('2026-05-01T00:00:00.000Z'),
+      updatedAt: new Date(),
+    });
+    const result = await service.getActiveSubscription('user-1');
+    expect(result?.plan).toBe('monthly');
+    expect(result?.canceledAt).toBe('2026-05-01T00:00:00.000Z');
+  });
+
+  it('getActiveSubscription: returns null when no active subscription exists', async () => {
+    prisma.users.set('user-1', {
+      id: 'user-1',
+      email: 'luna@example.com',
+      stripeCustomerId: null,
+      deletedAt: null,
+    });
+    await expect(service.getActiveSubscription('user-1')).resolves.toBeNull();
   });
 
   it('getOrderStatus: 404 when order belongs to another user', async () => {
