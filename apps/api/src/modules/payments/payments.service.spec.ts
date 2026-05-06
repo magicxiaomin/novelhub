@@ -7,7 +7,10 @@ import { PaymentsService } from './payments.service';
 import { STRIPE_CLIENT } from './stripe.constants';
 
 const buildPrismaStub = () => {
-  const users = new Map<string, { id: string; email: string; deletedAt: Date | null }>();
+  const users = new Map<
+    string,
+    { id: string; email: string; stripeCustomerId: string | null; deletedAt: Date | null }
+  >();
   const subscriptions: Array<{
     userId: string;
     stripeCustomerId: string;
@@ -113,6 +116,7 @@ describe('PaymentsService', () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
+      stripeCustomerId: null,
       deletedAt: null,
     });
     const result = await service.createCoinCheckout('user-1', 'pack_120');
@@ -141,6 +145,22 @@ describe('PaymentsService', () => {
     });
   });
 
+  it('createCoinCheckout: passes customer (not customer_email) when User has a cached Stripe customer id — prevents duplicate Stripe Customers on repurchase', async () => {
+    prisma.users.set('user-1', {
+      id: 'user-1',
+      email: 'luna@example.com',
+      stripeCustomerId: 'cus_existing_1',
+      deletedAt: null,
+    });
+    await service.createCoinCheckout('user-1', 'pack_50');
+    const sessionArg = stripe.spies.checkoutCreate.mock.calls[0]?.[0] as {
+      customer?: string;
+      customer_email?: string;
+    };
+    expect(sessionArg.customer).toBe('cus_existing_1');
+    expect(sessionArg.customer_email).toBeUndefined();
+  });
+
   it('createCoinCheckout: 401 for unknown user', async () => {
     await expect(service.createCoinCheckout('ghost', 'pack_50')).rejects.toBeInstanceOf(
       UnauthorizedException,
@@ -151,6 +171,7 @@ describe('PaymentsService', () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
+      stripeCustomerId: null,
       deletedAt: new Date(),
     });
     await expect(service.createCoinCheckout('user-1', 'pack_50')).rejects.toBeInstanceOf(
@@ -162,6 +183,7 @@ describe('PaymentsService', () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
+      stripeCustomerId: null,
       deletedAt: null,
     });
     await service.createSubscriptionCheckout('user-1', 'monthly');
@@ -177,6 +199,7 @@ describe('PaymentsService', () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
+      stripeCustomerId: null,
       deletedAt: null,
     });
     delete process.env.STRIPE_PRICE_WEEKLY;
@@ -189,6 +212,7 @@ describe('PaymentsService', () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
+      stripeCustomerId: null,
       deletedAt: null,
     });
     await expect(service.createPortalSession('user-1')).rejects.toBeInstanceOf(NotFoundException);
@@ -198,6 +222,7 @@ describe('PaymentsService', () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
+      stripeCustomerId: null,
       deletedAt: null,
     });
     prisma.subscriptions.push({
@@ -213,6 +238,7 @@ describe('PaymentsService', () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
+      stripeCustomerId: null,
       deletedAt: null,
     });
     prisma.orders.push({

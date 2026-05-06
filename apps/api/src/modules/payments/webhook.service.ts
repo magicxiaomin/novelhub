@@ -1,5 +1,11 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   COIN_PACKAGES,
   type CoinPackageId,
@@ -13,8 +19,22 @@ import { PRISMA } from '../auth/auth.constants';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
 import { CoinsService } from '../coins/coins.service';
 
+import { PURCHASE_EVENT_PUBLISHER, type PurchaseEventPublisher } from './purchase-event.publisher';
 import { type StripeClient } from './stripe.client';
 import { type CheckoutSessionMetadata, METADATA_KEY, STRIPE_CLIENT } from './stripe.constants';
+
+/**
+ * JUSTIFICATION: Stripe SDK v17's `Stripe.Subscription` type omits
+ * `current_period_start`/`current_period_end` on the top-level subscription
+ * object (they live on `items.data[*].current_period_*` in newer API versions
+ * but are still present at the top level on the API version we pin). Casting
+ * once here keeps the call sites readable and centralises the type gap so a
+ * future SDK bump only touches this file.
+ */
+type SubscriptionWithPeriods = Stripe.Subscription & {
+  current_period_start?: number | null;
+  current_period_end?: number | null;
+};
 
 @Injectable()
 export class WebhookService {
@@ -24,24 +44,34 @@ export class WebhookService {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
     private readonly coins: CoinsService,
+    @Inject(PURCHASE_EVENT_PUBLISHER) private readonly purchasePublisher: PurchaseEventPublisher,
   ) {}
 
   /**
-   * Verify the webhook signature and dispatch by event type.
+   * Verify the webhook signature, gate on event.id idempotency, and dispatch
+   * by event type.
    *
-   * Idempotency notes:
-   * - Coin grants are gated by `Order.status === 'pending'`. A duplicate
-   *   `checkout.session.completed` lands on a `'completed'` row and short-circuits.
-   * - Subscription writes are upserts keyed on `stripeSubscriptionId @unique`.
-   * - Refund logic checks `Order.status === 'completed'` before reversing.
+   * Idempotency layers (defence in depth):
+   * 1. `WebhookEvent.stripeEventId @unique` — the first thing we do is
+   *    insert the event id. A duplicate delivery hits the unique constraint
+   *    and short-circuits before any handler runs. This is the layer the
+   *    ticket requires (task #7) and the one that protects
+   *    `customer.subscription.updated`, where an out-of-order replay would
+   *    otherwise clobber newer state via unconditional `upsert`.
+   * 2. Coin grants additionally use a `WHERE status='pending'` predicate on
+   *    `updateMany`, so even a non-deduped retry can't double-grant.
+   * 3. Subscription writes are upserts keyed on `stripeSubscriptionId`.
+   * 4. Refund logic gates on `status='completed'` before reversing.
    */
   async handleEvent(
     rawBody: Buffer,
     signature: string | undefined,
-  ): Promise<{ received: true; type: string }> {
+  ): Promise<{ received: true; type: string; duplicate?: true }> {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!secret) {
-      throw new BadRequestException('Webhook secret not configured (STRIPE_WEBHOOK_SECRET unset)');
+      // Server-side misconfig is 5xx so Stripe retries; 4xx would mark the
+      // event delivered and silently swallow it.
+      throw new InternalServerErrorException('Webhook secret not configured');
     }
     if (!signature) {
       throw new BadRequestException('Missing stripe-signature header');
@@ -56,6 +86,21 @@ export class WebhookService {
 
     this.logger.log(`Stripe event ${event.type} (${event.id})`);
 
+    // event.id idempotency gate — INSERT first, run handlers only if we won
+    // the race. A duplicate event hits the unique constraint and is dropped
+    // with a 200 OK so Stripe stops retrying.
+    try {
+      await this.prisma.webhookEvent.create({
+        data: { stripeEventId: event.id, eventType: event.type },
+      });
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        this.logger.log(`Skipping duplicate Stripe event ${event.id}`);
+        return { received: true, type: event.type, duplicate: true };
+      }
+      throw err;
+    }
+
     switch (event.type) {
       case 'checkout.session.completed':
         await this.onCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
@@ -69,7 +114,8 @@ export class WebhookService {
         break;
       case 'invoice.payment_succeeded':
         // Renewal / first invoice — subscription.updated handles the state.
-        // Nothing to do server-side beyond logging for now.
+        // Nothing to do server-side beyond logging for now; Ticket 11 CAPI
+        // hooks into the coin-purchase path via PurchaseEventPublisher.
         this.logger.log(
           `invoice.payment_succeeded for ${(event.data.object as Stripe.Invoice).id}`,
         );
@@ -87,6 +133,13 @@ export class WebhookService {
     return { received: true, type: event.type };
   }
 
+  private isUniqueViolation(err: unknown): boolean {
+    // Prisma surfaces unique-constraint violations as P2002. We accept either
+    // the structured error or a duck-typed shape (test stubs throw plain
+    // objects with the same `code`).
+    return typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002';
+  }
+
   private async onCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
     const metadata = (session.metadata ?? {}) as Partial<CheckoutSessionMetadata>;
     const userId = metadata[METADATA_KEY.USER_ID];
@@ -98,6 +151,11 @@ export class WebhookService {
       return;
     }
 
+    // Capture the Stripe Customer id so subsequent checkouts reuse the same
+    // customer record (avoids minting duplicates via customer_email and keeps
+    // the Customer Portal lookup stable).
+    await this.captureStripeCustomer(userId, session.customer);
+
     if (orderType === ORDER_TYPE.COIN_PURCHASE) {
       await this.completeCoinOrder(session, userId, metadata);
     } else if (orderType === ORDER_TYPE.SUBSCRIPTION) {
@@ -105,6 +163,21 @@ export class WebhookService {
       // Mark the Order as completed for audit; nothing else to do here.
       await this.markOrderCompleted(session);
     }
+  }
+
+  private async captureStripeCustomer(
+    userId: string,
+    customer: Stripe.Checkout.Session['customer'],
+  ): Promise<void> {
+    const customerId = typeof customer === 'string' ? customer : customer?.id;
+    if (!customerId) return;
+    // Only set it if currently null — never overwrite a value we previously
+    // captured. updateMany with a null predicate makes this a single
+    // round-trip without read-then-write races.
+    await this.prisma.user.updateMany({
+      where: { id: userId, stripeCustomerId: null },
+      data: { stripeCustomerId: customerId },
+    });
   }
 
   private async completeCoinOrder(
@@ -123,14 +196,12 @@ export class WebhookService {
     // Without this, a second webhook delivery would see status=COMPLETED and
     // skip the grant — user charged, no coins.
     //
-    // Idempotency comes from the `WHERE status='pending'` predicate on
-    // updateMany — a duplicate webhook sees count=0, hits the existing-Order
-    // branch, sees status already COMPLETED, and exits without touching the
-    // balance.
+    // Idempotency comes from the event.id gate (handleEvent) plus the
+    // `WHERE status='pending'` predicate on updateMany — defence in depth.
     const paymentIntent =
       typeof session.payment_intent === 'string' ? session.payment_intent : null;
 
-    await this.prisma.$transaction(async (tx) => {
+    const grant = await this.prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
         where: {
           stripeSessionId: session.id,
@@ -144,18 +215,18 @@ export class WebhookService {
       });
 
       if (result.count === 0) {
-        // Either already-completed (duplicate webhook) or no pre-Order at all
-        // (the pre-create call failed before this webhook landed).
+        // Either already-completed (defence-in-depth duplicate) or no
+        // pre-Order at all (the pre-create call failed before this webhook
+        // landed).
         const existing = await tx.order.findUnique({
           where: { stripeSessionId: session.id },
           select: { id: true, status: true, coinsGranted: true },
         });
         if (existing) {
-          // Duplicate webhook on an already-completed (or refunded) order.
           this.logger.log(
             `Skipping coin grant for session ${session.id} — order already ${existing.status}`,
           );
-          return;
+          return null;
         }
 
         // Recovery path: derive coin count from packageId metadata since we
@@ -163,7 +234,7 @@ export class WebhookService {
         const pkg = COIN_PACKAGES[packageId as CoinPackageId];
         if (!pkg) {
           this.logger.warn(`Recovery for session ${session.id}: unknown packageId ${packageId}`);
-          return;
+          return null;
         }
         const recovered = await tx.order.create({
           data: {
@@ -178,24 +249,27 @@ export class WebhookService {
             metadata: { packageId, recovered: true },
             stripePaymentIntent: paymentIntent,
           },
-          select: { id: true },
+          select: { id: true, coinsGranted: true, amount: true, currency: true },
         });
         await this.coins.adjustBalance(userId, pkg.coins, COIN_TXN_TYPE.PURCHASE, recovered.id, tx);
-        return;
+        return {
+          orderId: recovered.id,
+          coinsGranted: recovered.coinsGranted,
+          amountMinor: recovered.amount,
+          currency: recovered.currency,
+        };
       }
 
       // Happy path: this thread won the PENDING → COMPLETED transition.
-      // Look up the order to read coinsGranted (set when the order was pre-created)
-      // and grant atomically inside the same transaction.
       const updated = await tx.order.findUnique({
         where: { stripeSessionId: session.id },
-        select: { id: true, coinsGranted: true },
+        select: { id: true, coinsGranted: true, amount: true, currency: true },
       });
       if (!updated || !updated.coinsGranted || updated.coinsGranted <= 0) {
         this.logger.warn(
           `Order for session ${session.id} has no coinsGranted — skipping balance adjust`,
         );
-        return;
+        return null;
       }
       await this.coins.adjustBalance(
         userId,
@@ -204,7 +278,28 @@ export class WebhookService {
         updated.id,
         tx,
       );
+      return {
+        orderId: updated.id,
+        coinsGranted: updated.coinsGranted,
+        amountMinor: updated.amount,
+        currency: updated.currency,
+      };
     });
+
+    // Publish AFTER commit — a downstream side-effect (e.g. CAPI) must not
+    // be able to roll back the coin grant. Failures bubble up so Stripe
+    // retries (event.id gate prevents the grant from re-running).
+    if (grant) {
+      await this.purchasePublisher.publish({
+        userId,
+        orderId: grant.orderId,
+        orderType: ORDER_TYPE.COIN_PURCHASE,
+        amountMinor: grant.amountMinor,
+        currency: grant.currency,
+        coinsGranted: grant.coinsGranted,
+        stripeSessionId: session.id,
+      });
+    }
   }
 
   private async markOrderCompleted(session: Stripe.Checkout.Session): Promise<void> {
@@ -231,6 +326,21 @@ export class WebhookService {
     const priceId = sub.items.data[0]?.price?.id ?? '';
     const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
+    const periods = this.subscriptionPeriods(sub);
+    if (!periods) {
+      // Period bounds are required columns and have no sensible default —
+      // writing `now()` would mark a real subscription expired the moment
+      // the row lands. Skip and log so operators can investigate.
+      this.logger.warn(
+        `subscription event ${sub.id} missing current_period_start/end; skipping upsert`,
+      );
+      return;
+    }
+
+    // Cache the customer on the user too (covers users whose first action
+    // is a subscription with no prior coin checkout).
+    await this.captureStripeCustomer(userId, customerId);
+
     await this.prisma.subscription.upsert({
       where: { stripeSubscriptionId: sub.id },
       create: {
@@ -239,29 +349,35 @@ export class WebhookService {
         stripeCustomerId: customerId,
         stripePriceId: priceId,
         status: sub.status,
-        currentPeriodStart: this.fromStripeTimestamp(
-          (sub as Stripe.Subscription & { current_period_start?: number }).current_period_start,
-        ),
-        currentPeriodEnd: this.fromStripeTimestamp(
-          (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end,
-        ),
+        currentPeriodStart: periods.start,
+        currentPeriodEnd: periods.end,
         cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
-        canceledAt: sub.canceled_at ? this.fromStripeTimestamp(sub.canceled_at) : null,
+        canceledAt: this.optionalDate(sub.canceled_at),
       },
       update: {
         stripeCustomerId: customerId,
         stripePriceId: priceId,
         status: sub.status,
-        currentPeriodStart: this.fromStripeTimestamp(
-          (sub as Stripe.Subscription & { current_period_start?: number }).current_period_start,
-        ),
-        currentPeriodEnd: this.fromStripeTimestamp(
-          (sub as Stripe.Subscription & { current_period_end?: number }).current_period_end,
-        ),
+        currentPeriodStart: periods.start,
+        currentPeriodEnd: periods.end,
         cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
-        canceledAt: sub.canceled_at ? this.fromStripeTimestamp(sub.canceled_at) : null,
+        canceledAt: this.optionalDate(sub.canceled_at),
       },
     });
+  }
+
+  private subscriptionPeriods(sub: Stripe.Subscription): { start: Date; end: Date } | null {
+    const widened = sub as SubscriptionWithPeriods;
+    if (!widened.current_period_start || !widened.current_period_end) return null;
+    return {
+      start: new Date(widened.current_period_start * 1000),
+      end: new Date(widened.current_period_end * 1000),
+    };
+  }
+
+  private optionalDate(secondsSinceEpoch: number | null | undefined): Date | null {
+    if (!secondsSinceEpoch) return null;
+    return new Date(secondsSinceEpoch * 1000);
   }
 
   private async onSubscriptionDeleted(sub: Stripe.Subscription): Promise<void> {
@@ -312,7 +428,7 @@ export class WebhookService {
       return;
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const transitioned = await tx.order.updateMany({
         where: { id: order.id, status: ORDER_STATUS.COMPLETED },
         data: { status: ORDER_STATUS.REFUNDED },
@@ -331,10 +447,5 @@ export class WebhookService {
         );
       }
     });
-  }
-
-  private fromStripeTimestamp(secondsSinceEpoch?: number | null): Date {
-    if (!secondsSinceEpoch) return new Date();
-    return new Date(secondsSinceEpoch * 1000);
   }
 }

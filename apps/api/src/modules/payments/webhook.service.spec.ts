@@ -1,9 +1,10 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 
 import { PRISMA } from '../auth/auth.constants';
 import { CoinsService } from '../coins/coins.service';
 
+import { PURCHASE_EVENT_PUBLISHER, type PurchaseCompletedEvent } from './purchase-event.publisher';
 import { STRIPE_CLIENT } from './stripe.constants';
 import { WebhookService } from './webhook.service';
 
@@ -13,13 +14,20 @@ type FakeOrder = {
   stripeSessionId: string;
   stripePaymentIntent: string | null;
   type: string;
+  amount: number;
+  currency: string;
   coinsGranted: number | null;
   status: string;
   completedAt: Date | null;
   metadata: Record<string, unknown>;
 };
 
-type FakeUser = { id: string; coinBalance: number; deletedAt: Date | null };
+type FakeUser = {
+  id: string;
+  coinBalance: number;
+  stripeCustomerId: string | null;
+  deletedAt: Date | null;
+};
 
 type FakeSubscription = {
   userId: string;
@@ -33,10 +41,13 @@ type FakeSubscription = {
   canceledAt: Date | null;
 };
 
+type FakeWebhookEvent = { stripeEventId: string; eventType: string };
+
 const buildPrismaStub = (state: {
   users: FakeUser[];
   orders: FakeOrder[];
   subs: FakeSubscription[];
+  webhookEvents: FakeWebhookEvent[];
 }) => {
   const usersById = new Map(state.users.map((u) => [u.id, u]));
 
@@ -136,15 +147,24 @@ const buildPrismaStub = (state: {
         id: string;
         deletedAt?: null;
         coinBalance?: { gte?: number };
+        stripeCustomerId?: string | null;
       };
-      data: { coinBalance: { increment: number } };
+      data: { coinBalance?: { increment: number }; stripeCustomerId?: string };
     }) => {
       const u = usersById.get(where.id);
       if (!u || u.deletedAt) return { count: 0 };
       if (where.coinBalance?.gte !== undefined) {
         if (u.coinBalance < where.coinBalance.gte) return { count: 0 };
       }
-      u.coinBalance += data.coinBalance.increment;
+      if (where.stripeCustomerId === null && u.stripeCustomerId !== null) {
+        return { count: 0 };
+      }
+      if (data.coinBalance) {
+        u.coinBalance += data.coinBalance.increment;
+      }
+      if (data.stripeCustomerId !== undefined) {
+        u.stripeCustomerId = data.stripeCustomerId;
+      }
       return { count: 1 };
     },
   };
@@ -153,11 +173,25 @@ const buildPrismaStub = (state: {
     create: async () => ({ id: `txn-${Math.random()}` }),
   };
 
+  const webhookEventClient = {
+    create: async ({ data }: { data: FakeWebhookEvent }) => {
+      const dup = state.webhookEvents.find((e) => e.stripeEventId === data.stripeEventId);
+      if (dup) {
+        // Mimic Prisma's P2002 unique-violation shape so the service's
+        // duck-typed isUniqueViolation() picks it up.
+        throw Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+      }
+      state.webhookEvents.push(data);
+      return data;
+    },
+  };
+
   type PrismaShape = {
     order: typeof orderClient;
     subscription: typeof subscriptionClient;
     user: typeof userClient;
     coinTransaction: typeof coinTransactionClient;
+    webhookEvent: typeof webhookEventClient;
     $transaction: <T>(cb: (tx: PrismaShape) => Promise<T>) => Promise<T>;
   };
   const prisma: PrismaShape = {
@@ -165,6 +199,7 @@ const buildPrismaStub = (state: {
     subscription: subscriptionClient,
     user: userClient,
     coinTransaction: coinTransactionClient,
+    webhookEvent: webhookEventClient,
     $transaction: async (cb) => cb(prisma),
   };
   return prisma;
@@ -178,6 +213,18 @@ const buildStripeStub = (buildEvent: (raw: Buffer, sig: string, secret: string) 
   }),
 });
 
+const buildPublisherStub = () => {
+  const events: PurchaseCompletedEvent[] = [];
+  return {
+    publisher: {
+      publish: async (e: PurchaseCompletedEvent) => {
+        events.push(e);
+      },
+    },
+    events,
+  };
+};
+
 describe('WebhookService', () => {
   const buildService = async (
     state: ReturnType<typeof buildState>,
@@ -185,9 +232,11 @@ describe('WebhookService', () => {
   ): Promise<{
     service: WebhookService;
     state: typeof state;
+    publishedEvents: PurchaseCompletedEvent[];
   }> => {
     const prisma = buildPrismaStub(state);
     const stripe = buildStripeStub(() => eventBuilder());
+    const publisher = buildPublisherStub();
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
 
     const module: TestingModule = await Test.createTestingModule({
@@ -196,15 +245,23 @@ describe('WebhookService', () => {
         CoinsService,
         { provide: PRISMA, useValue: prisma },
         { provide: STRIPE_CLIENT, useValue: stripe },
+        { provide: PURCHASE_EVENT_PUBLISHER, useValue: publisher.publisher },
       ],
     }).compile();
-    return { service: module.get(WebhookService), state };
+    return {
+      service: module.get(WebhookService),
+      state,
+      publishedEvents: publisher.events,
+    };
   };
 
   const buildState = () => ({
-    users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }] as FakeUser[],
+    users: [
+      { id: 'user-1', coinBalance: 0, stripeCustomerId: null, deletedAt: null },
+    ] as FakeUser[],
     orders: [] as FakeOrder[],
     subs: [] as FakeSubscription[],
+    webhookEvents: [] as FakeWebhookEvent[],
   });
 
   it('rejects requests without a signature header', async () => {
@@ -225,7 +282,7 @@ describe('WebhookService', () => {
     );
   });
 
-  it('checkout.session.completed (coin order, pre-existing pending Order): grants coins, marks completed', async () => {
+  it('checkout.session.completed (coin order, pre-existing pending Order): grants coins, marks completed, publishes purchase event, captures Stripe customer', async () => {
     const state = buildState();
     state.orders.push({
       id: 'order-1',
@@ -233,6 +290,8 @@ describe('WebhookService', () => {
       stripeSessionId: 'cs_test_1',
       stripePaymentIntent: null,
       type: 'COIN_PURCHASE',
+      amount: 999,
+      currency: 'usd',
       coinsGranted: 120,
       status: 'pending',
       completedAt: null,
@@ -244,6 +303,7 @@ describe('WebhookService', () => {
       data: {
         object: {
           id: 'cs_test_1',
+          customer: 'cus_test_1',
           metadata: {
             userId: 'user-1',
             orderType: 'COIN_PURCHASE',
@@ -255,15 +315,23 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service } = await buildService(state, () => event);
+    const { service, publishedEvents } = await buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
 
     expect(state.users[0]?.coinBalance).toBe(120);
+    expect(state.users[0]?.stripeCustomerId).toBe('cus_test_1');
     expect(state.orders[0]?.status).toBe('completed');
     expect(state.orders[0]?.stripePaymentIntent).toBe('pi_test_1');
+    expect(publishedEvents).toHaveLength(1);
+    expect(publishedEvents[0]).toMatchObject({
+      userId: 'user-1',
+      orderType: 'COIN_PURCHASE',
+      coinsGranted: 120,
+      stripeSessionId: 'cs_test_1',
+    });
   });
 
-  it('duplicate checkout.session.completed: does not double-grant coins', async () => {
+  it('duplicate event.id is short-circuited at the WebhookEvent gate (no double grant, no extra publish)', async () => {
     const state = buildState();
     state.orders.push({
       id: 'order-1',
@@ -271,6 +339,8 @@ describe('WebhookService', () => {
       stripeSessionId: 'cs_test_1',
       stripePaymentIntent: null,
       type: 'COIN_PURCHASE',
+      amount: 999,
+      currency: 'usd',
       coinsGranted: 120,
       status: 'pending',
       completedAt: null,
@@ -282,6 +352,7 @@ describe('WebhookService', () => {
       data: {
         object: {
           id: 'cs_test_1',
+          customer: 'cus_test_1',
           metadata: {
             userId: 'user-1',
             orderType: 'COIN_PURCHASE',
@@ -293,13 +364,16 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service } = await buildService(state, () => event);
-    await service.handleEvent(Buffer.from('{}'), 'sig');
-    await service.handleEvent(Buffer.from('{}'), 'sig');
+    const { service, publishedEvents } = await buildService(state, () => event);
+    const first = await service.handleEvent(Buffer.from('{}'), 'sig');
+    const second = await service.handleEvent(Buffer.from('{}'), 'sig');
+    expect(first.duplicate).toBeUndefined();
+    expect(second.duplicate).toBe(true);
     expect(state.users[0]?.coinBalance).toBe(120);
+    expect(publishedEvents).toHaveLength(1);
   });
 
-  it('checkout.session.completed (coin order, no pre-Order): recovers from packageId metadata, creates completed Order, grants coins atomically', async () => {
+  it('checkout.session.completed (coin order, no pre-Order): recovers from packageId metadata, creates completed Order, grants coins atomically, publishes', async () => {
     const state = buildState();
     const event = {
       id: 'evt_2',
@@ -307,6 +381,7 @@ describe('WebhookService', () => {
       data: {
         object: {
           id: 'cs_recover_1',
+          customer: 'cus_recover_1',
           metadata: {
             userId: 'user-1',
             orderType: 'COIN_PURCHASE',
@@ -318,19 +393,24 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service } = await buildService(state, () => event);
+    const { service, publishedEvents } = await buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(state.orders).toHaveLength(1);
     expect(state.orders[0]?.status).toBe('completed');
     expect(state.orders[0]?.coinsGranted).toBe(50);
     expect(state.orders[0]?.metadata).toMatchObject({ recovered: true });
-    // Recovery path looked up COIN_PACKAGES.pack_50 → 50 coins, granted in same tx.
     expect(state.users[0]?.coinBalance).toBe(50);
+    expect(publishedEvents[0]).toMatchObject({
+      orderType: 'COIN_PURCHASE',
+      coinsGranted: 50,
+      amountMinor: 499,
+    });
   });
 
-  it('customer.subscription.created: upserts a Subscription row', async () => {
+  it('customer.subscription.created: upserts a Subscription row and caches Stripe customer on User', async () => {
     const state = buildState();
     const event = {
+      id: 'evt_sub_1',
       type: 'customer.subscription.created',
       data: {
         object: {
@@ -355,6 +435,32 @@ describe('WebhookService', () => {
       stripeCustomerId: 'cus_test_1',
       status: 'active',
     });
+    expect(state.users[0]?.stripeCustomerId).toBe('cus_test_1');
+  });
+
+  it('customer.subscription.updated with missing current_period_*: skips upsert (does NOT write epoch-now and mark sub instantly expired)', async () => {
+    const state = buildState();
+    const event = {
+      id: 'evt_sub_bad',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_test_1',
+          customer: 'cus_test_1',
+          status: 'active',
+          metadata: { userId: 'user-1' },
+          items: { data: [{ price: { id: 'price_weekly_test' } }] },
+          // current_period_start / current_period_end omitted
+          cancel_at_period_end: false,
+          canceled_at: null,
+        },
+      },
+    };
+    const { service } = await buildService(state, () => event);
+    await expect(service.handleEvent(Buffer.from('{}'), 'sig')).resolves.toMatchObject({
+      received: true,
+    });
+    expect(state.subs).toHaveLength(0);
   });
 
   it('customer.subscription.deleted: marks status canceled', async () => {
@@ -371,6 +477,7 @@ describe('WebhookService', () => {
       canceledAt: null,
     });
     const event = {
+      id: 'evt_sub_del',
       type: 'customer.subscription.deleted',
       data: {
         object: {
@@ -401,6 +508,7 @@ describe('WebhookService', () => {
       canceledAt: null,
     });
     const event = {
+      id: 'evt_inv_fail',
       type: 'invoice.payment_failed',
       data: { object: { subscription: 'sub_test_1' } },
     };
@@ -418,12 +526,15 @@ describe('WebhookService', () => {
       stripeSessionId: 'cs_test_1',
       stripePaymentIntent: 'pi_test_1',
       type: 'COIN_PURCHASE',
+      amount: 999,
+      currency: 'usd',
       coinsGranted: 120,
       status: 'completed',
       completedAt: new Date(),
       metadata: {},
     });
     const event = {
+      id: 'evt_refund_1',
       type: 'charge.refunded',
       data: { object: { id: 'ch_1', payment_intent: 'pi_test_1' } },
     };
@@ -433,7 +544,7 @@ describe('WebhookService', () => {
     expect(state.orders[0]?.status).toBe('refunded');
   });
 
-  it('charge.refunded: duplicate refund event is a no-op (status already refunded)', async () => {
+  it('charge.refunded: duplicate refund event short-circuits at the event-id gate', async () => {
     const state = buildState();
     state.users[0]!.coinBalance = 120;
     state.orders.push({
@@ -442,12 +553,15 @@ describe('WebhookService', () => {
       stripeSessionId: 'cs_test_1',
       stripePaymentIntent: 'pi_test_1',
       type: 'COIN_PURCHASE',
+      amount: 999,
+      currency: 'usd',
       coinsGranted: 120,
       status: 'completed',
       completedAt: new Date(),
       metadata: {},
     });
     const event = {
+      id: 'evt_refund_1',
       type: 'charge.refunded',
       data: { object: { id: 'ch_1', payment_intent: 'pi_test_1' } },
     };
@@ -461,6 +575,7 @@ describe('WebhookService', () => {
   it('charge.refunded for unknown payment_intent: no-op (no error)', async () => {
     const state = buildState();
     const event = {
+      id: 'evt_refund_x',
       type: 'charge.refunded',
       data: { object: { id: 'ch_x', payment_intent: 'pi_unknown' } },
     };
@@ -470,12 +585,12 @@ describe('WebhookService', () => {
     });
   });
 
-  it('rejects when STRIPE_WEBHOOK_SECRET is unset', async () => {
+  it('rejects with 500 (NOT 400) when STRIPE_WEBHOOK_SECRET is unset — server-side misconfig must trigger Stripe retry', async () => {
     const state = buildState();
     const { service } = await buildService(state, () => ({}));
     delete process.env.STRIPE_WEBHOOK_SECRET;
     await expect(service.handleEvent(Buffer.from('{}'), 'sig')).rejects.toBeInstanceOf(
-      BadRequestException,
+      InternalServerErrorException,
     );
   });
 });

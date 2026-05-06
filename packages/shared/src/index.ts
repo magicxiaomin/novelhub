@@ -71,4 +71,25 @@ export const ORDER_STATUS = {
 
 export type OrderStatus = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
 
+/**
+ * Public-facing app paths the API needs to reference (e.g. when constructing
+ * Stripe success/cancel/return URLs). Centralised here so the backend never
+ * hardcodes frontend routes.
+ */
+export const PAYMENT_PATHS = {
+  /** Stripe expands {CHECKOUT_SESSION_ID} on redirect — leave the placeholder. */
+  SUCCESS: '/payment/success?session_id={CHECKOUT_SESSION_ID}',
+  CANCEL: '/payment/cancel',
+  /** Customer Portal sends users back here after managing their subscription. */
+  PORTAL_RETURN: '/me',
+} as const;
+
+/**
+ * Stripe Checkout shows this string to paying customers as the line-item
+ * "product name". Built from the package label rather than hardcoded so
+ * downstream tooling can swap copy without touching call sites.
+ */
+export const buildCoinPackageProductName = (packageLabel: string): string =>
+  `${APP_NAME} — ${packageLabel}`;
+
 export default APP_NAME;

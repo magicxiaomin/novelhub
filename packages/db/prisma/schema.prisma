@@ -8,17 +8,19 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
   /// Email stays globally unique while soft-deleted rows remain in place; this avoids identity reuse/account takeover edge cases.
-  email         String    @unique
-  passwordHash  String?   @map("password_hash")
-  googleId      String?   @unique @map("google_id")
-  coinBalance   Int       @default(0) @map("coin_balance")
-  emailVerified Boolean   @default(false) @map("email_verified")
-  isAdmin       Boolean   @default(false) @map("is_admin")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
+  email            String    @unique
+  passwordHash     String?   @map("password_hash")
+  googleId         String?   @unique @map("google_id")
+  /// Cached Stripe Customer id so re-subscribing/re-purchasing reuses the same customer (instead of minting duplicates via customer_email), keeping the Customer Portal lookup stable.
+  stripeCustomerId String?   @unique @map("stripe_customer_id")
+  coinBalance      Int       @default(0) @map("coin_balance")
+  emailVerified    Boolean   @default(false) @map("email_verified")
+  isAdmin          Boolean   @default(false) @map("is_admin")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
 
   subscriptions Subscription[]
   unlocks       ChapterUnlock[]
@@ -196,6 +198,19 @@ model DailyCheckin {
   @@unique([userId, checkinDate])
   @@index([userId])
   @@map("daily_checkins")
+}
+
+/// Stripe webhook event ledger — gates duplicate deliveries via the unique stripe_event_id constraint. Inserting first means a duplicate event hits the unique violation before any handler runs, so retries cannot re-apply state changes (matters for customer.subscription.updated where upsert would unconditionally clobber newer state with a stale snapshot).
+model WebhookEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  stripeEventId String   @unique @map("stripe_event_id")
+  eventType     String   @map("event_type")
+  receivedAt    DateTime @default(now()) @map("received_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([eventType])
+  @@map("webhook_events")
 }
 
 model FbEvent {
