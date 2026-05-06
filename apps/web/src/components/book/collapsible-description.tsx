@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { cn } from '@/lib/utils';
+import messages from '@/../messages/en.json';
 
 /**
  * Description that clamps to 4 lines and expands on click. We always render
@@ -30,7 +31,7 @@ export function CollapsibleDescription({ text }: { text: string }): JSX.Element 
           onClick={() => setOpen((v) => !v)}
           className="mt-2 text-sm font-medium text-brand"
         >
-          {open ? 'Show less' : 'Read more'}
+          {open ? messages.book.showLess : messages.book.readMore}
         </button>
       ) : null}
     </div>

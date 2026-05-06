@@ -1,6 +1,50 @@
 {
+  "brand": {
+    "name": "NovelHub"
+  },
   "metadata": {
     "title": "NovelHub — Read More Stories",
     "description": "Discover trending web novels. Read the first chapters free, then unlock the rest with coins or a subscription."
+  },
+  "nav": {
+    "primary": "Primary",
+    "home": "Home",
+    "library": "Library",
+    "me": "Me"
+  },
+  "header": {
+    "search": "Search",
+    "signIn": "Sign in",
+    "account": "Account"
+  },
+  "book": {
+    "startReading": "Start Reading",
+    "chapters": "Chapters",
+    "words": "Words",
+    "wordsLower": "words",
+    "rating": "Rating",
+    "about": "About",
+    "byAuthor": "by",
+    "youMayAlsoLike": "You may also like",
+    "loadMoreChapters": "Load more chapters",
+    "free": "Free",
+    "locked": "Locked",
+    "showLess": "Show less",
+    "readMore": "Read more"
+  },
+  "home": {
+    "trending": "Trending",
+    "newReleases": "New Releases",
+    "continueReading": "Continue Reading",
+    "seeAll": "See all",
+    "progress": "Chapter {chapterNumber} · {scrollPercent}%"
+  },
+  "errors": {
+    "somethingWrong": "Something went wrong",
+    "tryAgain": "Try again",
+    "pleaseTryAgain": "Please try again.",
+    "bookNotFound": "Book not found",
+    "bookNotFoundBody": "The book you're looking for might have been removed.",
+    "backToHome": "Back to home"
   }
 }

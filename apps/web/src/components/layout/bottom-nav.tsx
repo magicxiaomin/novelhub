@@ -6,11 +6,12 @@ import { BookMarked, Home, User } from 'lucide-react';
 
 import { useAuth } from '@/components/providers';
 import { cn } from '@/lib/utils';
+import messages from '@/../messages/en.json';
 
 const tabs = [
-  { href: '/', label: 'Home', Icon: Home },
-  { href: '/library', label: 'Library', Icon: BookMarked },
-  { href: '/me', label: 'Me', Icon: User },
+  { href: '/', label: messages.nav.home, Icon: Home },
+  { href: '/library', label: messages.nav.library, Icon: BookMarked },
+  { href: '/me', label: messages.nav.me, Icon: User },
 ] as const;
 
 export function BottomNav(): JSX.Element | null {
@@ -25,7 +26,7 @@ export function BottomNav(): JSX.Element | null {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-30 mx-auto flex h-16 max-w-mobile items-stretch border-t bg-background/95 backdrop-blur"
-      aria-label="Primary"
+      aria-label={messages.nav.primary}
     >
       {tabs.map(({ href, label, Icon }) => {
         const active = href === '/' ? pathname === '/' : pathname.startsWith(href);

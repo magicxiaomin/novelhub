@@ -49,3 +49,13 @@ export type CategoryCount = {
   category: string;
   count: number;
 };
+
+export type ReadingProgressEntry = {
+  bookId: string;
+  chapterId: string;
+  chapterNumber: number;
+  scrollPercent: number;
+  bookTitle: string;
+  bookCover: string;
+  updatedAt: string;
+};

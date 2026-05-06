@@ -2,6 +2,7 @@
 
 import useEmblaCarousel from 'embla-carousel-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -31,18 +32,19 @@ export function FeaturedCarousel({ books }: { books: BookSummary[] }): JSX.Eleme
     <section className="px-4">
       <div ref={emblaRef} className="overflow-hidden">
         <div className="flex">
-          {books.map((book) => (
+          {books.map((book, idx) => (
             <Link
               href={`/book/${book.id}`}
               key={book.id}
               className="relative mr-3 aspect-[16/9] w-full shrink-0 overflow-hidden rounded-2xl bg-muted last:mr-0"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={book.coverUrl}
                 alt=""
-                className="h-full w-full object-cover"
-                loading="eager"
+                fill
+                priority={idx === 0}
+                sizes="(max-width: 480px) calc(100vw - 2rem), 448px"
+                className="object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-4 text-white">

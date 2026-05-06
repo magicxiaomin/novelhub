@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 import { Badge } from '@/components/ui/badge';
 import type { BookSummary } from '@/lib/types';
@@ -28,8 +29,14 @@ export function BookCard({
       aria-label={book.title}
     >
       <div className={cn('relative overflow-hidden rounded-xl bg-muted', cls.cover)}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={book.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <Image
+          src={book.coverUrl}
+          alt=""
+          width={size === 'sm' ? 112 : 144}
+          height={size === 'sm' ? 149 : 192}
+          sizes={size === 'sm' ? '112px' : '144px'}
+          className="h-full w-full object-cover"
+        />
         {showCategory ? (
           <Badge
             variant="secondary"

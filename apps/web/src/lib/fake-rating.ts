@@ -4,7 +4,7 @@
  * The PRD calls for a 4.7+ random rating until real ratings exist. "Random"
  * but stable per book — so server and client render the same value (no
  * hydration mismatch) and so a book doesn't shimmer between 4.8 and 4.9 on
- * every refresh. Hash the id, scale into [4.6, 4.95], round to one decimal.
+ * every refresh. Hash the id, scale into [4.7, 4.95], round to one decimal.
  */
 const PRECISION = 10;
 
@@ -18,7 +18,7 @@ const hashId = (id: string): number => {
 };
 
 export function fakeRating(bookId: string): number {
-  const slot = hashId(bookId) % 36; // 0..35 → 0.0..3.5
-  const value = 4.6 + slot / 100; // 4.60..4.95
+  const slot = hashId(bookId) % 26; // 0..25 -> 0.00..0.25
+  const value = 4.7 + slot / 100; // 4.70..4.95
   return Math.round(value * PRECISION) / PRECISION;
 }

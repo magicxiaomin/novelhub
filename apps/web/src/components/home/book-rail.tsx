@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { BookCard } from '@/components/book/book-card';
 import type { BookSummary } from '@/lib/types';
+import messages from '@/../messages/en.json';
 
 export function BookRail({
   title,
@@ -20,7 +21,7 @@ export function BookRail({
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         {seeAllHref ? (
           <Link href={seeAllHref} className="text-sm font-medium text-brand">
-            See all
+            {messages.home.seeAll}
           </Link>
         ) : null}
       </div>

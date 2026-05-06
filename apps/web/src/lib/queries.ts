@@ -6,7 +6,15 @@
  * primary key and changing them silently invalidates everything.
  */
 import { ApiError, apiFetch } from './api';
-import type { AuthUser, BookDetail, BookSummary, CategoryCount, Paginated } from './types';
+import type {
+  AuthUser,
+  BookDetail,
+  BookSummary,
+  CategoryCount,
+  ChapterSummary,
+  Paginated,
+  ReadingProgressEntry,
+} from './types';
 
 export const queryKeys = {
   me: ['auth', 'me'] as const,
@@ -23,6 +31,7 @@ export const queryKeys = {
   book: (id: string) => ['books', 'detail', id] as const,
   bookChapters: (id: string, page: number, limit: number) =>
     ['books', 'chapters', id, page, limit] as const,
+  readingProgress: ['reading-progress'] as const,
 };
 
 export const fetchMe = (): Promise<{ user: AuthUser }> => apiFetch('/auth/me');
@@ -51,3 +60,19 @@ export const fetchBooks = (params: {
 }): Promise<Paginated<BookSummary>> => apiFetch('/books', { query: params });
 
 export const fetchBook = (id: string): Promise<BookDetail> => apiFetch(`/books/${id}`);
+
+export const fetchBookChapters = (
+  id: string,
+  page: number,
+  limit: number,
+): Promise<Paginated<ChapterSummary>> =>
+  apiFetch(`/books/${id}/chapters`, { query: { page, limit } });
+
+export const fetchReadingProgress = async (): Promise<ReadingProgressEntry[]> => {
+  try {
+    return await apiFetch('/reading-progress');
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return [];
+    throw err;
+  }
+};

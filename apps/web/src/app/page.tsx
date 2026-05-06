@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
 import { BookRail } from '@/components/home/book-rail';
 import { CategorySection } from '@/components/home/category-section';
+import { ContinueReadingRail } from '@/components/home/continue-reading-rail';
 import { FeaturedCarousel } from '@/components/home/featured-carousel';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -14,12 +15,12 @@ import {
   fetchTrending,
   queryKeys,
 } from '@/lib/queries';
+import messages from '@/../messages/en.json';
 
 export default function HomePage(): JSX.Element {
   const featured = useQuery({ queryKey: queryKeys.featured, queryFn: fetchFeatured });
   const trending = useQuery({ queryKey: queryKeys.trending, queryFn: fetchTrending });
   const categories = useQuery({ queryKey: queryKeys.categories, queryFn: fetchCategories });
-  // "New Releases" reuses /books with no filter — server orders by createdAt desc.
   const newReleases = useQuery({
     queryKey: queryKeys.list({ limit: 10 }),
     queryFn: () => fetchBooks({ limit: 10 }),
@@ -34,21 +35,23 @@ export default function HomePage(): JSX.Element {
           <FeaturedCarousel books={featured.data ?? []} />
         )}
 
-        {/* Continue Reading — appears only when the user has progress.
-            No backing endpoint yet (added in a later ticket); section
-            stays hidden until reading-progress data exists. */}
+        <ContinueReadingRail />
 
         {trending.isLoading ? (
-          <RailSkeleton title="Trending" />
+          <RailSkeleton title={messages.home.trending} />
         ) : (
-          <BookRail title="Trending" books={trending.data ?? []} seeAllHref="/category/trending" />
+          <BookRail
+            title={messages.home.trending}
+            books={trending.data ?? []}
+            seeAllHref="/category/trending"
+          />
         )}
 
         {newReleases.isLoading ? (
-          <RailSkeleton title="New Releases" />
+          <RailSkeleton title={messages.home.newReleases} />
         ) : (
           <BookRail
-            title="New Releases"
+            title={messages.home.newReleases}
             books={newReleases.data?.items ?? []}
             seeAllHref="/category/new"
           />
