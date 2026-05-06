@@ -60,6 +60,14 @@ export type ReadingProgressEntry = {
   updatedAt: string;
 };
 
+export type ChapterReadingProgress = {
+  id: string;
+  bookId: string;
+  chapterId: string;
+  scrollPercent: number;
+  lastReadAt: string;
+};
+
 export type ChapterUnlockOptions = {
   coinCost: number;
   canUnlockWithCoins: boolean;
@@ -93,8 +101,8 @@ export type ChapterResponse = LockedChapter | UnlockedChapter;
 export type ChapterUnlock = {
   id: string;
   chapterId: string;
-  userId?: string;
-  createdAt?: string;
+  method: string;
+  unlockedAt: string;
 };
 
 export type CheckoutSession = {

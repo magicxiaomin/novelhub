@@ -11,6 +11,7 @@ import type {
   BookDetail,
   BookSummary,
   CategoryCount,
+  ChapterReadingProgress,
   ChapterSummary,
   ChapterResponse,
   ChapterUnlock,
@@ -109,13 +110,12 @@ export const fetchReadingProgress = async (): Promise<ReadingProgressEntry[]> =>
 export const fetchChapterReadingProgress = async (
   bookId: string,
   chapterId: string,
-): Promise<ReadingProgressEntry | null> => {
+): Promise<ChapterReadingProgress | null> => {
   try {
-    const result = await apiFetch<ReadingProgressEntry | ReadingProgressEntry[]>(
-      '/reading-progress',
-      { query: { bookId, chapterId } },
-    );
-    return Array.isArray(result) ? (result[0] ?? null) : result;
+    const result = await apiFetch<ChapterReadingProgress | null>('/reading-progress', {
+      query: { bookId, chapterId },
+    });
+    return result;
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return null;
     throw err;
@@ -123,15 +123,13 @@ export const fetchChapterReadingProgress = async (
 };
 
 export const saveReadingProgress = async (
-  bookId: string,
   chapterId: string,
-  chapterNumber: number,
   scrollPercent: number,
 ): Promise<boolean> => {
   try {
     await apiFetch('/reading-progress', {
       method: 'POST',
-      body: { bookId, chapterId, chapterNumber, scrollPercent },
+      body: { chapterId, scrollPercent },
     });
     return true;
   } catch (err) {

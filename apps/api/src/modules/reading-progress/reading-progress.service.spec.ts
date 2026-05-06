@@ -16,7 +16,12 @@ type FakeProgress = {
   book: { title: string; coverUrl: string };
 };
 
-const buildPrismaStub = (state: { progress: FakeProgress[] }) => {
+type FakeChapter = {
+  id: string;
+  bookId: string;
+};
+
+const buildPrismaStub = (state: { progress: FakeProgress[]; chapters: FakeChapter[] }) => {
   let progressCounter = 0;
 
   const readingProgressClient = {
@@ -77,12 +82,18 @@ const buildPrismaStub = (state: { progress: FakeProgress[] }) => {
         .slice(0, take),
   };
 
-  return { readingProgress: readingProgressClient };
+  const chapterClient = {
+    findUnique: async ({ where }: { where: { id: string } }) =>
+      state.chapters.find((chapter) => chapter.id === where.id) ?? null,
+  };
+
+  return { chapter: chapterClient, readingProgress: readingProgressClient };
 };
 
 describe('ReadingProgressService', () => {
   const buildService = async (state: {
     progress: FakeProgress[];
+    chapters: FakeChapter[];
   }): Promise<{ service: ReadingProgressService; state: typeof state }> => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [ReadingProgressService, { provide: PRISMA, useValue: buildPrismaStub(state) }],
@@ -91,18 +102,17 @@ describe('ReadingProgressService', () => {
   };
 
   it('upserts progress for the current user and clamps scrollPercent', async () => {
-    const { service, state } = await buildService({ progress: [] });
+    const { service, state } = await buildService({
+      progress: [],
+      chapters: [{ id: 'chapter-1', bookId: 'book-1' }],
+    });
 
     const created = await service.save('user-1', {
-      bookId: 'book-1',
       chapterId: 'chapter-1',
-      chapterNumber: 12,
       scrollPercent: 150,
     });
     const updated = await service.save('user-1', {
-      bookId: 'book-1',
       chapterId: 'chapter-1',
-      chapterNumber: 12,
       scrollPercent: 48,
     });
 
@@ -132,7 +142,7 @@ describe('ReadingProgressService', () => {
         book: { title: `Book ${n}`, coverUrl: `https://cdn.example.test/${n}.jpg` },
       };
     });
-    const { service } = await buildService({ progress });
+    const { service } = await buildService({ progress, chapters: [] });
 
     const recent = await service.listRecent('user-1');
 

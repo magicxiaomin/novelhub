@@ -130,7 +130,7 @@ export function ReaderContent({
     lastPersistedScrollY.current = window.scrollY;
     const save = async (): Promise<void> => {
       const scrollY = window.scrollY;
-      if (await persistProgress(chapter.bookId, chapter.id, chapter.chapterNumber)) {
+      if (await persistProgress(chapter.id)) {
         lastPersistedScrollY.current = scrollY;
       }
     };
@@ -164,7 +164,14 @@ export function ReaderContent({
     const onScroll = (): void => {
       const bottom =
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 8;
-      if (!bottom || autoAdvanceTimer.current) return;
+      if (!bottom) {
+        if (autoAdvanceTimer.current) {
+          window.clearTimeout(autoAdvanceTimer.current);
+          autoAdvanceTimer.current = null;
+        }
+        return;
+      }
+      if (autoAdvanceTimer.current) return;
       autoAdvanceTimer.current = setTimeout(() => router.push(nextHref), 1_200);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -191,7 +198,7 @@ export function ReaderContent({
       />
       <button
         type="button"
-        className="fixed bottom-[25dvh] left-[33vw] right-[33vw] top-[25dvh] z-20 cursor-default bg-transparent"
+        className="fixed bottom-[44dvh] left-0 right-0 top-[44dvh] z-20 cursor-default bg-transparent"
         aria-label={messages.reader.toggleControls}
         onClick={() => setBarsVisible((value) => !value)}
       />
@@ -299,14 +306,10 @@ function styleForSettings(settings: ReaderSettings): {
   };
 }
 
-async function persistProgress(
-  bookId: string,
-  chapterId: string,
-  chapterNumber: number,
-): Promise<boolean> {
+async function persistProgress(chapterId: string): Promise<boolean> {
   const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
   const scrollPercent = Math.min(100, Math.max(0, Math.round((window.scrollY / maxScroll) * 100)));
-  const saved = await saveReadingProgress(bookId, chapterId, chapterNumber, scrollPercent);
+  const saved = await saveReadingProgress(chapterId, scrollPercent);
   if (!saved && !warnedProgressUnavailable) {
     warnedProgressUnavailable = true;
     toast.error(messages.reader.progressUnavailable);
@@ -331,7 +334,7 @@ class ChapterContentError extends Error {
 }
 
 function isAllowedChapterContentHost(hostname: string): boolean {
-  const allowedHosts = new Set(['cdn.novelhub.local']);
+  const allowedHosts = new Set<string>();
   const apiHost = hostFromEnvUrl(process.env.NEXT_PUBLIC_API_URL);
   const r2Host = process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
   if (apiHost) allowedHosts.add(apiHost);

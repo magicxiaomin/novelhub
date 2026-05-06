@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 
 import { PRISMA } from '../auth/auth.constants';
@@ -28,19 +28,25 @@ export class ReadingProgressService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
   async save(userId: string, dto: SaveProgressDto): Promise<ProgressResponse> {
+    const chapter = await this.prisma.chapter.findUnique({
+      where: { id: dto.chapterId },
+      select: { id: true, bookId: true },
+    });
+    if (!chapter) throw new NotFoundException(`Chapter ${dto.chapterId} not found`);
+
     const scrollPosition = clampScrollPercent(dto.scrollPercent);
     const now = new Date();
     const progress = await this.prisma.readingProgress.upsert({
       where: { userId_chapterId: { userId, chapterId: dto.chapterId } },
       create: {
         userId,
-        bookId: dto.bookId,
+        bookId: chapter.bookId,
         chapterId: dto.chapterId,
         scrollPosition,
         lastReadAt: now,
       },
       update: {
-        bookId: dto.bookId,
+        bookId: chapter.bookId,
         scrollPosition,
         lastReadAt: now,
       },

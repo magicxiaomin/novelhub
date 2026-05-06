@@ -15,8 +15,6 @@ import {
 import type { PaymentOrder } from '@/lib/types';
 import messages from '@/../messages/en.json';
 
-const SAFE_RETURN_URL = /^\/(?!\/)/;
-
 export function PaymentSuccessClient(): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -56,7 +54,7 @@ export function PaymentSuccessClient(): JSX.Element {
     if (state !== 'completed' || redirected.current) return;
     redirected.current = true;
     const returnUrl = window.sessionStorage.getItem(READER_RETURN_URL_KEY);
-    const target = returnUrl && SAFE_RETURN_URL.test(returnUrl) ? returnUrl : '/';
+    const target = isSafeReturnUrl(returnUrl) ? returnUrl : '/';
     window.sessionStorage.removeItem(READER_RETURN_URL_KEY);
     const timeout = window.setTimeout(() => router.push(target), 600);
     return () => window.clearTimeout(timeout);
@@ -89,6 +87,16 @@ export function PaymentSuccessClient(): JSX.Element {
       ) : null}
     </main>
   );
+}
+
+function isSafeReturnUrl(value: string | null): value is string {
+  if (!value) return false;
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin;
+  } catch {
+    return false;
+  }
 }
 
 function titleForState(state: PaymentSuccessState): string {
