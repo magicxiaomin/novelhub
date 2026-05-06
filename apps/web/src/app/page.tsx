@@ -1,24 +1,82 @@
-import { APP_NAME } from '@novelhub/shared';
+'use client';
 
-import { Button } from '@/components/ui/button';
-import messages from '../../messages/en.json';
+import { useQuery } from '@tanstack/react-query';
 
-export default function HomePage() {
+import { AppShell } from '@/components/layout/app-shell';
+import { BookRail } from '@/components/home/book-rail';
+import { CategorySection } from '@/components/home/category-section';
+import { FeaturedCarousel } from '@/components/home/featured-carousel';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  fetchBooks,
+  fetchCategories,
+  fetchFeatured,
+  fetchTrending,
+  queryKeys,
+} from '@/lib/queries';
+
+export default function HomePage(): JSX.Element {
+  const featured = useQuery({ queryKey: queryKeys.featured, queryFn: fetchFeatured });
+  const trending = useQuery({ queryKey: queryKeys.trending, queryFn: fetchTrending });
+  const categories = useQuery({ queryKey: queryKeys.categories, queryFn: fetchCategories });
+  // "New Releases" reuses /books with no filter — server orders by createdAt desc.
+  const newReleases = useQuery({
+    queryKey: queryKeys.list({ limit: 10 }),
+    queryFn: () => fetchBooks({ limit: 10 }),
+  });
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-10">
-      <section className="rounded-[2rem] border bg-card/90 p-7 shadow-2xl shadow-secondary/10 backdrop-blur">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-          {messages.home.badge}
-        </p>
-        <h1 className="mt-5 text-4xl font-bold leading-tight text-card-foreground">
-          {messages.home.headline}
-        </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">{messages.home.intro}</p>
-        <Button className="mt-7 w-full" type="button">
-          {messages.home.cta}
-        </Button>
-        <p className="mt-5 text-center text-sm text-muted-foreground">{APP_NAME}</p>
-      </section>
-    </main>
+    <AppShell>
+      <div className="pt-3">
+        {featured.isLoading ? (
+          <Skeleton className="mx-4 aspect-[16/9] rounded-2xl" />
+        ) : (
+          <FeaturedCarousel books={featured.data ?? []} />
+        )}
+
+        {/* Continue Reading — appears only when the user has progress.
+            No backing endpoint yet (added in a later ticket); section
+            stays hidden until reading-progress data exists. */}
+
+        {trending.isLoading ? (
+          <RailSkeleton title="Trending" />
+        ) : (
+          <BookRail title="Trending" books={trending.data ?? []} seeAllHref="/category/trending" />
+        )}
+
+        {newReleases.isLoading ? (
+          <RailSkeleton title="New Releases" />
+        ) : (
+          <BookRail
+            title="New Releases"
+            books={newReleases.data?.items ?? []}
+            seeAllHref="/category/new"
+          />
+        )}
+
+        {categories.isLoading
+          ? Array.from({ length: 2 }).map((_, i) => <RailSkeleton key={i} title="" />)
+          : (categories.data ?? []).map((c) => (
+              <CategorySection key={c.category} category={c.category} />
+            ))}
+      </div>
+    </AppShell>
+  );
+}
+
+function RailSkeleton({ title }: { title: string }): JSX.Element {
+  return (
+    <section className="mt-6">
+      {title ? (
+        <h2 className="px-4 text-lg font-semibold tracking-tight">{title}</h2>
+      ) : (
+        <Skeleton className="mx-4 h-5 w-32" />
+      )}
+      <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto px-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-48 w-36 shrink-0 rounded-xl" />
+        ))}
+      </div>
+    </section>
   );
 }

@@ -31,6 +31,10 @@ const config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        brand: {
+          DEFAULT: 'hsl(var(--brand))',
+          foreground: 'hsl(var(--brand-foreground))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -38,7 +42,12 @@ const config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['var(--font-body)', 'serif'],
+        sans: ['var(--font-body)', 'system-ui', 'sans-serif'],
+      },
+      maxWidth: {
+        // Mobile-first reference is iPhone SE (375 × 667). Reader and Home
+        // pages anchor to this width — wider viewports center on it.
+        mobile: '480px',
       },
     },
   },
