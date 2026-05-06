@@ -18,14 +18,13 @@ Writes:
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic, AnthropicError
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-7")
-MAX_TOKENS = int(os.environ.get("CLAUDE_MAX_TOKENS", "1500"))
+CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
+CLAUDE_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_TIMEOUT_SECONDS", "300"))
 
 
 def read(path: str) -> str:
@@ -130,25 +129,32 @@ def main() -> int:
         print("ERROR: TICKET_NUM, TICKET_FILE, PR_NUMBER required", file=sys.stderr)
         return 2
 
+    prompt = build_prompt(ticket_num, ticket_file, pr_number, pr_title, pr_body)
     try:
-        client = Anthropic()
-        msg = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            messages=[
-                {"role": "user", "content": build_prompt(ticket_num, ticket_file, pr_number, pr_title, pr_body)}
-            ],
+        result = subprocess.run(
+            [CLAUDE_BIN, "-p", "--output-format", "text"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_TIMEOUT_SECONDS,
+            check=False,
         )
-    except AnthropicError as exc:
-        entry = build_fallback(ticket_num, pr_title, f"Anthropic API error: {exc.__class__.__name__}")
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        entry = build_fallback(ticket_num, pr_title, f"`claude -p` invocation failed: {exc}")
         Path("/tmp/postmortem-entry.md").write_text(entry, encoding="utf-8")
         return 0
 
-    parts = []
-    for block in msg.content:
-        if getattr(block, "type", None) == "text":
-            parts.append(block.text)
-    entry = "".join(parts).strip()
+    if result.returncode != 0:
+        stderr_tail = (result.stderr or "").strip()[-500:]
+        entry = build_fallback(
+            ticket_num,
+            pr_title,
+            f"`claude -p` exited {result.returncode}: {stderr_tail or 'no stderr'}",
+        )
+        Path("/tmp/postmortem-entry.md").write_text(entry, encoding="utf-8")
+        return 0
+
+    entry = result.stdout.strip()
 
     if not entry.startswith("## Ticket "):
         entry = build_fallback(ticket_num, pr_title, "model output did not match expected format")

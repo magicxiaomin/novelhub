@@ -23,9 +23,24 @@ back to top
 
 ## Setup checklist (do these once)
 
-1. **Add the secret**: Settings → Secrets and variables → Actions → New repository secret
-   - Name: `ANTHROPIC_API_KEY`
-   - Value: your Anthropic API key
+1. **Self-hosted runner with Claude Max auth**: the Claude jobs
+   (`correctness_review`, `security_review`, `claude-plan`, `claude-postmerge`)
+   call `claude -p` on a self-hosted runner instead of using `ANTHROPIC_API_KEY`.
+   This keeps cost on your Claude Max subscription rather than burning API
+   credits.
+   - Provision a Linux x64 host with the GitHub Actions runner installed
+     (`/opt/actions-runner` is conventional). Register it with the label
+     `self-hosted-novelhub` against this repo.
+   - Install `@anthropic-ai/claude-code` system-wide (`npm install -g
+@anthropic-ai/claude-code`) so the runner user finds the `claude` binary.
+   - Log in to Claude on that runner user (`sudo -u runner -i claude` then
+     follow the OAuth flow) so `~runner/.claude/.credentials.json` exists.
+     The CI scripts call `claude -p` non-interactively and rely on those
+     credentials being valid.
+   - Install the runner as a systemd service (`sudo ./svc.sh install runner`
+     and `sudo ./svc.sh start`) so it survives reboots.
+   - Verify `gh api repos/<owner>/<repo>/actions/runners --jq '.runners[]'`
+     shows the runner as `online` with the `self-hosted-novelhub` label.
 
 2. **Codex Cloud integration**: at https://codex.openai.com, connect this repo
    and enable issue assignment via `@codex` mention. The auto-pipeline assumes
@@ -68,13 +83,13 @@ you can resume by re-opening the issue.
 The `BLOCKED` env in `claude-review.yml` lists tickets that always require human
 merge even if Claude approves:
 
-| Ticket | Why it's gated |
-|--------|----------------|
-| 03 | Auth — JWT cookie config, bcrypt, OAuth verification |
-| 05 | Coin Unlock — DB transaction atomicity, race conditions |
-| 06 | Stripe — webhook signature verification, idempotency, refund logic |
-| 11 | FB CAPI — event_id dedup correctness, hashed user data |
-| 14 | Production deployment — DNS, Stripe live, FB domain verification |
+| Ticket | Why it's gated                                                     |
+| ------ | ------------------------------------------------------------------ |
+| 03     | Auth — JWT cookie config, bcrypt, OAuth verification               |
+| 05     | Coin Unlock — DB transaction atomicity, race conditions            |
+| 06     | Stripe — webhook signature verification, idempotency, refund logic |
+| 11     | FB CAPI — event_id dedup correctness, hashed user data             |
+| 14     | Production deployment — DNS, Stripe live, FB domain verification   |
 
 To enable full auto-merge across all tickets (NOT recommended), set the
 `BLOCKED` env to an empty string in `.github/workflows/claude-review.yml`.
