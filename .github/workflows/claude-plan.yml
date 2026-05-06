@@ -8,7 +8,7 @@ name: Claude Plan
 
 on:
   issues:
-    types: [labeled]
+    types: [opened, labeled]
 
 concurrency:
   group: claude-plan-${{ github.event.issue.number }}
@@ -16,7 +16,14 @@ concurrency:
 
 jobs:
   plan:
-    if: github.event.label.name == 'needs-plan'
+    # Trigger when:
+    #   - the issue is being created (opened) and already carries `needs-plan`
+    #     — `gh issue create --label needs-plan` does NOT fire a separate
+    #     `labeled` event, only `opened`, so we must check labels here.
+    #   - or a `needs-plan` label is added to an existing issue.
+    if: |
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'needs-plan')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'needs-plan')
     runs-on: ubuntu-latest
     permissions:
       contents: read

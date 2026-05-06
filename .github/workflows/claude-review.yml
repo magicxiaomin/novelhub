@@ -37,11 +37,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # Only count reviews that produced a real REQUEST_CHANGES verdict.
+          # Fallback comments (Anthropic API down -> verdict COMMENT and a
+          # "WARNING" Severity row) and APPROVE/COMMENT verdicts must NOT
+          # count toward the 3-iteration cap, otherwise temporary API
+          # outages permanently jam a PR.
           COUNT=$(gh pr view ${{ github.event.pull_request.number }} \
             --json comments --jq \
-            '[.comments[] | select(.body | startswith("## Claude Review"))] | length')
+            '[.comments[]
+              | select(.body | startswith("## Claude Review"))
+              | select(.body | test("### Verdict:?\\s*REQUEST_CHANGES"))
+              | select(.body | contains("WARNING") | not)
+            ] | length')
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "Previous Claude reviews on this PR: $COUNT"
+          echo "Previous REQUEST_CHANGES reviews on this PR: $COUNT"
 
       - name: Halt if retry limit reached
         if: steps.retry.outputs.count >= '3'
