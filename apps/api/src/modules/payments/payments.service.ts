@@ -1,0 +1,235 @@
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { PrismaClient } from '@prisma/client';
+import {
+  COIN_PACKAGES,
+  type CoinPackageId,
+  ORDER_STATUS,
+  ORDER_TYPE,
+  SUBSCRIPTION_PLANS,
+  type SubscriptionPlanId,
+} from '@novelhub/shared';
+import type Stripe from 'stripe';
+
+import { PRISMA } from '../auth/auth.constants';
+
+import { type StripeClient } from './stripe.client';
+import { METADATA_KEY, STRIPE_CLIENT } from './stripe.constants';
+
+const SUCCESS_PATH = '/payment/success?session_id={CHECKOUT_SESSION_ID}';
+const CANCEL_PATH = '/payment/cancel';
+
+const getAppUrl = (): string => process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
+const getSubscriptionPriceId = (plan: SubscriptionPlanId): string => {
+  const envKey = plan === 'weekly' ? 'STRIPE_PRICE_WEEKLY' : 'STRIPE_PRICE_MONTHLY';
+  const value = process.env[envKey];
+  if (!value) {
+    throw new BadRequestException(`Subscription plan ${plan} is not configured (${envKey} unset)`);
+  }
+  return value;
+};
+
+@Injectable()
+export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
+  ) {}
+
+  async createCoinCheckout(
+    userId: string,
+    packageId: CoinPackageId,
+  ): Promise<{ url: string; sessionId: string }> {
+    const pkg = COIN_PACKAGES[packageId];
+    if (!pkg) {
+      throw new BadRequestException(`Unknown coin package: ${packageId}`);
+    }
+    const user = await this.requireUser(userId);
+
+    const stripe = this.stripe.get();
+    const appUrl = getAppUrl();
+    const amountCents = Math.round(pkg.priceUsd * 100);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: user.email,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `NovelHub — ${pkg.label}` },
+            unit_amount: amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${appUrl}${SUCCESS_PATH}`,
+      cancel_url: `${appUrl}${CANCEL_PATH}`,
+      metadata: {
+        [METADATA_KEY.USER_ID]: userId,
+        [METADATA_KEY.ORDER_TYPE]: ORDER_TYPE.COIN_PURCHASE,
+        [METADATA_KEY.PACKAGE_ID]: packageId,
+      },
+    });
+
+    await this.persistPendingOrder({
+      userId,
+      sessionId: session.id,
+      type: ORDER_TYPE.COIN_PURCHASE,
+      amountCents,
+      coinsGranted: pkg.coins,
+      metadata: { packageId },
+    });
+
+    if (!session.url) {
+      throw new BadRequestException('Stripe did not return a checkout URL');
+    }
+    return { url: session.url, sessionId: session.id };
+  }
+
+  async createSubscriptionCheckout(
+    userId: string,
+    plan: SubscriptionPlanId,
+  ): Promise<{ url: string; sessionId: string }> {
+    const planMeta = SUBSCRIPTION_PLANS[plan];
+    if (!planMeta) {
+      throw new BadRequestException(`Unknown subscription plan: ${plan}`);
+    }
+    const user = await this.requireUser(userId);
+    const priceId = getSubscriptionPriceId(plan);
+
+    const stripe = this.stripe.get();
+    const appUrl = getAppUrl();
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer_email: user.email,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${appUrl}${SUCCESS_PATH}`,
+      cancel_url: `${appUrl}${CANCEL_PATH}`,
+      metadata: {
+        [METADATA_KEY.USER_ID]: userId,
+        [METADATA_KEY.ORDER_TYPE]: ORDER_TYPE.SUBSCRIPTION,
+        [METADATA_KEY.PLAN_ID]: plan,
+      },
+      subscription_data: {
+        metadata: {
+          [METADATA_KEY.USER_ID]: userId,
+          [METADATA_KEY.PLAN_ID]: plan,
+        },
+      },
+    });
+
+    await this.persistPendingOrder({
+      userId,
+      sessionId: session.id,
+      type: ORDER_TYPE.SUBSCRIPTION,
+      amountCents: Math.round(planMeta.priceUsd * 100),
+      coinsGranted: null,
+      metadata: { planId: plan },
+    });
+
+    if (!session.url) {
+      throw new BadRequestException('Stripe did not return a checkout URL');
+    }
+    return { url: session.url, sessionId: session.id };
+  }
+
+  async createPortalSession(userId: string): Promise<{ url: string }> {
+    await this.requireUser(userId);
+    const sub = await this.prisma.subscription.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      select: { stripeCustomerId: true },
+    });
+    if (!sub?.stripeCustomerId) {
+      throw new NotFoundException('No Stripe customer for this user; subscribe first');
+    }
+    const stripe = this.stripe.get();
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: `${getAppUrl()}/me`,
+    });
+    return { url: portal.url };
+  }
+
+  async getOrderStatus(
+    userId: string,
+    sessionId: string,
+  ): Promise<{
+    status: string;
+    type: string;
+    coinsGranted: number | null;
+    completedAt: Date | null;
+  }> {
+    const order = await this.prisma.order.findUnique({
+      where: { stripeSessionId: sessionId },
+      select: {
+        userId: true,
+        status: true,
+        type: true,
+        coinsGranted: true,
+        completedAt: true,
+      },
+    });
+    if (!order || order.userId !== userId) {
+      throw new NotFoundException('Order not found');
+    }
+    return {
+      status: order.status,
+      type: order.type,
+      coinsGranted: order.coinsGranted,
+      completedAt: order.completedAt,
+    };
+  }
+
+  private async requireUser(userId: string): Promise<{ id: string; email: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, deletedAt: true },
+    });
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException();
+    }
+    return { id: user.id, email: user.email };
+  }
+
+  private async persistPendingOrder(input: {
+    userId: string;
+    sessionId: string;
+    type: 'COIN_PURCHASE' | 'SUBSCRIPTION';
+    amountCents: number;
+    coinsGranted: number | null;
+    metadata: Stripe.Metadata;
+  }): Promise<void> {
+    try {
+      await this.prisma.order.create({
+        data: {
+          userId: input.userId,
+          stripeSessionId: input.sessionId,
+          type: input.type,
+          amount: input.amountCents,
+          currency: 'usd',
+          coinsGranted: input.coinsGranted,
+          status: ORDER_STATUS.PENDING,
+          metadata: input.metadata,
+        },
+      });
+    } catch (err) {
+      // If pre-create fails (e.g. transient DB error), the webhook will
+      // create the row on completion. Best-effort, log only.
+      this.logger.warn(
+        `Failed to pre-create pending order for session ${input.sessionId}: ${(err as Error).message}`,
+      );
+    }
+  }
+}
