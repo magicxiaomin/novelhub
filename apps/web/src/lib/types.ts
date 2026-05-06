@@ -59,3 +59,62 @@ export type ReadingProgressEntry = {
   bookCover: string;
   updatedAt: string;
 };
+
+export type ChapterReadingProgress = {
+  id: string;
+  bookId: string;
+  chapterId: string;
+  scrollPercent: number;
+  lastReadAt: string;
+};
+
+export type ChapterUnlockOptions = {
+  coinCost: number;
+  canUnlockWithCoins: boolean;
+  canUnlockWithSubscription: boolean;
+};
+
+export type LockedChapter = {
+  id: string;
+  bookId: string;
+  chapterNumber: number;
+  title: string;
+  isLocked: true;
+  preview: string;
+  unlockOptions: ChapterUnlockOptions;
+};
+
+export type UnlockedChapter = {
+  id: string;
+  bookId: string;
+  chapterNumber: number;
+  title: string;
+  isLocked: false;
+  contentUrl: string;
+  wordCount: number;
+  prevChapterId: string | null;
+  nextChapterId: string | null;
+};
+
+export type ChapterResponse = LockedChapter | UnlockedChapter;
+
+export type ChapterUnlock = {
+  id: string;
+  chapterId: string;
+  method: string;
+  unlockedAt: string;
+};
+
+export type CheckoutSession = {
+  url: string;
+  sessionId: string;
+};
+
+export type PaymentOrderStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+
+export type PaymentOrder = {
+  status: PaymentOrderStatus;
+  type: string;
+  coinsGranted: number | null;
+  completedAt: string | null;
+};

@@ -9,7 +9,9 @@
  * Returns null on 404 / 401 so callers can call `notFound()` cleanly
  * instead of try/catching.
  */
-import type { BookDetail } from './types';
+import { cookies } from 'next/headers';
+
+import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from './types';
 
 const apiBase = (): string => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -24,4 +26,34 @@ export async function fetchBookServer(id: string): Promise<BookDetail | null> {
     throw new Error(`Failed to fetch book ${id}: ${res.status}`);
   }
   return (await res.json()) as BookDetail;
+}
+
+const cookieHeader = (): string => cookies().toString();
+
+export async function fetchBookChaptersServer(
+  id: string,
+  page = 1,
+  limit = 200,
+): Promise<Paginated<ChapterSummary> | null> {
+  const res = await fetch(
+    `${apiBase()}/books/${encodeURIComponent(id)}/chapters?page=${page}&limit=${limit}`,
+    { cache: 'no-store', headers: { cookie: cookieHeader() } },
+  );
+  if (res.status === 404 || res.status === 401) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to fetch chapters for book ${id}: ${res.status}`);
+  }
+  return (await res.json()) as Paginated<ChapterSummary>;
+}
+
+export async function fetchChapterServer(id: string): Promise<ChapterResponse | null> {
+  const res = await fetch(`${apiBase()}/chapters/${encodeURIComponent(id)}`, {
+    cache: 'no-store',
+    headers: { cookie: cookieHeader() },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to fetch chapter ${id}: ${res.status}`);
+  }
+  return (await res.json()) as ChapterResponse;
 }
