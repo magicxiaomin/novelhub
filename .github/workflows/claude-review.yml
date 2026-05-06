@@ -279,46 +279,77 @@ jobs:
 
       - name: Get PR file list and stats
         id: stats
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.files
-          git diff --shortstat origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.shortstat || true
+          git fetch origin "$BASE"
+          git diff --name-only "origin/$BASE...HEAD" > /tmp/pr.files
+          # numstat lets us compute size cap with arbitrary path exclusions;
+          # shortstat would force us to count auto-generated files we want to
+          # ignore (lockfiles, snapshots).
+          git diff --numstat "origin/$BASE...HEAD" > /tmp/pr.numstat
           echo "Files changed:"
           cat /tmp/pr.files
-          echo "Shortstat: $(cat /tmp/pr.shortstat)"
+          echo "Numstat:"
+          cat /tmp/pr.numstat
 
       - name: Path policy
         id: path
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
           RESTRICTED="false"
-          REASON=""
-          # Each pattern is a glob; matched as `find -path` style via grep.
-          # If any matches, the PR cannot auto-merge regardless of verdicts.
-          MATCHED=$(grep -E '^(prisma/migrations/|\.github/workflows/|\.github/scripts/|apps/[^/]+/src/auth/|apps/[^/]+/src/billing/|apps/[^/]+/src/webhook/)' /tmp/pr.files || true)
+          REASONS=()
 
+          # 1. Restricted directories. Any match here flags regardless of content.
+          MATCHED=$(grep -E '^(prisma/migrations/|\.github/workflows/|\.github/scripts/|apps/[^/]+/src/auth/|apps/[^/]+/src/billing/|apps/[^/]+/src/webhook/)' /tmp/pr.files || true)
           if [ -n "$MATCHED" ]; then
             RESTRICTED="true"
-            REASON="Touches restricted path(s): $(echo "$MATCHED" | head -3 | tr '\n' ' ')"
+            REASONS+=("touches restricted path(s): $(echo "$MATCHED" | head -3 | tr '\n' ' ')")
           fi
 
-          # package.json deps changes also gate. Detect by parsing diff for
-          # additions/removals inside dependencies / devDependencies blocks.
-          if grep -q 'package\.json$' /tmp/pr.files; then
-            DEPS_DIFF=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '**/package.json' \
-              | grep -E '^[+-]\s*"[^"]+"\s*:\s*"[^"]+"' \
-              | grep -vE '^[+-]\s*"(name|version|description|main|module|types|scripts|license|author|repository|homepage|bugs|engines|files|exports|bin|workspaces)"' \
-              || true)
-            if [ -n "$DEPS_DIFF" ]; then
-              RESTRICTED="true"
-              REASON="${REASON:+$REASON; }package.json dependencies changed: $(echo "$DEPS_DIFF" | head -3 | tr '\n' ' ')"
+          # 2. Real package.json dependency changes. Compare the dependencies
+          # and devDependencies maps before vs after with jq so we ignore
+          # script edits, name changes, and other metadata. Workspace links
+          # ("workspace:*", "workspace:^", etc) are intentionally excluded —
+          # they don't pull in new external code.
+          PKG_FILES=$(grep -E 'package\.json$' /tmp/pr.files || true)
+          DEPS_CHANGES=()
+          for pkg in $PKG_FILES; do
+            BEFORE=$(git show "origin/$BASE:$pkg" 2>/dev/null || echo "{}")
+            AFTER=$(git show "HEAD:$pkg" 2>/dev/null || echo "{}")
+            CHANGED=$(jq -n \
+              --argjson before "$BEFORE" --argjson after "$AFTER" \
+              '
+              def deps(o): ((o.dependencies // {}) + (o.devDependencies // {}))
+                | with_entries(select(.value | startswith("workspace:") | not));
+              def keys_set(o): deps(o) | keys_unsorted;
+              ((keys_set($after) - keys_set($before)) // []) as $added
+              | ((keys_set($before) - keys_set($after)) // []) as $removed
+              | ($added + $removed)
+              | unique
+              | join(", ")
+              ')
+            if [ -n "$CHANGED" ] && [ "$CHANGED" != "" ]; then
+              DEPS_CHANGES+=("$pkg: $CHANGED")
             fi
+          done
+          if [ "${#DEPS_CHANGES[@]}" -gt 0 ]; then
+            RESTRICTED="true"
+            REASONS+=("non-workspace dependency change(s): $(printf '%s; ' "${DEPS_CHANGES[@]}")")
           fi
 
-          echo "restricted=$RESTRICTED" >> "$GITHUB_OUTPUT"
-          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
-          echo "Path policy: restricted=$RESTRICTED reason=$REASON"
+          # Emit reason as a multiline output so newlines survive.
+          {
+            echo "restricted=$RESTRICTED"
+            echo "reason<<__REASON_EOF__"
+            for r in "${REASONS[@]}"; do echo "- $r"; done
+            echo "__REASON_EOF__"
+          } >> "$GITHUB_OUTPUT"
+          echo "Path policy: restricted=$RESTRICTED"
+          for r in "${REASONS[@]}"; do echo "  - $r"; done
 
       - name: Size policy
         id: size
@@ -326,43 +357,63 @@ jobs:
           SIZE_CAP: '800'
         run: |
           set -euo pipefail
-          ADDS=$(awk '{ for (i=1;i<=NF;i++) if ($i ~ /insertion/) print $(i-1) }' /tmp/pr.shortstat | head -1)
-          ADDS=${ADDS:-0}
+          # Exclude auto-generated / non-source files from the cap. pnpm-lock.yaml
+          # routinely runs into the thousands of lines and is not human-authored.
+          ADDS=$(awk '
+            $1 == "-" { next }                           # binary file
+            $3 == "pnpm-lock.yaml" { next }
+            $3 ~ /\/pnpm-lock\.yaml$/ { next }
+            $3 ~ /^acceptance\// { next }                # plan-generated acceptance scripts
+            { sum += $1 }
+            END { print sum + 0 }
+          ' /tmp/pr.numstat)
           OVER="false"
           if [ "$ADDS" -gt "$SIZE_CAP" ]; then
             OVER="true"
           fi
           echo "additions=$ADDS" >> "$GITHUB_OUTPUT"
           echo "oversize=$OVER" >> "$GITHUB_OUTPUT"
-          echo "Size policy: additions=$ADDS oversize=$OVER (cap=$SIZE_CAP)"
+          echo "Size policy: additions=$ADDS oversize=$OVER (cap=$SIZE_CAP, lockfile + acceptance excluded)"
 
       - name: Label and comment if restricted path
         if: steps.path.outputs.restricted == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REASON: ${{ steps.path.outputs.reason }}
         run: |
           set -euo pipefail
-          gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-merge"
-          gh pr comment ${{ github.event.pull_request.number }} --body "## Path policy — auto-merge blocked
-
-          ${{ steps.path.outputs.reason }}
-
-          Restricted paths: \`prisma/migrations/**\`, \`.github/workflows/**\`, \`.github/scripts/**\`, \`apps/*/src/{auth,billing,webhook}/**\`, and any \`package.json\` dependency change.
-
-          Even if both Claude reviewers APPROVE, this PR will not auto-merge. A user must say \"PR #${{ github.event.pull_request.number }} go\" to Claude Code to proceed."
+          gh pr edit "$PR" --add-label "needs-human-merge"
+          # Use --body-file so user-controlled REASON content is never
+          # interpreted as gh CLI flags (`--ext` etc).
+          {
+            echo "## Path policy — auto-merge blocked"
+            echo
+            printf '%s\n' "$REASON"
+            echo
+            echo "Restricted paths: \`prisma/migrations/**\`, \`.github/workflows/**\`, \`.github/scripts/**\`, \`apps/*/src/{auth,billing,webhook}/**\`, and any non-workspace \`package.json\` dependency change."
+            echo
+            echo "Even if both Claude reviewers APPROVE, this PR will not auto-merge. A user must say \"PR #$PR go\" to Claude Code to proceed."
+          } > /tmp/path_policy_comment.md
+          gh pr comment "$PR" --body-file /tmp/path_policy_comment.md
 
       - name: Label and comment if oversize
         if: steps.size.outputs.oversize == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          ADDS: ${{ steps.size.outputs.additions }}
         run: |
           set -euo pipefail
-          gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-split"
-          gh pr comment ${{ github.event.pull_request.number }} --body "## Size policy — too large to auto-merge
-
-          This PR adds **${{ steps.size.outputs.additions }} lines**, above the 800-line auto-merge cap.
-
-          Either split the work into smaller PRs (each < 800 net additions), or label \`human-approved\` after explicit user go-ahead. The reviewers will continue to run for visibility, but auto-merge will not fire."
+          gh pr edit "$PR" --add-label "needs-split"
+          {
+            echo "## Size policy — too large to auto-merge"
+            echo
+            echo "This PR adds **$ADDS source lines** (excluding pnpm-lock.yaml and acceptance scripts), above the 800-line auto-merge cap."
+            echo
+            echo "Either split the work into smaller PRs (each < 800 net additions), or label \`human-approved\` after explicit user go-ahead. The reviewers will continue to run for visibility, but auto-merge will not fire."
+          } > /tmp/size_policy_comment.md
+          gh pr comment "$PR" --body-file /tmp/size_policy_comment.md
 
   # =========================================================================
   # Codex re-ping when EITHER reviewer requests changes (and within retry
