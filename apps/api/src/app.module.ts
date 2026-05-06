@@ -9,7 +9,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BooksModule } from './modules/books/books.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { ChaptersModule } from './modules/chapters/chapters.module';
+import { CoinsModule } from './modules/coins/coins.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { UnlocksModule } from './modules/unlocks/unlocks.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { StorageModule } from './modules/storage/storage.module';
     AuthModule,
     BooksModule,
     ChaptersModule,
+    CoinsModule,
+    UnlocksModule,
     AdminModule,
   ],
   controllers: [AppController],
