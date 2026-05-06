@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -91,6 +92,22 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Clear auth cookies' })
   logout(@Res({ passthrough: true }) res: Response): { ok: true } {
+    clearAuthCookies(res);
+    return { ok: true };
+  }
+
+  @Delete('account')
+  @UseGuards(JwtAuthGuard)
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'Soft-delete the current authenticated account' })
+  async deleteAccount(
+    @CurrentUser() user: { id: string } | null,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ ok: true }> {
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    await this.authService.deleteAccount(user.id);
     clearAuthCookies(res);
     return { ok: true };
   }

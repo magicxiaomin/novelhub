@@ -321,4 +321,18 @@ describe('AuthService', () => {
     stored.deletedAt = new Date();
     await expect(service.getCurrentUser(reg.user.id)).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it('deleteAccount: soft-deletes an active user', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    await service.deleteAccount(reg.user.id);
+    expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('deleteAccount: 401 for an already-deleted user', async () => {
+    const reg = await service.register('luna@example.com', 'password123');
+    const stored = prismaStub.users.get(reg.user.id);
+    if (!stored) throw new Error('no user');
+    stored.deletedAt = new Date();
+    await expect(service.deleteAccount(reg.user.id)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
 });

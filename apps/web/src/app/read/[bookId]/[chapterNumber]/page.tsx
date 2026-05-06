@@ -18,7 +18,10 @@ export async function generateMetadata({ params }: ReaderPageProps): Promise<Met
   if (!resolved) return {};
   return {
     title: resolved.chapter.title,
-    description: messages.reader.chapterDescription.replace('{title}', resolved.chapter.title),
+    description: messages.reader.chapterDescription.replaceAll(
+      '{title}',
+      () => resolved.chapter.title,
+    ),
   };
 }
 

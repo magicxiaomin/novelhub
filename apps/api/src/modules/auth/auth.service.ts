@@ -224,6 +224,20 @@ export class AuthService {
     return this.toAuthUser(user, hasActiveSubscription);
   }
 
+  async deleteAccount(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, deletedAt: true },
+    });
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException();
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
   async forgotPassword(email: string): Promise<void> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({

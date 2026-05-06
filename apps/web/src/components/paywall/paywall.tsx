@@ -31,18 +31,17 @@ export function Paywall({
   currentUrl: string;
   onDismiss: () => void;
 }): JSX.Element {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, openAuthModal } = useAuth();
   const [tab, setTab] = useState<PaywallTab>('subscribe');
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanId>(
     SUBSCRIPTION_PLANS.weekly.id,
   );
   const [selectedPackage, setSelectedPackage] = useState<CoinPackageId>(COIN_PACKAGES.pack_120.id);
-  const [showLogin, setShowLogin] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const requireLogin = (): boolean => {
+  const requireLogin = (afterSuccess: () => void): boolean => {
     if (user || isLoading) return false;
-    setShowLogin(true);
+    openAuthModal({ mode: 'signin', reason: 'paywall', afterSuccess });
     return true;
   };
 
@@ -51,7 +50,7 @@ export function Paywall({
   };
 
   const startSubscriptionCheckout = async (): Promise<void> => {
-    if (requireLogin()) return;
+    if (requireLogin(() => void startSubscriptionCheckout())) return;
     setSubmitting(true);
     try {
       rememberReturnUrl();
@@ -64,7 +63,7 @@ export function Paywall({
   };
 
   const startCoinCheckout = async (): Promise<void> => {
-    if (requireLogin()) return;
+    if (requireLogin(() => void startCoinCheckout())) return;
     setSubmitting(true);
     try {
       rememberReturnUrl();
@@ -122,10 +121,6 @@ export function Paywall({
               <CoinsTab selectedPackage={selectedPackage} onSelectPackage={setSelectedPackage} />
             )}
           </div>
-
-          {showLogin ? (
-            <LoginRequiredDialog currentUrl={currentUrl} onClose={() => setShowLogin(false)} />
-          ) : null}
         </div>
 
         <div className="space-y-3 border-t pt-4">
@@ -149,44 +144,6 @@ export function Paywall({
           >
             {messages.paywall.maybeLater}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LoginRequiredDialog({
-  currentUrl,
-  onClose,
-}: {
-  currentUrl: string;
-  onClose: () => void;
-}): JSX.Element {
-  return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-5"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="paywall-login-title"
-        className="w-full max-w-sm rounded-lg bg-background p-5 text-foreground shadow-xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="paywall-login-title" className="text-lg font-semibold">
-          {messages.paywall.loginRequired}
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">{messages.paywall.loginBody}</p>
-        <div className="mt-5 grid gap-3">
-          <Button asChild className="w-full bg-brand text-brand-foreground hover:bg-brand/90">
-            <Link href={`/login?next=${encodeURIComponent(currentUrl)}`}>
-              {messages.paywall.loginCta}
-            </Link>
-          </Button>
-          <Button type="button" variant="outline" onClick={onClose} className="w-full">
-            {messages.paywall.cancel}
-          </Button>
         </div>
       </div>
     </div>
