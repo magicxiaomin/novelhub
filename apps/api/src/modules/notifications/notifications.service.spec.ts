@@ -141,7 +141,7 @@ describe('NotificationsService', () => {
     });
   });
 
-  it('findUsersForReEngagement: returns users whose latest read is inside the 24h-28h window', async () => {
+  it('findUsersForReEngagement: returns users whose latest read is inside the 24h-30h window', async () => {
     const now = new Date('2026-05-07T12:00:00.000Z');
     const { service, prisma } = buildService();
     prisma.readingProgress.findMany.mockResolvedValue([
@@ -181,7 +181,7 @@ describe('NotificationsService', () => {
       where: {
         userId: { not: null },
         lastReadAt: {
-          gte: new Date('2026-05-06T08:00:00.000Z'),
+          gte: new Date('2026-05-06T06:00:00.000Z'),
           lte: new Date('2026-05-06T12:00:00.000Z'),
         },
       },

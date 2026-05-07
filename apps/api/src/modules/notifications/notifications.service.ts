@@ -88,7 +88,7 @@ export class NotificationsService {
   }
 
   async findUsersForReEngagement(now = new Date()): Promise<ReEngagementTarget[]> {
-    const lower = new Date(now.getTime() - 28 * 60 * 60 * 1000);
+    const lower = new Date(now.getTime() - 30 * 60 * 60 * 1000);
     const upper = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const rows: ProgressRow[] = await this.prisma.readingProgress.findMany({
       where: {
