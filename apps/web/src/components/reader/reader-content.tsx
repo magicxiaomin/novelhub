@@ -335,12 +335,33 @@ async function persistProgress(chapterId: string): Promise<boolean> {
 
 async function fetchChapterContent(contentUrl: string): Promise<string> {
   const url = new URL(contentUrl);
-  if (url.protocol !== 'https:' || !isAllowedChapterContentHost(url.hostname)) {
+  if (
+    !isAllowedChapterContentProtocol(url.protocol) ||
+    !isAllowedChapterContentHost(url.hostname)
+  ) {
     throw new Error('chapter content host is not allowed');
   }
   const res = await fetch(url.toString());
   if (!res.ok) throw new ChapterContentError(res.status);
   return res.text();
+}
+
+function isAllowedChapterContentProtocol(protocol: string): boolean {
+  // Match the deployed API's protocol so an http:// dev server can serve
+  // chapter content. Production sets NEXT_PUBLIC_API_URL to https://, which
+  // keeps the strict https-only rule.
+  const apiProtocol = protocolFromEnvUrl(process.env.NEXT_PUBLIC_API_URL);
+  if (apiProtocol === 'http:') return protocol === 'http:' || protocol === 'https:';
+  return protocol === 'https:';
+}
+
+function protocolFromEnvUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).protocol;
+  } catch {
+    return null;
+  }
 }
 
 class ChapterContentError extends Error {

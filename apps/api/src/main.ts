@@ -8,6 +8,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { json, type NextFunction, type Request, type Response } from 'express';
+import { join } from 'node:path';
 
 import { AppModule } from './app.module';
 import { SentryExceptionFilter } from './sentry/sentry-exception.filter';
@@ -38,6 +39,18 @@ async function bootstrap(): Promise<void> {
   // the client address for FB CAPI attribution and rate-limit keys.
   if (process.env.NODE_ENV === 'production') {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
+
+  // Local-dev only: serve seeded chapter content out of apps/api/static/chapters
+  // so the reader has something to fetch when R2 isn't configured.
+  if (process.env.NODE_ENV !== 'production') {
+    app.useStaticAssets(join(__dirname, '..', 'static'), {
+      prefix: '/static/',
+      setHeaders: (res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=300');
+      },
+    });
   }
 
   app.use(cookieParser());
