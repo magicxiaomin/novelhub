@@ -54,4 +54,11 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://127.0.0.1:4000/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "pnpm --filter @novelhub/db exec prisma migrate deploy --schema prisma/schema.prisma && node apps/api/dist/main.js"]
+# Migrations are NOT run in the application entrypoint. With horizontal
+# scale-out, every replica would race for the Prisma advisory lock at
+# startup, and a failed migration would crash-loop every replica
+# simultaneously. Run `pnpm --filter @novelhub/db exec prisma migrate deploy
+# --schema prisma/schema.prisma` as a separate one-shot step (Railway
+# Pre-Deploy command, GitHub Actions deploy job, or a dedicated migration
+# job) before rolling out the new image. See docs/runbook.md.
+ENTRYPOINT ["node", "apps/api/dist/main.js"]

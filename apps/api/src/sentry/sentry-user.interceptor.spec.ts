@@ -4,11 +4,13 @@ import { of } from 'rxjs';
 
 import { SentryUserInterceptor } from './sentry-user.interceptor';
 
+const isolationScopeSetUser = jest.fn();
+
 jest.mock('@sentry/node', () => ({
-  setUser: jest.fn(),
+  getIsolationScope: jest.fn(() => ({ setUser: isolationScopeSetUser })),
 }));
 
-const setUser = jest.mocked(Sentry.setUser);
+const getIsolationScope = jest.mocked(Sentry.getIsolationScope);
 
 describe('SentryUserInterceptor', () => {
   const originalSentryDsn = process.env.SENTRY_DSN;
@@ -18,7 +20,8 @@ describe('SentryUserInterceptor', () => {
 
   beforeEach(() => {
     process.env.SENTRY_DSN = 'https://sentry.example/1';
-    setUser.mockClear();
+    isolationScopeSetUser.mockClear();
+    getIsolationScope.mockClear();
     jest.mocked(next.handle).mockClear();
   });
 
@@ -34,17 +37,28 @@ describe('SentryUserInterceptor', () => {
       }),
     }) as ExecutionContext;
 
-  it('sets the Sentry user id when request.user exists', () => {
+  it('writes the user id to the per-request isolation scope when request.user exists', () => {
     new SentryUserInterceptor().intercept(createContext({ id: 'user-1' }), next);
 
-    expect(setUser).toHaveBeenCalledWith({ id: 'user-1' });
+    expect(getIsolationScope).toHaveBeenCalledTimes(1);
+    expect(isolationScopeSetUser).toHaveBeenCalledWith({ id: 'user-1' });
     expect(next.handle).toHaveBeenCalledTimes(1);
   });
 
-  it('clears the Sentry user when request.user is falsy', () => {
+  it('clears the isolation-scope user when request.user is falsy', () => {
     new SentryUserInterceptor().intercept(createContext(), next);
 
-    expect(setUser).toHaveBeenCalledWith(null);
+    expect(getIsolationScope).toHaveBeenCalledTimes(1);
+    expect(isolationScopeSetUser).toHaveBeenCalledWith(null);
+    expect(next.handle).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not touch any Sentry scope when SENTRY_DSN is unset', () => {
+    process.env.SENTRY_DSN = '';
+    new SentryUserInterceptor().intercept(createContext({ id: 'user-1' }), next);
+
+    expect(getIsolationScope).not.toHaveBeenCalled();
+    expect(isolationScopeSetUser).not.toHaveBeenCalled();
     expect(next.handle).toHaveBeenCalledTimes(1);
   });
 });
