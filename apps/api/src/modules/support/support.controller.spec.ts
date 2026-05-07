@@ -1,7 +1,15 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 
+import { CACHE_CLIENT, type CacheClient } from '../cache/cache.constants';
+
 import { SupportController } from './support.controller';
 import { SupportService } from './support.service';
+
+const stubCacheClient: CacheClient = {
+  get: async () => null,
+  set: async () => undefined,
+  del: async () => undefined,
+};
 
 describe('SupportController', () => {
   it('contact: returns delivered false when Resend env is unset', async () => {
@@ -10,7 +18,7 @@ describe('SupportController', () => {
     delete process.env.SUPPORT_EMAIL;
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SupportController],
-      providers: [SupportService],
+      providers: [SupportService, { provide: CACHE_CLIENT, useValue: stubCacheClient }],
     }).compile();
     const controller = module.get(SupportController);
 
