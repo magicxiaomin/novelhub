@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { BookRail } from '@/components/home/book-rail';
 import { fetchBooks, queryKeys } from '@/lib/queries';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function RelatedBooks({
   bookId,

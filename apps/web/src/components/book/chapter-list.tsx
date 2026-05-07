@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { fetchBookChapters, queryKeys } from '@/lib/queries';
 import type { ChapterSummary } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const CHAPTER_PAGE_LIMIT = 10;
 

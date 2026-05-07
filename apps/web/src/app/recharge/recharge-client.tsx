@@ -31,7 +31,7 @@ import {
   getTransactionAmountClass,
 } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 type RechargeTab = 'coins' | 'subscribe';
 

@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { ReaderContent } from '@/components/reader/reader-content';
 import { fetchBookChaptersServer, fetchChapterServer } from '@/lib/server-api';
 import type { ChapterResponse, ChapterSummary, Paginated } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 type ReaderPageProps = {
   params: {

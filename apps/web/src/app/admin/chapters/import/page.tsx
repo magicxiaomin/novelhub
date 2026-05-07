@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseChaptersFromText, type ParsedChapter } from '@/lib/admin/bulk-import';
 import { adminApi } from '@/lib/admin/api';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const DEFAULT_REGEX = '^Chapter\\s+\\d+';
 // Each chapter is capped at 200KB (apps/api MAX_CHAPTER_CONTENT_BYTES). The

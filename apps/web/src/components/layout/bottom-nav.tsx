@@ -6,7 +6,7 @@ import { BookMarked, Home, User } from 'lucide-react';
 
 import { useAuth } from '@/components/providers';
 import { cn } from '@/lib/utils';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const tabs = [
   { href: '/', label: messages.nav.home, Icon: Home },

@@ -1,4 +1,4 @@
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function DmcaPage(): JSX.Element {
   const dmcaEmail = process.env.NEXT_PUBLIC_DMCA_EMAIL ?? 'dmca@example.com';

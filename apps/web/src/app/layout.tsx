@@ -10,7 +10,7 @@ import { Providers } from '@/components/providers';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { PushPrompt } from '@/components/push/push-prompt';
 import { Toaster } from '@/components/ui/toaster';
-import messages from '../../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 import './globals.css';
 

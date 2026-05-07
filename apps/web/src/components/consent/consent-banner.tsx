@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { initPixel, readTrackingConsent, setTrackingConsent } from '@/lib/fb-pixel';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function ConsentBanner(): JSX.Element | null {
   const [visible, setVisible] = useState(false);

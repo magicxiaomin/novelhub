@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { ResetPasswordClient } from './reset-password-client';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export const metadata: Metadata = {
   title: messages.auth.resetPageTitle,

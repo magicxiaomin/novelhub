@@ -19,7 +19,7 @@ import { fbTrackAddToCart, fbTrackInitiateCheckout } from '@/lib/fb-pixel';
 import { READER_RETURN_URL_KEY } from '@/lib/payment-success';
 import { cn } from '@/lib/utils';
 import type { LockedChapter } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 type PaywallTab = 'subscribe' | 'coins';
 

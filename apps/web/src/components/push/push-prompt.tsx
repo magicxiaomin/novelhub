@@ -20,7 +20,7 @@ import { hasCookie, setDaysCookie } from '@/lib/cookies';
 import { readTrackingConsent } from '@/lib/fb-pixel';
 import { CHAPTERS_READ_COUNT_EVENT, getChaptersReadCount } from '@/lib/read-count';
 import { fetchReadingProgress, grantPushBonus, queryKeys } from '@/lib/queries';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const DISMISSED_COOKIE = 'push-permission-dismissed-at';
 const MIN_CHAPTERS_READ = 3;

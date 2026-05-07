@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { adminApi } from '@/lib/admin/api';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const chapterFormSchema = z.object({
   title: z.string().trim().min(1).max(200),

@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetch } from '@/lib/api';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const contactFormSchema = z.object({
   name: z.string().trim().min(1).max(100),

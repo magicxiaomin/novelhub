@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 
 import { PaymentSuccessClient } from '@/components/paywall/payment-success-client';
 import { Skeleton } from '@/components/ui/skeleton';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function PaymentSuccessPage(): JSX.Element {
   return (

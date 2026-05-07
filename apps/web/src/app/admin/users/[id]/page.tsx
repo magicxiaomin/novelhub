@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageTitle } from '@/components/admin/page-title';
 import { Button } from '@/components/ui/button';
 import { adminApi } from '@/lib/admin/api';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function AdminUserDetailPage({ params }: { params: { id: string } }): JSX.Element {
   const queryClient = useQueryClient();

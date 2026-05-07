@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { adminApi, type AdminChapter } from '@/lib/admin/api';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function AdminChaptersPage(): JSX.Element {
   const searchParams = useSearchParams();

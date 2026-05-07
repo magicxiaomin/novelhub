@@ -2,6 +2,16 @@
   "brand": {
     "name": "NovelHub"
   },
+  "pushNotifications": {
+    "reEngagement": {
+      "titleTemplate": "Continue reading {bookTitle}",
+      "body": "Your next chapter is waiting."
+    },
+    "renewalReminder": {
+      "title": "Your subscription renews in 3 days.",
+      "body": "Manage in Settings."
+    }
+  },
   "metadata": {
     "title": "NovelHub — Read More Stories",
     "description": "Discover trending web novels. Read the first chapters free, then unlock the rest with coins or a subscription."

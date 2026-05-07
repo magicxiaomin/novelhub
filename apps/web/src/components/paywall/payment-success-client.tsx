@@ -14,7 +14,7 @@ import {
   type PaymentSuccessState,
 } from '@/lib/payment-success';
 import type { PaymentOrder } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function PaymentSuccessClient(): JSX.Element {
   const router = useRouter();

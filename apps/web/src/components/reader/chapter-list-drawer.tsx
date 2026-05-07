@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ChapterSummary } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function ChapterListDrawer({
   open,

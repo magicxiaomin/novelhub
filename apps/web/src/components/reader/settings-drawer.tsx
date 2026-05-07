@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ReaderSettings } from '@/lib/reader-settings';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 type SettingsDrawerProps = {
   open: boolean;

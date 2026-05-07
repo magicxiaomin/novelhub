@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { useAuth } from '@/components/providers';
 import { Button } from '@/components/ui/button';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 /**
  * Sticky bottom action on book detail. When the user is signed in we hide

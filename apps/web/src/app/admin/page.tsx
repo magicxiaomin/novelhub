@@ -14,7 +14,7 @@ import {
 import { PageTitle } from '@/components/admin/page-title';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { adminApi } from '@/lib/admin/api';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const money = (cents: number): string =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);

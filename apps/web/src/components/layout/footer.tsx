@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const links = [
   ['/privacy', messages.footer.privacy],

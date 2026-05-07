@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { BookCard } from '@/components/book/book-card';
 import type { BookSummary } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function BookRail({
   title,

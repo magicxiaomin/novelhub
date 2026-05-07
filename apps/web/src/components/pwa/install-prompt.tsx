@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { hasCookie, setDaysCookie } from '@/lib/cookies';
 import { CHAPTERS_READ_COUNT_EVENT, getChaptersReadCount } from '@/lib/read-count';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const DISMISSED_COOKIE = 'pwa-install-dismissed-at';
 const MIN_CHAPTERS_READ = 2;

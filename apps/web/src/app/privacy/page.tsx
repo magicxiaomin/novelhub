@@ -1,4 +1,4 @@
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function PrivacyPage(): JSX.Element {
   return (

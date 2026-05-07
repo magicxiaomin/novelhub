@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { adminApi, type AdminBook } from '@/lib/admin/api';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function AdminBooksPage(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<AdminBook | null>(null);

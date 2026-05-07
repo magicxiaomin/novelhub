@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function NotFound(): JSX.Element {
   return (
