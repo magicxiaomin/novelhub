@@ -9,7 +9,13 @@ import { AppModule } from './app.module';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
+    // Default 100KB body limit blocks bulk chapter import (50 chapters × up
+    // to 200KB ≈ 10MB). Match the multipart cap we already use elsewhere.
+    bodyParser: true,
+    abortOnError: false,
   });
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
   // Trust the first hop (Railway / Vercel / similar) so req.ip resolves to
   // the client address for FB CAPI attribution and rate-limit keys.
   if (process.env.NODE_ENV === 'production') {

@@ -445,4 +445,72 @@ describe('AdminService', () => {
     await expect(service.coverUploadUrl('image/gif')).rejects.toBeInstanceOf(BadRequestException);
     expect(storage.getSignedUploadUrl).not.toHaveBeenCalled();
   });
+
+  it('bulkImportChapters parses sections by --- and uploads each to R2', async () => {
+    const { service, prisma, storage } = buildService();
+    prisma.book.findFirst.mockResolvedValue({
+      id: 'book-1',
+      freeChapterCount: 2,
+      totalChapters: 0,
+    });
+    let nextId = 0;
+    prisma.chapter.create.mockImplementation(async () => ({ id: `ch-${++nextId}` }));
+
+    const text = [
+      'The Encounter\nLuna walked into the clearing...',
+      'A Stranger\nThe wind howled as she stepped...',
+      'Moonlight\nAlpha stood there, watching...',
+      'Bound\nShe could not look away...',
+    ].join('\n\n---\n\n');
+
+    const result = await service.bulkImportChapters('book-1', Buffer.from(text, 'utf-8'), {});
+
+    expect(result.created).toBe(4);
+    expect(storage.uploadText).toHaveBeenCalledTimes(4);
+    expect(prisma.chapter.create).toHaveBeenCalledTimes(4);
+    // First two chapters are free (freeChapterCount=2); last two paid
+    const createCalls = prisma.chapter.create.mock.calls.map(([arg]) => arg.data.isFree);
+    expect(createCalls).toEqual([true, true, false, false]);
+    expect(prisma.book.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'book-1' }, data: { totalChapters: 4 } }),
+    );
+  });
+
+  it('bulkImportChapters rejects an empty file', async () => {
+    const { service, prisma } = buildService();
+    prisma.book.findFirst.mockResolvedValue({
+      id: 'book-1',
+      freeChapterCount: 0,
+      totalChapters: 0,
+    });
+    await expect(
+      service.bulkImportChapters('book-1', Buffer.from('', 'utf-8'), {}),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('bulkImportChapters in replace mode soft-deletes existing chapters', async () => {
+    const { service, prisma } = buildService();
+    prisma.book.findFirst.mockResolvedValue({
+      id: 'book-1',
+      freeChapterCount: 0,
+      totalChapters: 5,
+    });
+    prisma.chapter.create.mockResolvedValue({ id: 'ch-new' });
+
+    const result = await service.bulkImportChapters('book-1', Buffer.from('NewCh\nbody', 'utf-8'), {
+      replace: true,
+    });
+
+    expect(result.created).toBe(1);
+    expect(prisma.chapter.updateMany).toHaveBeenCalledWith({
+      where: { bookId: 'book-1', deletedAt: null },
+      data: { deletedAt: expect.any(Date) },
+    });
+    // First-created chapter in replace mode should get order = 1 (baseOrder reset to 0)
+    expect(prisma.chapter.create.mock.calls[0][0].data.order).toBe(1);
+    // Total reset to created count, not added on top
+    expect(prisma.book.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'book-1' }, data: { totalChapters: 1 } }),
+    );
+  });
 });

@@ -143,7 +143,17 @@ export class AdminService {
       select: { id: true },
     });
     if (!book) throw new NotFoundException('Book not found');
-    await this.prisma.book.update({ where: { id }, data: { ...dto } });
+    const data: Prisma.BookUpdateInput = { ...dto };
+    // When the admin uploads a new cover (coverImageKey set, coverUrl not
+    // explicitly overridden), derive coverUrl from the R2 public host so
+    // listings render the new image without a manual second update.
+    if (data.coverImageKey && !data.coverUrl) {
+      const publicHost = process.env.R2_PUBLIC_HOST ?? process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
+      if (publicHost) {
+        data.coverUrl = `https://${publicHost}/${data.coverImageKey as string}`;
+      }
+    }
+    await this.prisma.book.update({ where: { id }, data });
     await this.books.invalidateListCaches();
     return { id };
   }
@@ -384,7 +394,15 @@ export class AdminService {
     });
     if (!chapter) throw new NotFoundException('Chapter not found');
     const content = chapter.contentUrl ? await this.storage.getText(chapter.contentUrl) : '';
-    return { ...chapter, content };
+    // Don't leak the R2 storage key to the admin client.
+    return {
+      id: chapter.id,
+      bookId: chapter.bookId,
+      order: chapter.order,
+      title: chapter.title,
+      isFree: chapter.isFree,
+      content,
+    };
   }
 
   async updateChapter(id: string, dto: UpdateChapterDto): Promise<{ id: string }> {

@@ -10,14 +10,15 @@ export class SupportService {
   async contact(dto: ContactDto): Promise<{ delivered: boolean }> {
     const apiKey = process.env.RESEND_API_KEY;
     const to = process.env.SUPPORT_EMAIL;
-    if (!apiKey || !to) {
+    const from = process.env.SUPPORT_FROM_EMAIL;
+    if (!apiKey || !to || !from) {
       this.logger.warn('Support contact email is not configured; short-circuiting delivery');
       return { delivered: false };
     }
 
     const resend = new Resend(apiKey);
     await resend.emails.send({
-      from: 'NovelHub Support <support@novelhub.app>',
+      from,
       to,
       replyTo: dto.email,
       subject: `[NovelHub] ${dto.subject}`,
