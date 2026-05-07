@@ -26,7 +26,12 @@ const DISMISSED_COOKIE = 'push-permission-dismissed-at';
 const MIN_CHAPTERS_READ = 3;
 
 type OneSignalApi = {
-  init: (options: { appId: string; allowLocalhostAsSecureOrigin?: boolean }) => Promise<void>;
+  init: (options: {
+    appId: string;
+    allowLocalhostAsSecureOrigin?: boolean;
+    serviceWorkerParam?: { scope: string };
+    serviceWorkerPath?: string;
+  }) => Promise<void>;
   login: (externalId: string) => Promise<void>;
   User: {
     addTag: (key: string, value: string) => Promise<void>;
@@ -100,7 +105,16 @@ export function PushPrompt(): JSX.Element | null {
     if (!eligible || !scriptReady || !appId || initialized) return;
     window.OneSignalDeferred = window.OneSignalDeferred ?? [];
     window.OneSignalDeferred.push(async (OneSignal) => {
-      await OneSignal.init({ appId, allowLocalhostAsSecureOrigin: true });
+      // Mount the OneSignal SW under /onesignal/ so it doesn't collide with
+      // next-pwa's /sw.js at scope /. Without scope separation the second
+      // registration replaces the first per the SW spec, silently breaking
+      // either Workbox caching or push delivery depending on init order.
+      await OneSignal.init({
+        appId,
+        allowLocalhostAsSecureOrigin: true,
+        serviceWorkerParam: { scope: '/onesignal/' },
+        serviceWorkerPath: 'onesignal/OneSignalSDKWorker.js',
+      });
       if (!user) return;
       await tagUser(OneSignal, user.id, user.hasActiveSubscription);
       setInitialized(true);
