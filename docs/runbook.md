@@ -55,6 +55,8 @@ Do not commit real secret values. Set `NODE_ENV=production` in both production a
 
 Vercel deploys `apps/web` from `main` using the Next.js standalone build. Railway deploys `apps/api` from `main` using `apps/api/Dockerfile`.
 
+Production deploys intentionally use the native Git repository integrations in Vercel and Railway. When those projects are connected to this repository and configured to auto-deploy from `main`, no GitHub Actions production deploy workflow is required; the CI gates stay in GitHub Actions, and each platform owns its own production rollout.
+
 The API container entrypoint runs:
 
 ```sh

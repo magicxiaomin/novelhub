@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/react';
 import { Suspense } from 'react';
 
 import { ConsentBanner } from '@/components/consent/consent-banner';
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <ConsentBanner />
         </Providers>
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );

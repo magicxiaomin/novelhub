@@ -11,9 +11,10 @@ COPY apps/api/package.json apps/api/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/db/index.js packages/db/index.js
 COPY packages/db/index.d.ts packages/db/index.d.ts
+COPY packages/db/prisma packages/db/prisma
 COPY packages/shared/package.json packages/shared/package.json
 
-RUN pnpm install --frozen-lockfile \
+RUN pnpm install --frozen-lockfile --ignore-scripts \
   --filter @novelhub/api... \
   --filter @novelhub/db... \
   --filter @novelhub/shared
@@ -23,7 +24,7 @@ COPY packages/db packages/db
 COPY packages/shared packages/shared
 
 RUN pnpm --filter @novelhub/db prisma:generate
-RUN pnpm --filter @novelhub/shared exec tsc -p tsconfig.json --outDir dist --rootDir src --noEmit false
+RUN pnpm --filter @novelhub/shared build
 RUN pnpm --filter @novelhub/api build
 RUN pnpm prune --prod
 
@@ -46,8 +47,6 @@ COPY --from=build --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build --chown=nestjs:nodejs /app/packages/db ./packages/db
 COPY --from=build --chown=nestjs:nodejs /app/packages/shared ./packages/shared
-
-RUN node -e "const fs = require('fs'); const path = 'packages/shared/package.json'; const pkg = JSON.parse(fs.readFileSync(path, 'utf8')); pkg.main = './dist/index.js'; pkg.types = './dist/index.d.ts'; pkg.exports = { '.': { types: './dist/index.d.ts', default: './dist/index.js' } }; fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');"
 
 USER nestjs
 

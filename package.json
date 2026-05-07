@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.2",
   "scripts": {
+    "build": "pnpm --filter @novelhub/shared build && pnpm -r --if-present --filter './apps/**' build",
     "dev": "pnpm --parallel --filter @novelhub/web --filter @novelhub/api dev",
     "lint": "pnpm -r --if-present lint",
     "lint-staged": "lint-staged",
@@ -11,8 +12,8 @@
     "prisma:migrate": "pnpm --filter @novelhub/db prisma:migrate dev",
     "prisma:seed": "pnpm --filter @novelhub/db prisma:seed",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
-    "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @novelhub/shared build && pnpm -r --if-present test",
+    "typecheck": "pnpm --filter @novelhub/shared build && pnpm -r --if-present typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

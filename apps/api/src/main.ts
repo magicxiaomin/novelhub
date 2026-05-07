@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { scrubSentryEvent } from '@novelhub/shared';
 import * as Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
 import { json, type NextFunction, type Request, type Response } from 'express';
@@ -14,6 +15,10 @@ if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment: process.env.NODE_ENV ?? 'development',
+    beforeSend(event) {
+      return scrubSentryEvent(event);
+    },
+    sendDefaultPii: false,
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 0,
   });
 }
