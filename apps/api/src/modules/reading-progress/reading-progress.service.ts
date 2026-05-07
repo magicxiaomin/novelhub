@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 
-import { PRISMA } from '../auth/auth.constants';
+import { PRISMA, SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 
 import type { SaveProgressDto } from './dto/save-progress.dto';
 
@@ -28,11 +28,17 @@ export class ReadingProgressService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
   async save(userId: string, dto: SaveProgressDto): Promise<ProgressResponse> {
-    const chapter = await this.prisma.chapter.findUnique({
-      where: { id: dto.chapterId },
-      select: { id: true, bookId: true },
+    // Refuse to track progress for chapters the user can't actually read.
+    // Returning the same 404 for "doesn't exist" and "no access" denies an
+    // attacker the 200/404 oracle they would otherwise have to enumerate
+    // chapter IDs.
+    const chapter = await this.prisma.chapter.findFirst({
+      where: { id: dto.chapterId, deletedAt: null, book: { deletedAt: null } },
+      select: { id: true, bookId: true, isFree: true },
     });
-    if (!chapter) throw new NotFoundException(`Chapter ${dto.chapterId} not found`);
+    if (!chapter || !(await this.userCanRead(userId, chapter))) {
+      throw new NotFoundException(`Chapter ${dto.chapterId} not found`);
+    }
 
     const scrollPosition = clampScrollPercent(dto.scrollPercent);
     const now = new Date();
@@ -81,6 +87,28 @@ export class ReadingProgressService {
       },
     });
     return progress ? toProgressResponse(progress) : null;
+  }
+
+  private async userCanRead(
+    userId: string,
+    chapter: { id: string; isFree: boolean },
+  ): Promise<boolean> {
+    if (chapter.isFree) return true;
+    const [hasUnlock, hasSubscription] = await Promise.all([
+      this.prisma.chapterUnlock.findUnique({
+        where: { userId_chapterId: { userId, chapterId: chapter.id } },
+        select: { id: true },
+      }),
+      this.prisma.subscription.findFirst({
+        where: {
+          userId,
+          status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+          currentPeriodEnd: { gt: new Date() },
+        },
+        select: { id: true },
+      }),
+    ]);
+    return hasUnlock !== null || hasSubscription !== null;
   }
 
   async listRecent(userId: string, limit = 10): Promise<ProgressListItem[]> {

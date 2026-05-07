@@ -53,6 +53,6 @@ export class UnlocksController {
     limit: number;
   }> {
     if (!user) throw new UnauthorizedException();
-    return this.unlocks.list(user.id, query.page, query.limit);
+    return this.unlocks.list(user.id, query.page, query.limit, query.bookId);
   }
 }

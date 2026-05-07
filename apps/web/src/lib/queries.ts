@@ -43,7 +43,8 @@ export const queryKeys = {
     ['books', 'chapters', id, page, limit] as const,
   chapter: (id: string) => ['chapters', 'detail', id] as const,
   chapterContent: (id: string) => ['chapters', 'content', id] as const,
-  unlocks: (page: number, limit: number) => ['unlocks', page, limit] as const,
+  unlocks: (page: number, limit: number, bookId?: string) =>
+    bookId ? (['unlocks', page, limit, bookId] as const) : (['unlocks', page, limit] as const),
   order: (sessionId: string) => ['payments', 'orders', sessionId] as const,
   subscription: ['payments', 'subscription'] as const,
   coinTransactions: (page: number, limit: number) =>
@@ -92,11 +93,14 @@ export const fetchBookChapters = (
 export const fetchChapter = (id: string): Promise<ChapterResponse> =>
   apiFetch(`/chapters/${encodeURIComponent(id)}`);
 
-export const unlockChapter = (chapterId: string): Promise<ChapterResponse> =>
-  apiFetch(`/unlocks/chapter/${encodeURIComponent(chapterId)}`, { method: 'POST' });
-
-export const fetchUnlocks = (page: number, limit: number): Promise<Paginated<ChapterUnlock>> =>
-  apiFetch('/unlocks', { query: { page, limit } });
+export const fetchUnlocks = (
+  page: number,
+  limit: number,
+  bookId?: string,
+): Promise<Paginated<ChapterUnlock>> =>
+  apiFetch('/unlocks', {
+    query: bookId ? { page, limit, bookId } : { page, limit },
+  });
 
 export const createCoinCheckout = (packageId: string): Promise<CheckoutSession> =>
   apiFetch('/payments/checkout/coins', { method: 'POST', body: { packageId } });

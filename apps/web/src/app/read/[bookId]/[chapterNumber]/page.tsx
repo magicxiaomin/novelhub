@@ -33,7 +33,7 @@ export default async function ReaderPage({ params }: ReaderPageProps): Promise<J
     <ReaderContent
       chapter={resolved.chapter}
       initialChapters={resolved.chapters}
-      currentUrl={`/read/${params.bookId}/${resolved.chapterNumber}`}
+      currentUrl={`/read/${encodeURIComponent(params.bookId)}/${resolved.chapterNumber}`}
     />
   );
 }

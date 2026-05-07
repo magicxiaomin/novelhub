@@ -19,9 +19,20 @@ type FakeProgress = {
 type FakeChapter = {
   id: string;
   bookId: string;
+  isFree: boolean;
 };
 
-const buildPrismaStub = (state: { progress: FakeProgress[]; chapters: FakeChapter[] }) => {
+type FakeUnlock = { userId: string; chapterId: string };
+type FakeSubscription = { userId: string; status: string; currentPeriodEnd: Date };
+
+type StubState = {
+  progress: FakeProgress[];
+  chapters: FakeChapter[];
+  unlocks?: FakeUnlock[];
+  subscriptions?: FakeSubscription[];
+};
+
+const buildPrismaStub = (state: StubState) => {
   let progressCounter = 0;
 
   const readingProgressClient = {
@@ -83,18 +94,40 @@ const buildPrismaStub = (state: { progress: FakeProgress[]; chapters: FakeChapte
   };
 
   const chapterClient = {
-    findUnique: async ({ where }: { where: { id: string } }) =>
+    findFirst: async ({ where }: { where: { id: string; deletedAt?: unknown; book?: unknown } }) =>
       state.chapters.find((chapter) => chapter.id === where.id) ?? null,
   };
 
-  return { chapter: chapterClient, readingProgress: readingProgressClient };
+  const chapterUnlockClient = {
+    findUnique: async ({
+      where,
+    }: {
+      where: { userId_chapterId: { userId: string; chapterId: string } };
+    }) =>
+      state.unlocks?.find(
+        (u) =>
+          u.userId === where.userId_chapterId.userId &&
+          u.chapterId === where.userId_chapterId.chapterId,
+      ) ?? null,
+  };
+
+  const subscriptionClient = {
+    findFirst: async ({ where }: { where: { userId: string } }) =>
+      state.subscriptions?.find((s) => s.userId === where.userId) ?? null,
+  };
+
+  return {
+    chapter: chapterClient,
+    chapterUnlock: chapterUnlockClient,
+    subscription: subscriptionClient,
+    readingProgress: readingProgressClient,
+  };
 };
 
 describe('ReadingProgressService', () => {
-  const buildService = async (state: {
-    progress: FakeProgress[];
-    chapters: FakeChapter[];
-  }): Promise<{ service: ReadingProgressService; state: typeof state }> => {
+  const buildService = async (
+    state: StubState,
+  ): Promise<{ service: ReadingProgressService; state: StubState }> => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [ReadingProgressService, { provide: PRISMA, useValue: buildPrismaStub(state) }],
     }).compile();
@@ -104,7 +137,7 @@ describe('ReadingProgressService', () => {
   it('upserts progress for the current user and clamps scrollPercent', async () => {
     const { service, state } = await buildService({
       progress: [],
-      chapters: [{ id: 'chapter-1', bookId: 'book-1' }],
+      chapters: [{ id: 'chapter-1', bookId: 'book-1', isFree: true }],
     });
 
     const created = await service.save('user-1', {
@@ -124,6 +157,59 @@ describe('ReadingProgressService', () => {
       chapterId: 'chapter-1',
       scrollPercent: 48,
     });
+  });
+
+  it('rejects save() when the chapter is locked and the user has no unlock or subscription', async () => {
+    const { service } = await buildService({
+      progress: [],
+      chapters: [{ id: 'chapter-locked', bookId: 'book-1', isFree: false }],
+    });
+
+    await expect(
+      service.save('user-1', { chapterId: 'chapter-locked', scrollPercent: 25 }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('accepts save() for a locked chapter when the user owns an unlock', async () => {
+    const { service, state } = await buildService({
+      progress: [],
+      chapters: [{ id: 'chapter-locked', bookId: 'book-1', isFree: false }],
+      unlocks: [{ userId: 'user-1', chapterId: 'chapter-locked' }],
+    });
+
+    await service.save('user-1', { chapterId: 'chapter-locked', scrollPercent: 25 });
+    expect(state.progress).toHaveLength(1);
+  });
+
+  it('accepts save() for a locked chapter when the user has an active subscription', async () => {
+    const { service, state } = await buildService({
+      progress: [],
+      chapters: [{ id: 'chapter-locked', bookId: 'book-1', isFree: false }],
+      subscriptions: [
+        {
+          userId: 'user-1',
+          status: 'active',
+          currentPeriodEnd: new Date('2030-01-01T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    await service.save('user-1', { chapterId: 'chapter-locked', scrollPercent: 25 });
+    expect(state.progress).toHaveLength(1);
+  });
+
+  it('rejects save() for a chapter that does not exist (matches the no-access response)', async () => {
+    const { service } = await buildService({
+      progress: [],
+      chapters: [],
+    });
+
+    await expect(
+      service.save('user-1', {
+        chapterId: '11111111-1111-4111-8111-111111111111',
+        scrollPercent: 25,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
   });
 
   it('empty args list path returns the 10 most recent Continue Reading entries', async () => {

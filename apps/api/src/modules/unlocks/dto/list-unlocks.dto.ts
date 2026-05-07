@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class ListUnlocksDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -17,4 +17,9 @@ export class ListUnlocksDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  @ApiPropertyOptional({ description: 'Filter unlocks to a specific book' })
+  @IsOptional()
+  @IsUUID('4')
+  bookId?: string;
 }
