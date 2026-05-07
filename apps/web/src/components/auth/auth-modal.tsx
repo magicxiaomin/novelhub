@@ -143,8 +143,17 @@ export function AuthModal({
   });
 
   const googleLogin = useMutation({
-    mutationFn: loginWithGoogle,
-    onSuccess: () => void finishAuth(),
+    mutationFn: async (idToken: string) => {
+      const fbEventId = crypto.randomUUID();
+      const result = await loginWithGoogle({ idToken, fbEventId });
+      return { ...result, fbEventId };
+    },
+    onSuccess: (result) => {
+      if (result.created) {
+        fbTrackCompleteRegistration({ method: 'google', eventId: result.fbEventId });
+      }
+      void finishAuth();
+    },
     onError: () => toast.error(messages.auth.googleError),
   });
 

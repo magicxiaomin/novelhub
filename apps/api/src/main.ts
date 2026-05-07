@@ -12,7 +12,9 @@ async function bootstrap(): Promise<void> {
   });
   // Trust the first hop (Railway / Vercel / similar) so req.ip resolves to
   // the client address for FB CAPI attribution and rate-limit keys.
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  if (process.env.NODE_ENV === 'production') {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
 
   app.use(cookieParser());
   app.useGlobalPipes(

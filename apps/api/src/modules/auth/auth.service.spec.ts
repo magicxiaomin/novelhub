@@ -208,6 +208,7 @@ describe('AuthService', () => {
       type: 'SIGNUP_BONUS',
     });
     expect(emailStub.sendWelcomeEmail).toHaveBeenCalledWith('luna@example.com');
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
   });
 
   it('register: sends CompleteRegistration CAPI with supplied event id when consent is granted', async () => {
@@ -286,6 +287,67 @@ describe('AuthService', () => {
     expect(emailStub.sendWelcomeEmail).toHaveBeenCalled();
   });
 
+  it('google: new user sends CompleteRegistration CAPI when consent is granted', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-capi',
+        email: 'capi@example.com',
+        email_verified: true,
+      }),
+    });
+
+    await service.loginWithGoogle('fake-id-token', {
+      fbConsent: true,
+      fbUserData: { fbp: 'fbp-google', fbc: 'fbc-google' },
+      fbEventId: 'event-google-1',
+    });
+
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledTimes(1);
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledWith(
+      'CompleteRegistration',
+      'event-google-1',
+      { email: 'capi@example.com', fbp: 'fbp-google', fbc: 'fbc-google' },
+      undefined,
+      'user-1',
+    );
+  });
+
+  it('google: new user skips CompleteRegistration CAPI without consent', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-no-consent',
+        email: 'no-consent@example.com',
+        email_verified: true,
+      }),
+    });
+
+    await service.loginWithGoogle('fake-id-token');
+
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
+  });
+
+  it('google: existing google user never sends CompleteRegistration CAPI', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-returning',
+        email: 'returning@example.com',
+        email_verified: true,
+      }),
+    });
+    await service.loginWithGoogle('fake-id-token');
+    fbCapiStub.sendEvent.mockClear();
+
+    const result = await service.loginWithGoogle('fake-id-token', {
+      fbConsent: true,
+      fbUserData: { fbp: 'fbp-returning' },
+      fbEventId: 'event-returning-1',
+    });
+
+    expect(result.isNewUser).toBe(false);
+    expect(result.created).toBe(false);
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
+  });
+
   it('google: existing email links googleId without double bonus', async () => {
     await service.register('linkme@example.com', 'password123');
     expect(prismaStub.coinTxns).toHaveLength(1);
@@ -298,7 +360,9 @@ describe('AuthService', () => {
     });
     const result = await service.loginWithGoogle('fake');
     expect(result.isNewUser).toBe(false);
+    expect(result.created).toBe(false);
     expect(prismaStub.coinTxns).toHaveLength(1);
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
   });
 
   it('google: rejects unverified email', async () => {

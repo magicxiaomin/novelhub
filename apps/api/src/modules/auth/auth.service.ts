@@ -33,7 +33,7 @@ import type { FbUserData } from '../fb-capi/fb-capi.types';
 
 export type TokenPair = { accessToken: string; refreshToken: string };
 export type AuthResult = { user: AuthUser; tokens: TokenPair };
-export type GoogleAuthResult = AuthResult & { isNewUser: boolean };
+export type GoogleAuthResult = AuthResult & { isNewUser: boolean; created: boolean };
 
 const BCRYPT_COST = 12;
 
@@ -97,7 +97,7 @@ export class AuthService {
     void this.email
       .sendWelcomeEmail(created.email)
       .catch((err) => this.logger.error('Welcome email failed', err as Error));
-    if (opts.fbConsent !== false) {
+    if (opts.fbConsent === true) {
       void this.fbCapi
         .sendEvent(
           'CompleteRegistration',
@@ -136,7 +136,14 @@ export class AuthService {
     };
   }
 
-  async loginWithGoogle(idToken: string): Promise<GoogleAuthResult> {
+  async loginWithGoogle(
+    idToken: string,
+    opts: {
+      fbConsent?: boolean;
+      fbUserData?: Omit<FbUserData, 'email'>;
+      fbEventId?: string;
+    } = {},
+  ): Promise<GoogleAuthResult> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
       throw new UnauthorizedException('Google sign-in is not configured');
@@ -168,6 +175,7 @@ export class AuthService {
         user: this.toAuthUser(existingByGoogle, hasSub),
         tokens,
         isNewUser: false,
+        created: false,
       };
     }
 
@@ -185,6 +193,7 @@ export class AuthService {
         user: this.toAuthUser(linked, hasSub),
         tokens,
         isNewUser: false,
+        created: false,
       };
     }
 
@@ -210,12 +219,24 @@ export class AuthService {
     void this.email
       .sendWelcomeEmail(created.email)
       .catch((err) => this.logger.error('Welcome email failed', err as Error));
+    if (opts.fbConsent === true) {
+      void this.fbCapi
+        .sendEvent(
+          'CompleteRegistration',
+          opts.fbEventId ?? randomUUID(),
+          { ...opts.fbUserData, email: created.email },
+          undefined,
+          created.id,
+        )
+        .catch((err) => this.logger.error('CompleteRegistration CAPI failed', err as Error));
+    }
 
     const tokens = await this.issueTokens(created.id, created.email);
     return {
       user: this.toAuthUser(created, false),
       tokens,
       isNewUser: true,
+      created: true,
     };
   }
 

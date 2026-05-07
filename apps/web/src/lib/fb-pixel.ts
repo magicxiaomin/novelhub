@@ -108,8 +108,11 @@ export function fbTrackPurchase(input: {
   );
 }
 
-export function fbTrackCompleteRegistration(input: { method: string }): TrackResult {
-  return track('CompleteRegistration', { method: input.method });
+export function fbTrackCompleteRegistration(input: {
+  method: string;
+  eventId?: string;
+}): TrackResult {
+  return track('CompleteRegistration', { method: input.method }, input.eventId);
 }
 
 function track(

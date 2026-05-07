@@ -29,7 +29,7 @@ import { FbCapiService } from '../fb-capi/fb-capi.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 type AuthResponse = { user: AuthUser };
-type GoogleAuthResponse = AuthResponse & { isNewUser: boolean };
+type GoogleAuthResponse = AuthResponse & { isNewUser: boolean; created: boolean };
 
 @ApiTags('auth')
 @Controller('auth')
@@ -40,6 +40,9 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  // Global throttling is 60/min; registration gets a tighter public-endpoint cap
+  // because each successful call can fan out to email and FB CAPI providers.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user with email + password' })
   @ApiBody({ type: RegisterDto })
@@ -77,11 +80,17 @@ export class AuthController {
   @ApiBody({ type: GoogleAuthDto })
   async google(
     @Body() dto: GoogleAuthDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<GoogleAuthResponse> {
-    const result = await this.authService.loginWithGoogle(dto.idToken);
+    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    const result = await this.authService.loginWithGoogle(dto.idToken, {
+      fbConsent,
+      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : undefined,
+      fbEventId: dto.fbEventId,
+    });
     setAuthCookies(res, result.tokens);
-    return { user: result.user, isNewUser: result.isNewUser };
+    return { user: result.user, isNewUser: result.isNewUser, created: result.created };
   }
 
   @Post('refresh')

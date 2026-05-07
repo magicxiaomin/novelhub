@@ -128,8 +128,11 @@ export const registerWithEmail = (body: {
   fbEventId?: string;
 }): Promise<{ user: AuthUser }> => apiFetch('/auth/register', { method: 'POST', body });
 
-export const loginWithGoogle = (idToken: string): Promise<{ user: AuthUser }> =>
-  apiFetch('/auth/google', { method: 'POST', body: { idToken } });
+export const loginWithGoogle = (input: {
+  idToken: string;
+  fbEventId?: string;
+}): Promise<{ user: AuthUser; created: boolean; isNewUser?: boolean }> =>
+  apiFetch('/auth/google', { method: 'POST', body: input });
 
 export const requestPasswordReset = (email: string): Promise<void> =>
   apiFetch('/auth/forgot-password', { method: 'POST', body: { email } });
