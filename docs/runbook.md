@@ -60,7 +60,7 @@ Production deploys intentionally use the native Git repository integrations in V
 The API container entrypoint runs:
 
 ```sh
-pnpm --filter @novelhub/db prisma migrate deploy --schema packages/db/prisma/schema.prisma
+pnpm --filter @novelhub/db exec prisma migrate deploy --schema prisma/schema.prisma
 ```
 
 If migration deploy fails, the container exits non-zero so Railway can restart and surface the failure. `staging-deploy.yml` already exists for the separate staging VPS flow.
@@ -74,6 +74,20 @@ Use Vercel's deployment history to roll the web app back to the previous success
 Use Railway's deployment history to roll the API back to the previous image.
 
 Database rollback is harder than image rollback. Destructive migrations must ship only with a reviewed manual reverse-migration plan, backup confirmation, and an agreed recovery window before they reach production.
+
+## Backup Strategy
+
+Supabase Pro projects ship with automatic daily Postgres backups out of the box. Document, verify, and operate them as follows:
+
+- **Storage.** Supabase stores backups in their managed infrastructure; they are not in this repository. The Supabase dashboard surfaces them under Project Settings → Database → Backups.
+- **Retention.** Daily backups are retained for 7 days on the Pro plan (review the active plan on Supabase to confirm). For longer retention enable Point-in-Time Recovery (PITR) which extends to 7–30 days depending on plan.
+- **RPO / RTO.** RPO is up to 24 hours without PITR (the gap between daily snapshots). RTO is "minutes to a few hours" for Supabase-managed restores. Document the active values once Supabase is provisioned.
+- **Who restores.** The on-call engineer triggers a restore from the Supabase dashboard, or via `supabase db restore` when it lands on the CLI. They must coordinate with stakeholders before a destructive restore because it replaces the entire database state.
+- **Partial vs. full restore.**
+  - _Full restore_ — Supabase replaces the entire database from the chosen snapshot. Schedule a write-freeze on the API (`fly scale 0` / Railway pause) before triggering, and verify migrations are at the expected version after restore.
+  - _Partial restore_ — Supabase does not natively support per-table restore. The supported workflow is: clone the snapshot to a one-shot recovery branch, dump the affected tables with `pg_dump --table`, then merge into the live database with conflict-resolution scripts. Document the affected rows in the postmortem.
+- **Verification cadence.** A weekly cron exports the latest backup to a recovery-only branch and runs `prisma migrate status` against it. Track the result in the on-call rotation channel — silent backup pipelines must be assumed broken.
+- **Out of scope here.** Cross-region replication and DR runbooks are not part of Ticket 14 (see ticket Out of Scope). Add them when traffic warrants the cost.
 
 ## Common Issues
 

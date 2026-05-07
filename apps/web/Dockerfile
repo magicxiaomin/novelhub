@@ -34,6 +34,12 @@ RUN addgroup -S nodejs \
 COPY --from=build --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+# Next standalone trace doesn't always pick up dynamic Sentry imports from
+# instrumentation.ts; copy the config files explicitly so the runtime image
+# can resolve them.
+COPY --from=build --chown=nextjs:nodejs /app/apps/web/sentry.client.config.ts ./apps/web/sentry.client.config.ts
+COPY --from=build --chown=nextjs:nodejs /app/apps/web/sentry.server.config.ts ./apps/web/sentry.server.config.ts
+COPY --from=build --chown=nextjs:nodejs /app/apps/web/sentry.edge.config.ts ./apps/web/sentry.edge.config.ts
 
 USER nextjs
 

@@ -27,13 +27,23 @@ describe('SentryExceptionFilter', () => {
   const createFilter = () => new SentryExceptionFilter({} as HttpServer);
   const host = {} as ArgumentsHost;
 
-  it('does not capture HttpException errors', () => {
+  it('does not capture 4xx HttpException errors (user errors)', () => {
     process.env.SENTRY_DSN = 'https://sentry.example/1';
     const exception = new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
 
     createFilter().catch(exception, host);
 
     expect(captureException).not.toHaveBeenCalled();
+    expect(superCatch).toHaveBeenCalledWith(exception, host);
+  });
+
+  it('captures 5xx HttpException errors (server errors)', () => {
+    process.env.SENTRY_DSN = 'https://sentry.example/1';
+    const exception = new HttpException('Upstream failed', HttpStatus.INTERNAL_SERVER_ERROR);
+
+    createFilter().catch(exception, host);
+
+    expect(captureException).toHaveBeenCalledWith(exception);
     expect(superCatch).toHaveBeenCalledWith(exception, host);
   });
 
