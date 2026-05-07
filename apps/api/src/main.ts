@@ -1,3 +1,7 @@
+// Must be the FIRST import — Sentry's auto-instrumentation patches modules at
+// require-time and has to load before any @nestjs/*, express, or prisma code.
+import './instrument';
+
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -6,6 +10,8 @@ import cookieParser from 'cookie-parser';
 import { json, type NextFunction, type Request, type Response } from 'express';
 
 import { AppModule } from './app.module';
+import { SentryExceptionFilter } from './sentry/sentry-exception.filter';
+import { SentryUserInterceptor } from './sentry/sentry-user.interceptor';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -42,6 +48,8 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+  app.useGlobalInterceptors(new SentryUserInterceptor());
+  app.useGlobalFilters(new SentryExceptionFilter(app.getHttpAdapter()));
 
   const corsOrigin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   app.enableCors({ origin: corsOrigin, credentials: true });

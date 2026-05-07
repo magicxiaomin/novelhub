@@ -1,4 +1,11 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import withPWAInit from 'next-pwa';
+import { withSentryConfig } from '@sentry/nextjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const imageHost = process.env.NEXT_PUBLIC_IMAGE_HOST;
 const r2PublicHost = process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
@@ -87,10 +94,22 @@ if (r2PublicHost) {
 }
 
 const nextConfig = {
+  output: 'standalone',
   reactStrictMode: true,
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, '../../'),
+  },
   images: {
     remotePatterns,
   },
 };
 
-export default withPWA(nextConfig);
+export default withSentryConfig(withPWA(nextConfig), {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT_WEB,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+});

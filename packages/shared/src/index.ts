@@ -3,6 +3,7 @@ export const APP_NAME = 'NovelHub' as const;
 export * from './consent';
 export * from './push-copy';
 export * from './routes';
+export * from './sentry-scrubber';
 
 export const BOOK_STATUSES = ['ONGOING', 'COMPLETED'] as const;
 export type BookStatus = (typeof BOOK_STATUSES)[number];
