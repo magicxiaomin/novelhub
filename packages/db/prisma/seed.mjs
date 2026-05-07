@@ -7,18 +7,24 @@ const HASH_COST = 12;
 const ADMIN_EMAIL = 'admin@novelhub.local';
 const ADMIN_PASSWORD = 'admin12345';
 
-function buildChapters(bookId, idPrefix, contentKey) {
+// Chapter content URLs point at the API's static asset route in dev. In
+// production this would be an R2 key resolved via getSignedUrl().
+const CHAPTER_CONTENT_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+
+function buildChapters(bookId, idPrefix, contentKey, chapterTitles) {
   return Array.from({ length: 10 }, (_, index) => {
     const order = index + 1;
     const paddedOrder = String(order).padStart(2, '0');
     const uuidTail = String(order).padStart(12, '0');
+    const fallbackTitle = `Chapter ${order}`;
+    const title = chapterTitles?.[index] ?? fallbackTitle;
 
     return {
       id: `${idPrefix}-${paddedOrder.padStart(4, '0')}-4000-8000-${uuidTail}`,
       bookId,
       order,
-      title: `Chapter ${order}`,
-      contentUrl: `books/${contentKey}/chapter-${paddedOrder}.json`,
+      title,
+      contentUrl: `${CHAPTER_CONTENT_BASE}/static/chapters/${contentKey}/chapter-${paddedOrder}.txt`,
       wordCount: 1800 + order * 120,
       isFree: order <= 3,
       publishedAt: new Date(Date.UTC(2026, 0, order)),
@@ -31,56 +37,92 @@ const books = [
   {
     id: '11111111-1111-4111-8111-111111111111',
     idPrefix: '11111111',
-    contentKey: 'moonlit-promise',
-    title: 'Moonlit Promise',
-    author: 'Ava Sterling',
-    coverUrl: 'https://cdn.novelhub.local/covers/moonlit-promise.webp',
+    contentKey: 'pride-and-prejudice',
+    title: 'Pride and Prejudice',
+    author: 'Jane Austen',
+    coverUrl: 'https://picsum.photos/seed/pride-and-prejudice/400/600',
     description:
-      'A rejected heir discovers a dangerous bond that could save her pack or destroy the only home she has left.',
-    category: 'WEREWOLF',
-    tags: ['rejected-mate', 'pack-politics', 'slow-burn'],
+      'When the wealthy Mr. Darcy arrives in the Bennet family neighborhood, sharp-witted Elizabeth must navigate first impressions, social pressure, and her own pride to discover what she really wants.',
+    category: 'ROMANCE',
+    tags: ['classic', 'regency', 'slow-burn'],
     totalChapters: 10,
-    status: 'ONGOING',
+    status: 'COMPLETED',
     isFeatured: true,
     freeChapterCount: 3,
     coinPerChapter: 5,
     deletedAt: null,
+    chapterTitles: [
+      'A Truth Universally Acknowledged',
+      'Mr. Bennet Pays a Call',
+      'The Meryton Assembly',
+      'Sisters Confide',
+      'The Lucases at Longbourn',
+      'A Visit to Netherfield',
+      'The Officers Arrive in Meryton',
+      'Jane Falls Ill',
+      'A Letter Brings News',
+      'Conversations After Dinner',
+    ],
   },
   {
     id: '22222222-2222-4222-8222-222222222222',
     idPrefix: '22222222',
-    contentKey: 'contract-heiress',
-    title: 'Contract Heiress',
-    author: 'Maya Hart',
-    coverUrl: 'https://cdn.novelhub.local/covers/contract-heiress.webp',
+    contentKey: 'sherlock-holmes',
+    title: 'The Adventures of Sherlock Holmes',
+    author: 'Arthur Conan Doyle',
+    coverUrl: 'https://picsum.photos/seed/sherlock-holmes/400/600',
     description:
-      'A marriage contract meant to protect a family empire turns into a high-stakes romance with secrets on both sides.',
-    category: 'BILLIONAIRE',
-    tags: ['contract-marriage', 'family-secrets', 'office-romance'],
+      'Ten classic cases from 221B Baker Street: a king blackmailed by a clever opera singer, a vanishing pawnbroker, a bachelor’s missing bride, and the spotted band that creeps in the dark.',
+    category: 'MYSTERY',
+    tags: ['classic', 'detective', 'short-stories'],
     totalChapters: 10,
-    status: 'ONGOING',
+    status: 'COMPLETED',
     isFeatured: true,
     freeChapterCount: 3,
     coinPerChapter: 5,
     deletedAt: null,
+    chapterTitles: [
+      'A Scandal in Bohemia',
+      'The Red-Headed League',
+      'A Case of Identity',
+      'The Boscombe Valley Mystery',
+      'The Five Orange Pips',
+      'The Man with the Twisted Lip',
+      'The Adventure of the Blue Carbuncle',
+      'The Adventure of the Speckled Band',
+      'The Adventure of the Engineer’s Thumb',
+      'The Adventure of the Noble Bachelor',
+    ],
   },
   {
     id: '33333333-3333-4333-8333-333333333333',
     idPrefix: '33333333',
-    contentKey: 'ashes-of-evernight',
-    title: 'Ashes of Evernight',
-    author: 'Lena Vale',
-    coverUrl: 'https://cdn.novelhub.local/covers/ashes-of-evernight.webp',
+    contentKey: 'frankenstein',
+    title: 'Frankenstein',
+    author: 'Mary Shelley',
+    coverUrl: 'https://picsum.photos/seed/frankenstein/400/600',
     description:
-      'An apprentice with forbidden magic must cross a cursed kingdom before an ancient court wakes beneath the capital.',
-    category: 'FANTASY',
-    tags: ['forbidden-magic', 'quest', 'royal-court'],
+      'A young scientist obsessed with the boundary between life and death gives form to a creature he cannot control. A gothic tragedy of ambition, isolation, and the price of creation.',
+    category: 'GOTHIC',
+    tags: ['classic', 'gothic', 'horror'],
     totalChapters: 10,
     status: 'COMPLETED',
     isFeatured: false,
     freeChapterCount: 3,
     coinPerChapter: 5,
     deletedAt: null,
+    chapterTitles: [
+      'A Letter from the Arctic',
+      'The Stranger on the Ice',
+      'Geneva, My Childhood',
+      'A Family in Mourning',
+      'The Spark of Life',
+      'The Monster Awakes',
+      'Flight Through the Night',
+      'A Letter from Elizabeth',
+      'Justine on Trial',
+      'In the Mountains of Chamonix',
+    ],
   },
 ];
 
@@ -107,7 +149,7 @@ async function seedAdmin() {
 
 async function seedBooks() {
   for (const book of books) {
-    const { contentKey, id, idPrefix, ...bookData } = book;
+    const { contentKey, id, idPrefix, chapterTitles, ...bookData } = book;
 
     await prisma.book.upsert({
       where: { id },
@@ -118,7 +160,7 @@ async function seedBooks() {
       },
     });
 
-    const chapters = buildChapters(id, idPrefix, contentKey);
+    const chapters = buildChapters(id, idPrefix, contentKey, chapterTitles);
 
     for (const chapter of chapters) {
       const { id: chapterId, ...chapterData } = chapter;
