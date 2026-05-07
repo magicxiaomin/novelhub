@@ -239,15 +239,26 @@ describe('NotificationsService', () => {
 
 describe('withCronLock', () => {
   it('short-circuits when another replica holds the advisory lock', async () => {
+    const tx = { $queryRaw: jest.fn().mockResolvedValue([{ acquired: false }]) };
     const prisma = {
-      $queryRaw: jest.fn().mockResolvedValue([{ acquired: false }]),
-      $executeRaw: jest.fn(),
+      $transaction: jest.fn().mockImplementation((cb: (tx: unknown) => Promise<unknown>) => cb(tx)),
     } as unknown as PrismaClient;
     const fn = jest.fn().mockResolvedValue('sent');
 
     await expect(withCronLock(prisma, 12001, fn)).resolves.toBeNull();
     expect(fn).not.toHaveBeenCalled();
-    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs fn while the advisory xact lock is held', async () => {
+    const tx = { $queryRaw: jest.fn().mockResolvedValue([{ acquired: true }]) };
+    const prisma = {
+      $transaction: jest.fn().mockImplementation((cb: (tx: unknown) => Promise<unknown>) => cb(tx)),
+    } as unknown as PrismaClient;
+    const fn = jest.fn().mockResolvedValue('sent');
+
+    await expect(withCronLock(prisma, 12001, fn)).resolves.toBe('sent');
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -14,9 +14,18 @@ const appHost = (() => {
   }
 })();
 
-const apiCachePattern = appHost ? new RegExp(`^https://${escapeRegExp(appHost)}/api/`) : null;
+// Always block the SW from caching `/api/` (user-scoped data). Prefer a
+// host-anchored regex when NEXT_PUBLIC_APP_URL is parseable; otherwise fall
+// back to a relative `/api/` matcher so the NetworkOnly rule is never silently
+// dropped on misconfig.
+const apiCachePattern = appHost ? new RegExp(`^https://${escapeRegExp(appHost)}/api/`) : /\/api\//;
 
 const runtimeCaching = [
+  {
+    urlPattern: apiCachePattern,
+    handler: 'NetworkOnly',
+    options: { cacheName: 'api-no-cache' },
+  },
   {
     urlPattern: /\/_next\/static\/.*/i,
     handler: 'CacheFirst',
@@ -34,14 +43,6 @@ const runtimeCaching = [
     },
   },
 ];
-
-if (apiCachePattern) {
-  runtimeCaching.unshift({
-    urlPattern: apiCachePattern,
-    handler: 'NetworkOnly',
-    options: { cacheName: 'api-no-cache' },
-  });
-}
 
 if (imageHost) {
   runtimeCaching.push({
