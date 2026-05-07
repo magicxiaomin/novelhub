@@ -35,6 +35,7 @@ export class UpdateChapterDto {
   @ApiPropertyOptional({ description: 'Replacement chapter content (plain text)' })
   @IsOptional()
   @IsString()
+  @MaxLength(204800)
   content?: string;
 }
 

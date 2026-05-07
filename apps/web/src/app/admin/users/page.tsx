@@ -13,10 +13,10 @@ import { adminApi, type AdminUser } from '@/lib/admin/api';
 import messages from '@/../messages/en.json';
 
 const columns: ColumnDef<AdminUser>[] = [
-  { accessorKey: 'email', header: 'Email' },
-  { accessorKey: 'coinBalance', header: 'Coins' },
-  { accessorKey: 'isAdmin', header: 'Admin' },
-  { accessorKey: 'bannedAt', header: 'Banned' },
+  { accessorKey: 'email', header: messages.admin.users.columns.email },
+  { accessorKey: 'coinBalance', header: messages.admin.users.columns.coins },
+  { accessorKey: 'isAdmin', header: messages.admin.users.columns.admin },
+  { accessorKey: 'bannedAt', header: messages.admin.users.columns.banned },
   {
     id: 'actions',
     cell: ({ row }) => (

@@ -2,6 +2,9 @@
 
 import mammoth from 'mammoth';
 import { useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 import { PageTitle } from '@/components/admin/page-title';
 import { Button } from '@/components/ui/button';
@@ -13,22 +16,31 @@ import messages from '@/../messages/en.json';
 const DEFAULT_REGEX = '^Chapter\\s+\\d+';
 const CHUNK_SIZE = 50;
 
+const importFormSchema = z.object({
+  bookId: z.string().uuid(),
+  regexSource: z.string().min(1).max(100),
+});
+
+type ImportFormValues = z.infer<typeof importFormSchema>;
+
 export default function ImportChaptersPage(): JSX.Element {
-  const [bookId, setBookId] = useState('');
-  const [regex, setRegex] = useState(DEFAULT_REGEX);
   const [chapters, setChapters] = useState<ParsedChapter[]>([]);
+  const form = useForm<ImportFormValues>({
+    resolver: zodResolver(importFormSchema),
+    defaultValues: { bookId: '', regexSource: DEFAULT_REGEX },
+  });
 
   const parseFile = async (file: File | undefined): Promise<void> => {
     if (!file) return;
     const text = file.name.endsWith('.docx')
       ? (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value
       : await file.text();
-    setChapters(parseChaptersFromText(text, regex));
+    setChapters(parseChaptersFromText(text, form.getValues('regexSource')));
   };
 
-  const submit = async (): Promise<void> => {
+  const submit = async (values: ImportFormValues): Promise<void> => {
     for (let i = 0; i < chapters.length; i += CHUNK_SIZE) {
-      await adminApi.bulkChapters(bookId, chapters.slice(i, i + CHUNK_SIZE));
+      await adminApi.bulkChapters(values.bookId, chapters.slice(i, i + CHUNK_SIZE));
     }
   };
 
@@ -36,24 +48,13 @@ export default function ImportChaptersPage(): JSX.Element {
     <section>
       <PageTitle title={messages.admin.chapters.import} />
       <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
+        onSubmit={form.handleSubmit((values) => void submit(values))}
         className="grid max-w-2xl gap-4"
       >
-        <Input
-          value={bookId}
-          onChange={(e) => setBookId(e.target.value)}
-          placeholder={messages.admin.chapters.bookId}
-          required
-        />
-        <Input
-          value={regex}
-          onChange={(e) => setRegex(e.target.value)}
-          placeholder={messages.admin.chapters.regex}
-          required
-        />
+        <Input {...form.register('bookId')} placeholder={messages.admin.chapters.bookId} />
+        <FieldError message={form.formState.errors.bookId?.message} />
+        <Input {...form.register('regexSource')} placeholder={messages.admin.chapters.regex} />
+        <FieldError message={form.formState.errors.regexSource?.message} />
         <Input
           type="file"
           accept=".txt,.docx"
@@ -62,10 +63,14 @@ export default function ImportChaptersPage(): JSX.Element {
         <p className="text-sm text-muted-foreground">
           {messages.admin.chapters.parsed.replaceAll('{count}', () => String(chapters.length))}
         </p>
-        <Button type="submit" disabled={!bookId || chapters.length === 0}>
+        <Button type="submit" disabled={chapters.length === 0}>
           {messages.admin.actions.create}
         </Button>
       </form>
     </section>
   );
+}
+
+function FieldError({ message }: { message: string | undefined }): JSX.Element | null {
+  return message ? <p className="-mt-3 text-xs text-red-600">{message}</p> : null;
 }

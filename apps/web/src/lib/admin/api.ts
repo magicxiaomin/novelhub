@@ -64,6 +64,8 @@ export const adminApi = {
     apiFetch('/admin/books', { method: 'POST', body }),
   updateBook: (id: string, body: Partial<AdminBook>): Promise<{ id: string }> =>
     apiFetch(`/admin/books/${encodeURIComponent(id)}`, { method: 'PUT', body }),
+  deleteBook: (id: string): Promise<{ id: string }> =>
+    apiFetch(`/admin/books/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   coverUploadUrl: (contentType: string): Promise<{ uploadUrl: string; key: string }> =>
     apiFetch('/admin/uploads/cover-url', { method: 'POST', body: { contentType } }),
   chapters: (bookId?: string): Promise<Paginated<AdminChapter>> =>

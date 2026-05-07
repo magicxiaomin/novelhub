@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
@@ -12,6 +12,10 @@ import type { BulkChapterDto, BulkImportOptionsDto, UpdateChapterDto } from './d
 import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './dto/query.dto';
 
 const DEFAULT_DELIMITER = '\n\n---\n\n';
+const MAX_CHAPTER_CONTENT_BYTES = 204800;
+const ALLOWED_COVER_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
+// The base coin package is $4.99 for 50 coins, which rounds to 10 cents/coin.
+const COIN_REVENUE_CENTS = 10;
 
 const wordCount = (text: string): number =>
   text.trim().length === 0 ? 0 : text.trim().split(/\s+/).length;
@@ -27,6 +31,8 @@ const addDays = (date: Date, days: number): Date => {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(STORAGE_CLIENT) private readonly storage: StorageClient,
@@ -247,7 +253,7 @@ export class AdminService {
       throw new BadRequestException('At least one chapter is required');
     }
     const tooLarge = chapters.find(
-      (chapter) => Buffer.byteLength(chapter.content, 'utf-8') > 204800,
+      (chapter) => Buffer.byteLength(chapter.content, 'utf-8') > MAX_CHAPTER_CONTENT_BYTES,
     );
     if (tooLarge) {
       throw new BadRequestException(`Chapter content exceeds 200 KB: ${tooLarge.title}`);
@@ -258,38 +264,60 @@ export class AdminService {
     });
     if (!book) throw new NotFoundException('Book not found');
 
-    const created = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const max = await tx.chapter.aggregate({
-        where: { bookId, deletedAt: null },
-        _max: { order: true },
-      });
-      const baseOrder = max._max.order ?? 0;
-      const createdIds: string[] = [];
-      for (const [index, chapter] of chapters.entries()) {
-        const order = baseOrder + index + 1;
-        const row = await tx.chapter.create({
-          data: {
-            bookId,
-            order,
-            title: chapter.title,
-            contentUrl: '',
-            wordCount: wordCount(chapter.content),
-            isFree: chapter.isFree ?? order <= book.freeChapterCount,
-          },
-          select: { id: true },
-        });
-        const key = `chapters/${bookId}/${row.id}.txt`;
+    const uploads = await Promise.all(
+      chapters.map(async (chapter) => {
+        const key = `chapters/${bookId}/${randomUUID()}.txt`;
         await this.storage.uploadText(key, chapter.content);
-        await tx.chapter.update({ where: { id: row.id }, data: { contentUrl: key } });
-        await this.cache.set(`chapter:preview:${row.id}`, chapter.content.slice(0, 100));
-        createdIds.push(row.id);
-      }
-      await tx.book.update({
-        where: { id: bookId },
-        data: { totalChapters: { increment: createdIds.length } },
+        return { key, chapter };
+      }),
+    );
+
+    let createdRows: Array<{ id: string; content: string }> = [];
+    try {
+      createdRows = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const max = await tx.chapter.aggregate({
+          where: { bookId, deletedAt: null },
+          _max: { order: true },
+        });
+        const baseOrder = max._max.order ?? 0;
+        const rows: Array<{ id: string; content: string }> = [];
+        for (const [index, upload] of uploads.entries()) {
+          const order = baseOrder + index + 1;
+          const row = await tx.chapter.create({
+            data: {
+              bookId,
+              order,
+              title: upload.chapter.title,
+              contentUrl: upload.key,
+              wordCount: wordCount(upload.chapter.content),
+              isFree: upload.chapter.isFree ?? order <= book.freeChapterCount,
+            },
+            select: { id: true },
+          });
+          rows.push({ id: row.id, content: upload.chapter.content });
+        }
+        await tx.book.update({
+          where: { id: bookId },
+          data: { totalChapters: { increment: rows.length } },
+        });
+        return rows;
       });
-      return createdIds.length;
-    });
+    } catch (err) {
+      this.logger.error(
+        `bulkCreateChapters transaction failed after R2 upload; orphan keys: ${uploads
+          .map((upload) => upload.key)
+          .join(', ')}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw err;
+    }
+
+    await Promise.all(
+      createdRows.map((row) =>
+        this.cache.set(`chapter:preview:${row.id}`, row.content.slice(0, 100)),
+      ),
+    );
+    const created = createdRows.length;
     await this.books.invalidateListCaches();
     return { created };
   }
@@ -415,23 +443,35 @@ export class AdminService {
       status: 'completed',
       completedAt: { gte: todayStart, lt: tomorrow },
     };
-    const [signups, payingUsers, revenue, weeklyUsers, weeklyOrders] = await Promise.all([
-      this.prisma.user.count({ where: { createdAt: { gte: todayStart, lt: tomorrow } } }),
-      this.prisma.order.findMany({
-        where: completedOrderWhere,
-        distinct: ['userId'],
-        select: { userId: true },
-      }),
-      this.prisma.order.aggregate({ where: completedOrderWhere, _sum: { amount: true } }),
-      this.prisma.user.findMany({
-        where: { createdAt: { gte: weekStart, lt: tomorrow } },
-        select: { createdAt: true },
-      }),
-      this.prisma.order.findMany({
-        where: { status: 'completed', completedAt: { gte: weekStart, lt: tomorrow } },
-        select: { amount: true, completedAt: true },
-      }),
-    ]);
+    const topBooksStart = addDays(todayStart, -30);
+    const [signups, payingUsers, revenue, weeklyUsers, weeklyOrders, unlockRows] =
+      await Promise.all([
+        this.prisma.user.count({ where: { createdAt: { gte: todayStart, lt: tomorrow } } }),
+        this.prisma.order.findMany({
+          where: completedOrderWhere,
+          distinct: ['userId'],
+          select: { userId: true },
+        }),
+        this.prisma.order.aggregate({ where: completedOrderWhere, _sum: { amount: true } }),
+        this.prisma.user.findMany({
+          where: { createdAt: { gte: weekStart, lt: tomorrow } },
+          select: { createdAt: true },
+        }),
+        this.prisma.order.findMany({
+          where: { status: 'completed', completedAt: { gte: weekStart, lt: tomorrow } },
+          select: { amount: true, completedAt: true },
+        }),
+        this.prisma.chapterUnlock.findMany({
+          where: { method: 'COINS', unlockedAt: { gte: topBooksStart, lt: tomorrow } },
+          select: {
+            chapter: {
+              select: {
+                book: { select: { id: true, title: true, coverUrl: true, coinPerChapter: true } },
+              },
+            },
+          },
+        }),
+      ]);
 
     const weekly = Array.from({ length: 7 }, (_, index) => {
       const date = addDays(weekStart, index).toISOString().slice(0, 10);
@@ -447,6 +487,31 @@ export class AdminService {
       const row = byDate.get(order.completedAt.toISOString().slice(0, 10));
       if (row) row.revenueCents += order.amount;
     }
+    const topBooksById = new Map<
+      string,
+      { id: string; title: string; coverUrl: string; coinTotal: number }
+    >();
+    for (const unlock of unlockRows) {
+      const book = unlock.chapter.book;
+      const existing = topBooksById.get(book.id);
+      if (existing) {
+        existing.coinTotal += book.coinPerChapter;
+      } else {
+        topBooksById.set(book.id, {
+          id: book.id,
+          title: book.title,
+          coverUrl: book.coverUrl,
+          coinTotal: book.coinPerChapter,
+        });
+      }
+    }
+    const topBooks = Array.from(topBooksById.values())
+      .sort((a, b) => b.coinTotal - a.coinTotal)
+      .slice(0, 5)
+      .map(({ coinTotal, ...book }) => ({
+        ...book,
+        revenueCents: coinTotal * COIN_REVENUE_CENTS,
+      }));
 
     return {
       today: {
@@ -456,7 +521,7 @@ export class AdminService {
         estimatedRoasCents: 0,
       },
       weekly,
-      topBooks: [],
+      topBooks,
     };
   }
 
@@ -604,8 +669,8 @@ export class AdminService {
   }
 
   async coverUploadUrl(contentType = 'image/jpeg'): Promise<{ uploadUrl: string; key: string }> {
-    if (!contentType.startsWith('image/')) {
-      throw new BadRequestException('Cover upload must be an image');
+    if (!ALLOWED_COVER_MIME.includes(contentType as (typeof ALLOWED_COVER_MIME)[number])) {
+      throw new BadRequestException('Unsupported cover image type');
     }
     const key = `covers/${randomUUID()}`;
     const uploadUrl = await this.storage.getSignedUploadUrl(key, contentType);

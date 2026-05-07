@@ -11,12 +11,12 @@ import { adminApi, type AdminOrder } from '@/lib/admin/api';
 import messages from '@/../messages/en.json';
 
 const columns: ColumnDef<AdminOrder>[] = [
-  { accessorKey: 'userEmail', header: 'Email' },
-  { accessorKey: 'stripeSessionId', header: 'Session' },
-  { accessorKey: 'type', header: 'Type' },
-  { accessorKey: 'amount', header: 'Amount' },
-  { accessorKey: 'status', header: 'Status' },
-  { accessorKey: 'createdAt', header: 'Created' },
+  { accessorKey: 'userEmail', header: messages.admin.orders.columns.email },
+  { accessorKey: 'stripeSessionId', header: messages.admin.orders.columns.session },
+  { accessorKey: 'type', header: messages.admin.orders.columns.type },
+  { accessorKey: 'amount', header: messages.admin.orders.columns.amount },
+  { accessorKey: 'status', header: messages.admin.orders.columns.status },
+  { accessorKey: 'createdAt', header: messages.admin.orders.columns.created },
 ];
 
 export default function AdminOrdersPage(): JSX.Element {

@@ -57,6 +57,30 @@ export default function AdminDashboardPage(): JSX.Element {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+      <Card className="mt-6">
+        <CardHeader>
+          <h2 className="font-semibold">{messages.admin.dashboard.topBooks.title}</h2>
+        </CardHeader>
+        <CardContent>
+          {(data?.topBooks.length ?? 0) > 0 ? (
+            <div className="grid gap-3">
+              {data?.topBooks.map((book) => (
+                <div
+                  key={book.id}
+                  className="grid grid-cols-[1fr_auto] items-center gap-4 border-b py-2 text-sm last:border-b-0"
+                >
+                  <span className="font-medium">{book.title}</span>
+                  <span>{money(book.revenueCents)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {messages.admin.dashboard.topBooks.empty}
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }

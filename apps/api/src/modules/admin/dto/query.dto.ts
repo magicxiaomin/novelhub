@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class AdminPaginationDto {
   @ApiPropertyOptional({ default: 1 })
@@ -29,7 +29,7 @@ export class AdminSearchDto extends AdminPaginationDto {
 export class AdminChapterListDto extends AdminPaginationDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID('4')
   bookId?: string;
 }
 
