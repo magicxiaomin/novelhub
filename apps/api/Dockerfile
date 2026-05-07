@@ -54,4 +54,4 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://127.0.0.1:4000/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "pnpm --filter @novelhub/db prisma migrate deploy --schema packages/db/prisma/schema.prisma && node apps/api/dist/main.js"]
+ENTRYPOINT ["sh", "-c", "pnpm --filter @novelhub/db exec prisma migrate deploy --schema prisma/schema.prisma && node apps/api/dist/main.js"]
