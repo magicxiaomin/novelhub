@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AdminModule } from '../admin/admin.module';
+import { AuthModule } from '../auth/auth.module';
 import { CoinsModule } from '../coins/coins.module';
 
 import { ReEngagementCron } from './cron/re-engagement.cron';
@@ -10,7 +11,7 @@ import { NotificationsService } from './notifications.service';
 import { OneSignalClient } from './one-signal.client';
 
 @Module({
-  imports: [AdminModule, CoinsModule],
+  imports: [AuthModule, AdminModule, CoinsModule],
   controllers: [NotificationsController],
   providers: [NotificationsService, OneSignalClient, ReEngagementCron, RenewalReminderCron],
   exports: [NotificationsService],
