@@ -1,4 +1,5 @@
 import withPWAInit from 'next-pwa';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const imageHost = process.env.NEXT_PUBLIC_IMAGE_HOST;
 const r2PublicHost = process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
@@ -87,10 +88,19 @@ if (r2PublicHost) {
 }
 
 const nextConfig = {
+  output: 'standalone',
   reactStrictMode: true,
   images: {
     remotePatterns,
   },
 };
 
-export default withPWA(nextConfig);
+export default withSentryConfig(withPWA(nextConfig), {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT_WEB,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+});

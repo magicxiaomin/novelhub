@@ -2,10 +2,21 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
 import { json, type NextFunction, type Request, type Response } from 'express';
 
 import { AppModule } from './app.module';
+import { SentryExceptionFilter } from './sentry/sentry-exception.filter';
+import { SentryUserInterceptor } from './sentry/sentry-user.interceptor';
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 0,
+  });
+}
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -42,6 +53,8 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+  app.useGlobalInterceptors(new SentryUserInterceptor());
+  app.useGlobalFilters(new SentryExceptionFilter(app.getHttpAdapter()));
 
   const corsOrigin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   app.enableCors({ origin: corsOrigin, credentials: true });
