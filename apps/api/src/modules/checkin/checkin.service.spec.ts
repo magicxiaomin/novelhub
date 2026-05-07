@@ -2,8 +2,10 @@ import { ConflictException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 
 import { PRISMA } from '../auth/auth.constants';
+import { COIN_TXN_TYPE } from '../coins/coins.constants';
+import { CoinsService } from '../coins/coins.service';
 
-import { COIN_TXN_TYPE_CHECKIN, REWARD_BY_DAY } from './checkin.constants';
+import { REWARD_BY_DAY } from './checkin.constants';
 import { CheckinService } from './checkin.service';
 
 type FakeUser = { id: string; coinBalance: number; deletedAt: Date | null };
@@ -102,6 +104,8 @@ const buildPrismaStub = (state: {
 describe('CheckinService', () => {
   let service: CheckinService;
   let prisma: ReturnType<typeof buildPrismaStub>;
+  let adjustBalance: jest.MockedFunction<CoinsService['adjustBalance']>;
+  let coinsService: CoinsService;
   let state: {
     users: Map<string, FakeUser>;
     checkins: FakeCheckin[];
@@ -116,8 +120,23 @@ describe('CheckinService', () => {
       transactions: [],
     };
     prisma = buildPrismaStub(state);
+    adjustBalance = jest.fn<
+      ReturnType<CoinsService['adjustBalance']>,
+      Parameters<CoinsService['adjustBalance']>
+    >(async (...args) => {
+      const [userId, amount] = args;
+      const user = state.users.get(userId);
+      if (!user) throw new Error('User not found');
+      user.coinBalance += amount;
+      return { balance: user.coinBalance, transactionId: 'coin-transaction-1' };
+    });
+    coinsService = { adjustBalance } as unknown as CoinsService;
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CheckinService, { provide: PRISMA, useValue: prisma }],
+      providers: [
+        CheckinService,
+        { provide: PRISMA, useValue: prisma },
+        { provide: CoinsService, useValue: coinsService },
+      ],
     }).compile();
     service = module.get(CheckinService);
   });
@@ -185,7 +204,7 @@ describe('CheckinService', () => {
     });
   });
 
-  it('claims today in one transaction and writes balance plus transaction rows', async () => {
+  it('claims today in one transaction and adjusts the balance', async () => {
     const result = await service.claim('user-1');
 
     expect(result).toEqual({
@@ -199,15 +218,13 @@ describe('CheckinService', () => {
       streakCount: 1,
       coinsAwarded: REWARD_BY_DAY[1],
     });
-    expect(state.transactions).toEqual([
-      {
-        userId: 'user-1',
-        amount: REWARD_BY_DAY[1],
-        type: COIN_TXN_TYPE_CHECKIN,
-        relatedId: null,
-        balanceAfter: 15,
-      },
-    ]);
+    expect(adjustBalance).toHaveBeenCalledWith(
+      'user-1',
+      REWARD_BY_DAY[1],
+      COIN_TXN_TYPE.DAILY_CHECKIN,
+      null,
+      expect.anything(),
+    );
   });
 
   it('throws ConflictException when already claimed today', async () => {
@@ -219,7 +236,7 @@ describe('CheckinService', () => {
     });
 
     await expect(service.claim('user-1')).rejects.toBeInstanceOf(ConflictException);
-    expect(state.transactions).toHaveLength(0);
+    expect(adjustBalance).not.toHaveBeenCalled();
   });
 
   it('maps a concurrent unique-constraint claim race to ConflictException', async () => {
@@ -231,7 +248,7 @@ describe('CheckinService', () => {
     };
 
     await expect(service.claim('user-1')).rejects.toBeInstanceOf(ConflictException);
-    expect(state.transactions).toHaveLength(0);
+    expect(adjustBalance).not.toHaveBeenCalled();
   });
 
   it('continues the streak from yesterday with the next reward', async () => {
@@ -280,8 +297,23 @@ describe('CheckinService', () => {
       state.checkins = [];
       state.transactions = [];
       prisma = buildPrismaStub(state);
+      adjustBalance = jest.fn<
+        ReturnType<CoinsService['adjustBalance']>,
+        Parameters<CoinsService['adjustBalance']>
+      >(async (...args) => {
+        const [userId, amount] = args;
+        const user = state.users.get(userId);
+        if (!user) throw new Error('User not found');
+        user.coinBalance += amount;
+        return { balance: user.coinBalance, transactionId: 'coin-transaction-1' };
+      });
+      coinsService = { adjustBalance } as unknown as CoinsService;
       const module: TestingModule = await Test.createTestingModule({
-        providers: [CheckinService, { provide: PRISMA, useValue: prisma }],
+        providers: [
+          CheckinService,
+          { provide: PRISMA, useValue: prisma },
+          { provide: CoinsService, useValue: coinsService },
+        ],
       }).compile();
       service = module.get(CheckinService);
 
@@ -298,7 +330,13 @@ describe('CheckinService', () => {
       const result = await service.claim('user-1');
 
       expect(result.coinsAwarded).toBe(reward);
-      expect(state.transactions[0]?.amount).toBe(reward);
+      expect(adjustBalance).toHaveBeenCalledWith(
+        'user-1',
+        reward,
+        COIN_TXN_TYPE.DAILY_CHECKIN,
+        null,
+        expect.anything(),
+      );
     }
   });
 

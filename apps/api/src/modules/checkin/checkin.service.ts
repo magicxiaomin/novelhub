@@ -1,9 +1,11 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { PRISMA } from '../auth/auth.constants';
+import { COIN_TXN_TYPE } from '../coins/coins.constants';
+import { CoinsService } from '../coins/coins.service';
 
-import { COIN_TXN_TYPE_CHECKIN, REWARD_BY_DAY } from './checkin.constants';
+import { REWARD_BY_DAY } from './checkin.constants';
 
 export type CheckinStatus = {
   today: string;
@@ -27,7 +29,10 @@ type RecentCheckin = {
 
 @Injectable()
 export class CheckinService {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly coins: CoinsService,
+  ) {}
 
   async getStatus(userId: string): Promise<CheckinStatus> {
     const { today, yesterday, todayKey, yesterdayKey } = this.getUtcDayWindow();
@@ -85,31 +90,15 @@ export class CheckinService {
           },
         });
 
-        const updated = await tx.user.updateMany({
-          where: { id: userId, deletedAt: null },
-          data: { coinBalance: { increment: coinsAwarded } },
-        });
-        if (updated.count === 0) {
-          throw new NotFoundException('User not found');
-        }
+        const { balance: newBalance } = await this.coins.adjustBalance(
+          userId,
+          coinsAwarded,
+          COIN_TXN_TYPE.DAILY_CHECKIN,
+          null,
+          tx,
+        );
 
-        const user = await tx.user.findUnique({
-          where: { id: userId },
-          select: { coinBalance: true },
-        });
-        if (!user) throw new NotFoundException('User not found');
-
-        await tx.coinTransaction.create({
-          data: {
-            userId,
-            amount: coinsAwarded,
-            type: COIN_TXN_TYPE_CHECKIN,
-            relatedId: null,
-            balanceAfter: user.coinBalance,
-          },
-        });
-
-        return { streakCount, coinsAwarded, newBalance: user.coinBalance };
+        return { streakCount, coinsAwarded, newBalance };
       });
     } catch (err) {
       if (hasPrismaCode(err, 'P2002')) {
@@ -130,6 +119,7 @@ export class CheckinService {
     });
   }
 
+  // MVP: check-in day boundary is computed in UTC; see docs/tickets/10-checkin-progress.md.
   private getUtcDayWindow(): {
     today: Date;
     yesterday: Date;

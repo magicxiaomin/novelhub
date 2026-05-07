@@ -7,5 +7,3 @@ export const REWARD_BY_DAY: Readonly<Record<1 | 2 | 3 | 4 | 5 | 6 | 7, number>> 
   6: 10,
   7: 30,
 };
-
-export const COIN_TXN_TYPE_CHECKIN = 'CHECKIN_REWARD';

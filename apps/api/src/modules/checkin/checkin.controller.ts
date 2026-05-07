@@ -7,7 +7,13 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -36,7 +42,7 @@ export class CheckinController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Claim the current user daily check-in reward' })
-  @ApiOkResponse({ type: CheckinClaimResponseDto })
+  @ApiCreatedResponse({ type: CheckinClaimResponseDto })
   claim(@CurrentUser() user: { id: string } | null): Promise<CheckinClaim> {
     if (!user) throw new UnauthorizedException();
     return this.checkin.claim(user.id);
