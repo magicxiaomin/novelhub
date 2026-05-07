@@ -11,6 +11,19 @@ to "fix" them — they reflect what we learned at that point in time.
 
 ---
 
+## Ticket 11 — Facebook Pixel and CAPI Integration
+
+**What worked:** Idempotency anchored on `FbEvent.eventId` unique constraint with `P2002` short-circuit in `apps/api/src/modules/fb-capi/fb-capi.service.ts` makes Stripe webhook redeliveries safe; using `stripeSessionId` as the shared `event_id` for Purchase/Subscribe gives Pixel↔CAPI dedup for free. Storing `fbConsent` + `fbUserData` on `Order.metadata` at checkout creation lets the webhook publish CAPI without re-deriving cookies that the webhook request never has.
+
+**Pitfalls hit:**
+
+- **Subscription webhook silently skipped Subscribe CAPI.** `WebhookService.handleCheckoutCompleted` originally only published the purchase event on the COIN_PURCHASE branch; the SUBSCRIPTION branch just marked the order completed, so Subscribe never fired despite Pixel sending it client-side — a one-sided dedup that Meta would surface as a phantom browser-only event. Fixed in `apps/api/src/modules/payments/webhook.service.ts` by reading the Order's `amount`/`currency` and calling `purchasePublisher.publish` on the SUBSCRIPTION branch too.
+- **Access token risk in URL/payload.** `FbCapiService` sends the FB token in the JSON body (not querystring) and excludes it from the persisted `FbEvent.payload`; tests assert this. Don't regress.
+
+**Rule for future tickets:** When a webhook handler fans out per `orderType`, every branch must be wired through the same side-effect publishers — not just the first one. Add a webhook test per branch (see the new `checkout.session.completed (subscription order)` test in `webhook.service.spec.ts`) and never put third-party access tokens in URLs or persisted payloads.
+
+---
+
 ## Ticket 01 — Initialize Monorepo and Tooling
 
 **What worked:** pnpm workspace + tsconfig path aliases set up cleanly; eslint
