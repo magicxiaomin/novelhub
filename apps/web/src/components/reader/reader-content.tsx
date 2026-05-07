@@ -350,11 +350,23 @@ class ChapterContentError extends Error {
 }
 
 function isAllowedChapterContentHost(hostname: string): boolean {
+  // Production: only the R2 public host is allowed. Chapter content lives in
+  // R2 and shouldn't ever come from the API (which signs the URL but doesn't
+  // serve the bytes). Permitting the API host re-opens an SSRF/proxy class
+  // of bug per AGENTS.md.
   const allowedHosts = new Set<string>();
-  const apiHost = hostFromEnvUrl(process.env.NEXT_PUBLIC_API_URL);
   const r2Host = process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
-  if (apiHost) allowedHosts.add(apiHost);
   if (r2Host) allowedHosts.add(r2Host);
+
+  // Dev escape hatch: when R2 isn't configured locally, the API serves the
+  // seeded chapter text from `/static/chapters/...`. Set
+  // NEXT_PUBLIC_DEV_ALLOW_API_CONTENT=true in `.env` to opt in. Production
+  // must NOT set this — it bypasses the host hardening above.
+  if (process.env.NEXT_PUBLIC_DEV_ALLOW_API_CONTENT === 'true') {
+    const apiHost = hostFromEnvUrl(process.env.NEXT_PUBLIC_API_URL);
+    if (apiHost) allowedHosts.add(apiHost);
+  }
+
   return allowedHosts.has(hostname);
 }
 
