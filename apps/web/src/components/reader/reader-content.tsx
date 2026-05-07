@@ -30,7 +30,7 @@ import {
 } from '@/lib/reader-settings';
 import { cn } from '@/lib/utils';
 import type { ChapterResponse, ChapterSummary, Paginated } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const CHAPTER_LIMIT = 200;
 const MIN_PROGRESS_DELTA_PX = 8;

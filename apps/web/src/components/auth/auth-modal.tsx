@@ -28,7 +28,7 @@ import {
   requestPasswordReset,
 } from '@/lib/queries';
 import { cn } from '@/lib/utils';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 type GoogleCredentialResponse = { credential?: string };
 

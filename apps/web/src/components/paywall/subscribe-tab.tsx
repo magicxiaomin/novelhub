@@ -4,7 +4,7 @@ import { Check } from 'lucide-react';
 import { SUBSCRIPTION_PLANS, type SubscriptionPlanId } from '@novelhub/shared';
 
 import { cn } from '@/lib/utils';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function SubscribeTab({
   selectedPlan,

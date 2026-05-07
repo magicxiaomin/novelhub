@@ -13,7 +13,7 @@ import { fakeRating } from '@/lib/fake-rating';
 import { safeJsonLd } from '@/lib/json-ld';
 import { fetchBookServer } from '@/lib/server-api';
 import type { BookDetail } from '@/lib/types';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 type Params = { params: { id: string } };
 

@@ -6,8 +6,9 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "dist",
+    "resolveJsonModule": true,
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": ["dist", "node_modules"]
 }

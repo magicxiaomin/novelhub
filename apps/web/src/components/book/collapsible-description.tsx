@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { cn } from '@/lib/utils';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 /**
  * Description that clamps to 4 lines and expands on click. We always render

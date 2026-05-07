@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Search, User } from 'lucide-react';
 
 import { useAuth } from '@/components/providers';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function TopHeader(): JSX.Element {
   const { user, openAuthModal } = useAuth();

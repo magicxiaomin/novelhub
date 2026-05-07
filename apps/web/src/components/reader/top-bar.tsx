@@ -4,7 +4,7 @@ import { ArrowLeft, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { cn } from '@/lib/utils';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function ReaderTopBar({
   title,

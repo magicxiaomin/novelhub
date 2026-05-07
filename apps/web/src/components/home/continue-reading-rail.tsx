@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 import { useAuth } from '@/components/providers';
 import { fetchReadingProgress, queryKeys } from '@/lib/queries';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export function ContinueReadingRail(): JSX.Element | null {
   const { user } = useAuth();

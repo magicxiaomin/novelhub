@@ -5,6 +5,15 @@ export * from './push-copy';
 export * from './routes';
 export * from './sentry-scrubber';
 
+import messagesJson from './messages/en.json';
+/**
+ * Per-locale UI message bundle. Currently English-only; treat as the single
+ * source of truth for every user-facing string in both the web and api
+ * apps. Backend cron jobs read `pushNotifications.*` from here so push
+ * copy is never hardcoded outside this file.
+ */
+export const messages = messagesJson;
+
 export const BOOK_STATUSES = ['ONGOING', 'COMPLETED'] as const;
 export type BookStatus = (typeof BOOK_STATUSES)[number];
 export const BOOK_STATUS = {

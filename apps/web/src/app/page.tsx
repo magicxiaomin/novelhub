@@ -16,7 +16,7 @@ import {
   fetchTrending,
   queryKeys,
 } from '@/lib/queries';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export default function HomePage(): JSX.Element {
   const featured = useQuery({ queryKey: queryKeys.featured, queryFn: fetchFeatured });

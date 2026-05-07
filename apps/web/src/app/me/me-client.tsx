@@ -22,7 +22,7 @@ import {
   queryKeys,
 } from '@/lib/queries';
 import { formatAccountDate, formatSubscriptionPlanName, getInitials } from '@/lib/formatters';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const fill = (template: string, values: Record<string, string>): string => {
   let result = template;

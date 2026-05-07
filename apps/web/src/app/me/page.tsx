@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { MeClient } from './me-client';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 export const metadata: Metadata = {
   title: messages.account.title,

@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/lib/api';
 import { claimCheckin, fetchCheckinStatus, queryKeys } from '@/lib/queries';
 import { cn } from '@/lib/utils';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 const dismissKey = (date: string): string => `checkin-card-dismissed-${date}`;
 

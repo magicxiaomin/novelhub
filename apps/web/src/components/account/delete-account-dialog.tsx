@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
 import { deleteAccount } from '@/lib/queries';
-import messages from '@/../messages/en.json';
+import { messages } from '@novelhub/shared';
 
 type DeleteAccountValues = {
   password?: string;
