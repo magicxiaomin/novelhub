@@ -30,14 +30,25 @@ export class FbCapiService {
     }
 
     try {
-      const existing = await this.prisma.fbEvent.findUnique({
-        where: { eventId },
-        select: { id: true },
-      });
-      if (existing) return;
-
       const payload = this.buildPayload(eventName, eventId, userData, customData);
-      payload.access_token = token;
+      try {
+        await this.prisma.fbEvent.create({
+          data: {
+            eventName,
+            eventId,
+            userId: userId ?? null,
+            payload,
+            // A null responseCode means we could not reach Meta on this attempt.
+            responseCode: null,
+            responseBody: null,
+          },
+        });
+      } catch (err) {
+        if (this.isUniqueViolation(err)) return;
+        throw err;
+      }
+
+      const requestBody = { ...payload, access_token: token };
       const url = `https://graph.facebook.com/${FB_GRAPH_API_VERSION}/${encodeURIComponent(
         pixelId,
       )}/events`;
@@ -48,7 +59,7 @@ export class FbCapiService {
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(requestBody),
         });
         responseCode = response.status;
         const fullText = await response.text();
@@ -57,19 +68,15 @@ export class FbCapiService {
         this.logger.error('FB CAPI network error', err as Error);
       }
 
-      await this.prisma.fbEvent.create({
+      await this.prisma.fbEvent.update({
+        where: { eventId },
         data: {
-          eventName,
-          eventId,
-          userId,
-          payload,
           responseCode,
-          // TODO: Add a retention job for old FbEvent rows.
           responseBody,
+          sentAt: new Date(),
         },
       });
     } catch (err) {
-      if (this.isUniqueViolation(err)) return;
       this.logger.error('FB CAPI sendEvent failed', err as Error);
     }
   }

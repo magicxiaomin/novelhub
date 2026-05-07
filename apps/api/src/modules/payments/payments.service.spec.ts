@@ -26,6 +26,8 @@ const buildPrismaStub = () => {
     userId: string;
     stripeSessionId: string;
     type: string;
+    amount: number;
+    currency: string;
     coinsGranted: number | null;
     status: string;
     completedAt: Date | null;
@@ -52,6 +54,7 @@ const buildPrismaStub = () => {
             stripeSessionId: string;
             type: string;
             amount: number;
+            currency: string;
             coinsGranted: number | null;
             status: string;
             metadata: Record<string, unknown>;
@@ -315,6 +318,8 @@ describe('PaymentsService', () => {
       userId: 'someone-else',
       stripeSessionId: 'cs_alien',
       type: 'COIN_PURCHASE',
+      amount: 999,
+      currency: 'usd',
       coinsGranted: 50,
       status: 'completed',
       completedAt: new Date(),

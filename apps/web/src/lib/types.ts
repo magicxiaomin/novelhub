@@ -116,6 +116,8 @@ export type PaymentOrderStatus = 'pending' | 'completed' | 'failed' | 'refunded'
 export type PaymentOrder = {
   status: PaymentOrderStatus;
   type: string;
+  amount: number;
+  currency: string;
   coinsGranted: number | null;
   completedAt: string | null;
 };

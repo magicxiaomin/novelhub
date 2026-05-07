@@ -68,7 +68,8 @@ export function PaymentSuccessClient(): JSX.Element {
     fbTrackPurchase({
       eventName: order.type === 'COIN_PURCHASE' ? 'Purchase' : 'Subscribe',
       eventId: sessionId,
-      currency: 'USD',
+      value: order.amount / 100,
+      currency: order.currency.toUpperCase(),
       contentIds: [order.type.toLowerCase()],
     });
   }, [order, sessionId, state]);

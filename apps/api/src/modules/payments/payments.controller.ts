@@ -91,6 +91,8 @@ export class PaymentsController {
   ): Promise<{
     status: string;
     type: string;
+    amount: number;
+    currency: string;
     coinsGranted: number | null;
     completedAt: Date | null;
   }> {

@@ -230,6 +230,8 @@ export class PaymentsService {
   ): Promise<{
     status: string;
     type: string;
+    amount: number;
+    currency: string;
     coinsGranted: number | null;
     completedAt: Date | null;
   }> {
@@ -239,6 +241,8 @@ export class PaymentsService {
         userId: true,
         status: true,
         type: true,
+        amount: true,
+        currency: true,
         coinsGranted: true,
         completedAt: true,
       },
@@ -249,6 +253,8 @@ export class PaymentsService {
     return {
       status: order.status,
       type: order.type,
+      amount: order.amount,
+      currency: order.currency,
       coinsGranted: order.coinsGranted,
       completedAt: order.completedAt,
     };

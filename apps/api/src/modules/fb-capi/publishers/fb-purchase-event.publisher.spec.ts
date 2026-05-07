@@ -26,6 +26,7 @@ const makePrismaStub = () => ({
         },
       }),
     ),
+    update: jest.fn(async ({ data }: { data: { metadata: unknown } }) => data),
   },
   user: {
     findUnique: jest.fn(async () => ({ email: 'buyer@example.com' })),
@@ -86,6 +87,16 @@ describe('FbPurchaseEventPublisher', () => {
       },
       'user-1',
     );
+    expect(prisma.order.update).toHaveBeenCalledWith({
+      where: { id: 'order-1' },
+      data: {
+        metadata: expect.objectContaining({
+          fbConsent: true,
+          fbUserData: null,
+          fbUserDataScrubbedAt: expect.any(String),
+        }),
+      },
+    });
   });
 
   it('publishes SUBSCRIPTION as Subscribe', async () => {
@@ -135,5 +146,6 @@ describe('FbPurchaseEventPublisher', () => {
     });
 
     expect(fbCapi.sendEvent).not.toHaveBeenCalled();
+    expect(prisma.order.update).not.toHaveBeenCalled();
   });
 });

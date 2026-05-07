@@ -12,6 +12,7 @@ import type { FbUserData } from '../fb-capi.types';
 type OrderFbMetadata = {
   fbConsent?: boolean;
   fbUserData?: Omit<FbUserData, 'email'> | null;
+  fbUserDataScrubbedAt?: string;
 };
 
 @Injectable()
@@ -53,6 +54,17 @@ export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
         },
         event.userId,
       );
+
+      await this.prisma.order.update({
+        where: { id: event.orderId },
+        data: {
+          metadata: {
+            ...((meta as object | null) ?? {}),
+            fbUserData: null,
+            fbUserDataScrubbedAt: new Date().toISOString(),
+          },
+        },
+      });
     } catch (err) {
       this.logger.error('FB purchase publisher failed', err as Error);
     }

@@ -4,12 +4,7 @@ import { useEffect, useState } from 'react';
 import { FB_CONSENT_ACCEPTED, FB_CONSENT_DECLINED } from '@novelhub/shared';
 
 import { Button } from '@/components/ui/button';
-import {
-  fbTrackPageView,
-  initPixel,
-  readTrackingConsent,
-  setTrackingConsent,
-} from '@/lib/fb-pixel';
+import { initPixel, readTrackingConsent, setTrackingConsent } from '@/lib/fb-pixel';
 import messages from '@/../messages/en.json';
 
 export function ConsentBanner(): JSX.Element | null {
@@ -22,7 +17,6 @@ export function ConsentBanner(): JSX.Element | null {
   const accept = (): void => {
     setTrackingConsent(FB_CONSENT_ACCEPTED);
     initPixel();
-    fbTrackPageView();
     setVisible(false);
     window.dispatchEvent(new Event('tracking-consent-changed'));
   };

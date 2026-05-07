@@ -10,10 +10,11 @@ import { FbCapiService } from './fb-capi.service';
 type StoredFbEvent = {
   eventName: string;
   eventId: string;
-  userId?: string;
+  userId?: string | null;
   payload: unknown;
   responseCode: number | null;
   responseBody: string | null;
+  sentAt?: Date;
 };
 
 const makePrismaStub = () => {
@@ -22,9 +23,6 @@ const makePrismaStub = () => {
     events,
     prisma: {
       fbEvent: {
-        findUnique: jest.fn(async ({ where }: { where: { eventId: string } }) =>
-          events.has(where.eventId) ? { id: `fb-${where.eventId}` } : null,
-        ),
         create: jest.fn(async ({ data }: { data: StoredFbEvent }) => {
           if (events.has(data.eventId)) {
             throw Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
@@ -32,6 +30,21 @@ const makePrismaStub = () => {
           events.set(data.eventId, data);
           return data;
         }),
+        update: jest.fn(
+          async ({
+            where,
+            data,
+          }: {
+            where: { eventId: string };
+            data: Partial<Pick<StoredFbEvent, 'responseCode' | 'responseBody' | 'sentAt'>>;
+          }) => {
+            const existing = events.get(where.eventId);
+            if (!existing) throw new Error('Missing FbEvent');
+            const next = { ...existing, ...data };
+            events.set(where.eventId, next);
+            return next;
+          },
+        ),
       },
     },
   };
@@ -78,6 +91,7 @@ describe('FbCapiService', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(prismaStub.prisma.fbEvent.create).not.toHaveBeenCalled();
+    expect(prismaStub.prisma.fbEvent.update).not.toHaveBeenCalled();
   });
 
   it('short-circuits when an FbEvent with the same event_id already exists', async () => {
@@ -92,7 +106,8 @@ describe('FbCapiService', () => {
     await service.sendEvent('Purchase', 'event-1', { email: 'a@example.com' });
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(prismaStub.prisma.fbEvent.create).not.toHaveBeenCalled();
+    expect(prismaStub.prisma.fbEvent.create).toHaveBeenCalledTimes(1);
+    expect(prismaStub.prisma.fbEvent.update).not.toHaveBeenCalled();
   });
 
   it('hashes email as sha256 hex of trimmed lowercase before sending', async () => {
@@ -117,6 +132,15 @@ describe('FbCapiService', () => {
     expect(String(url)).not.toContain('access_token');
     const body = JSON.parse(String(init?.body)) as { access_token?: string };
     expect(body.access_token).toBe('token-123');
+  });
+
+  it('does not persist the access token in the FbEvent payload', async () => {
+    await service.sendEvent('Purchase', 'event-1', { email: 'a@example.com' });
+
+    expect(JSON.stringify(prismaStub.events.get('event-1')?.payload)).not.toContain('token-123');
+    expect(
+      (prismaStub.events.get('event-1')?.payload as { access_token?: string }).access_token,
+    ).toBeUndefined();
   });
 
   it('caps stored responseBody at 4 KB', async () => {
@@ -165,6 +189,7 @@ describe('FbCapiService', () => {
       userId: 'user-1',
       responseCode: 200,
       responseBody: '{"events_received":1}',
+      sentAt: new Date('2026-05-07T12:00:00.000Z'),
     });
   });
 

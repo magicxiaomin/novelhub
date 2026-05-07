@@ -34,5 +34,4 @@ export type FbEventPayload = {
     };
   }>;
   test_event_code?: string;
-  access_token?: string;
 };
