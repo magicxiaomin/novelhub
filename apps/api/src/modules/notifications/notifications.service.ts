@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { PUSH_COPY, ROUTES } from '@novelhub/shared';
 
 import { PRISMA } from '../auth/auth.constants';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
@@ -127,9 +128,9 @@ export class NotificationsService {
     const targets = await this.findUsersForReEngagement(now);
     for (const target of targets) {
       const res = await this.oneSignal.sendNotification({
-        title: `Continue reading ${target.bookTitle}`,
-        body: 'Your next chapter is waiting.',
-        url: `/read/${target.bookId}/${target.chapterNumber}`,
+        title: PUSH_COPY.reEngagement.title(target.bookTitle),
+        body: PUSH_COPY.reEngagement.body,
+        url: ROUTES.read(target.bookId, target.chapterNumber),
         includeExternalUserIds: [target.userId],
       });
       this.logger.log(`Re-engagement push attempted for ${target.userId}: ${res.sent}`);
@@ -154,9 +155,9 @@ export class NotificationsService {
     const targets = await this.findUsersForRenewal(now);
     for (const target of targets) {
       const res = await this.oneSignal.sendNotification({
-        title: 'Your subscription renews in 3 days. Manage in Settings.',
-        body: 'Review your plan before renewal.',
-        url: '/me',
+        title: PUSH_COPY.renewalReminder.title,
+        body: PUSH_COPY.renewalReminder.body,
+        url: ROUTES.account(),
         includeExternalUserIds: [target.userId],
       });
       this.logger.log(`Renewal push attempted for ${target.userId}: ${res.sent}`);

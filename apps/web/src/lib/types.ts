@@ -156,5 +156,5 @@ export type CheckinClaim = {
 export type PushGrantBonus = {
   granted: boolean;
   balance?: number;
-  reason?: 'already_granted';
+  reason?: 'already_granted' | 'no_subscription';
 };

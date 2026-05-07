@@ -7,6 +7,6 @@ export class GrantBonusResponseDto {
   @ApiPropertyOptional()
   balance?: number;
 
-  @ApiPropertyOptional({ enum: ['already_granted'] })
-  reason?: 'already_granted';
+  @ApiPropertyOptional({ enum: ['already_granted', 'no_subscription'] })
+  reason?: 'already_granted' | 'no_subscription';
 }

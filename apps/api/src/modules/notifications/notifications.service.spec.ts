@@ -5,6 +5,7 @@ import { COIN_TXN_TYPE } from '../coins/coins.constants';
 import { CoinsService } from '../coins/coins.service';
 
 import { ONESIGNAL_DEFAULT_SEGMENT, PUSH_PERMISSION_REWARD_COINS } from './notifications.constants';
+import { withCronLock } from './cron/leader-election';
 import { NotificationsService } from './notifications.service';
 import { OneSignalClient } from './one-signal.client';
 
@@ -233,6 +234,20 @@ describe('NotificationsService', () => {
       },
       select: { userId: true },
     });
+  });
+});
+
+describe('withCronLock', () => {
+  it('short-circuits when another replica holds the advisory lock', async () => {
+    const prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ acquired: false }]),
+      $executeRaw: jest.fn(),
+    } as unknown as PrismaClient;
+    const fn = jest.fn().mockResolvedValue('sent');
+
+    await expect(withCronLock(prisma, 12001, fn)).resolves.toBeNull();
+    expect(fn).not.toHaveBeenCalled();
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
   });
 });
 

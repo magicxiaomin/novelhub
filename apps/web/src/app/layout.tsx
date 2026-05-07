@@ -24,7 +24,23 @@ export const metadata: Metadata = {
   applicationName: 'NovelHub',
   formatDetection: { telephone: false },
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'NovelHub' },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'NovelHub',
+    startupImage: [
+      {
+        url: '/splash/iphone-1170x2532.png',
+        media:
+          '(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)',
+      },
+      {
+        url: '/splash/iphone-1284x2778.png',
+        media:
+          '(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)',
+      },
+    ],
+  },
 };
 
 export const viewport: Viewport = {

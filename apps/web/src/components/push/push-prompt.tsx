@@ -2,6 +2,7 @@
 
 import Script from 'next/script';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { PUSH_PERMISSION_REWARD_COINS } from '@novelhub/shared';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -57,7 +58,11 @@ export function PushPrompt(): JSX.Element | null {
     mutationFn: grantPushBonus,
     onSuccess: async (result) => {
       if (result.granted) {
-        toast.success(messages.push.bonusSuccess.replace('{coins}', '10'));
+        toast.success(
+          messages.push.bonusSuccess.replaceAll('{coins}', () =>
+            PUSH_PERMISSION_REWARD_COINS.toString(),
+          ),
+        );
         await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       }
     },

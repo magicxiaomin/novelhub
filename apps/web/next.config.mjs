@@ -2,18 +2,21 @@ import withPWAInit from 'next-pwa';
 
 const imageHost = process.env.NEXT_PUBLIC_IMAGE_HOST;
 const r2PublicHost = process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const appHost = (() => {
+  try {
+    return appUrl ? new URL(appUrl).hostname : null;
+  } catch {
+    return null;
+  }
+})();
+
+const apiCachePattern = appHost ? new RegExp(`^https://${escapeRegExp(appHost)}/api/`) : null;
+
 const runtimeCaching = [
-  {
-    urlPattern: /^https?:\/\/.*\/api\/.*$/i,
-    handler: 'NetworkFirst',
-    options: {
-      cacheName: 'api-cache',
-      expiration: { maxEntries: 32, maxAgeSeconds: 5 * 60 },
-    },
-  },
   {
     urlPattern: /\/_next\/static\/.*/i,
     handler: 'CacheFirst',
@@ -31,6 +34,14 @@ const runtimeCaching = [
     },
   },
 ];
+
+if (apiCachePattern) {
+  runtimeCaching.unshift({
+    urlPattern: apiCachePattern,
+    handler: 'NetworkOnly',
+    options: { cacheName: 'api-no-cache' },
+  });
+}
 
 if (imageHost) {
   runtimeCaching.push({

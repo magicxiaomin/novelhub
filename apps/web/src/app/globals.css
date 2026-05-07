@@ -3,8 +3,6 @@
 @tailwind utilities;
 
 :root {
-  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-
   /* Brand — Ticket 07 design token (#FF4D4F). */
   --brand: 359 100% 65%;
   --brand-foreground: 0 0% 100%;
