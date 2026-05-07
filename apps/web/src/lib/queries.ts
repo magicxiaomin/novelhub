@@ -21,6 +21,7 @@ import type {
   CoinTransaction,
   Paginated,
   PaymentOrder,
+  PushGrantBonus,
   ReadingProgressEntry,
   SubscriptionSummary,
 } from './types';
@@ -191,3 +192,6 @@ export const saveReadingProgress = async (
 export const fetchCheckinStatus = (): Promise<CheckinStatus> => apiFetch('/checkin/status');
 
 export const claimCheckin = (): Promise<CheckinClaim> => apiFetch('/checkin', { method: 'POST' });
+
+export const grantPushBonus = (): Promise<PushGrantBonus> =>
+  apiFetch('/notifications/grant-bonus', { method: 'POST' });

@@ -5,6 +5,8 @@ import { Suspense } from 'react';
 import { ConsentBanner } from '@/components/consent/consent-banner';
 import { FbTracking } from '@/components/consent/fb-tracking';
 import { Providers } from '@/components/providers';
+import { InstallPrompt } from '@/components/pwa/install-prompt';
+import { PushPrompt } from '@/components/push/push-prompt';
 import { Toaster } from '@/components/ui/toaster';
 import messages from '../../messages/en.json';
 
@@ -21,6 +23,8 @@ export const metadata: Metadata = {
   description: messages.metadata.description,
   applicationName: 'NovelHub',
   formatDetection: { telephone: false },
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'NovelHub' },
 };
 
 export const viewport: Viewport = {
@@ -39,6 +43,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Suspense fallback={null}>
             <FbTracking />
           </Suspense>
+          <InstallPrompt />
+          <PushPrompt />
           <ConsentBanner />
         </Providers>
         <Toaster />

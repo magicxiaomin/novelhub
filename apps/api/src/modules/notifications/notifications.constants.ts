@@ -1,0 +1,3 @@
+export const PUSH_PERMISSION_REWARD_COINS = 10;
+
+export const ONESIGNAL_DEFAULT_SEGMENT = 'All';
