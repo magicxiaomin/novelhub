@@ -1,7 +1,6 @@
 export const APP_NAME = 'NovelHub' as const;
 
 export * from './consent';
-export * from './fb-consent';
 export * from './push-copy';
 export * from './routes';
 

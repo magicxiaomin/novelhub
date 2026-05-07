@@ -21,7 +21,7 @@ export function Footer(): JSX.Element | null {
   if (pathname?.startsWith('/admin')) return null;
   return (
     <footer className="mx-auto max-w-mobile px-4 py-8 text-sm text-muted-foreground">
-      <nav className="flex flex-wrap gap-x-4 gap-y-2" aria-label="Footer">
+      <nav className="flex flex-wrap gap-x-4 gap-y-2" aria-label={messages.footer.aria}>
         {links.map(([href, label]) => (
           <Link key={href} href={href} className="hover:text-foreground">
             {label}

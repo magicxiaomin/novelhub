@@ -4,6 +4,7 @@ import mammoth from 'mammoth';
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { PageTitle } from '@/components/admin/page-title';
@@ -39,8 +40,27 @@ export default function ImportChaptersPage(): JSX.Element {
   };
 
   const submit = async (values: ImportFormValues): Promise<void> => {
+    let imported = 0;
+    let failedChunkIndex: number | null = null;
     for (let i = 0; i < chapters.length; i += CHUNK_SIZE) {
-      await adminApi.bulkChapters(values.bookId, chapters.slice(i, i + CHUNK_SIZE));
+      const chunk = chapters.slice(i, i + CHUNK_SIZE);
+      try {
+        await adminApi.bulkChapters(values.bookId, chunk);
+        imported += chunk.length;
+      } catch (err) {
+        failedChunkIndex = i;
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        toast.error(
+          messages.admin.chapters.importPartial
+            .replaceAll('{imported}', () => String(imported))
+            .replaceAll('{total}', () => String(chapters.length))
+            .replaceAll('{message}', () => message),
+        );
+        break;
+      }
+    }
+    if (failedChunkIndex === null) {
+      toast.success(messages.admin.chapters.imported.replaceAll('{count}', () => String(imported)));
     }
   };
 

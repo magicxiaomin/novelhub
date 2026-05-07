@@ -144,6 +144,15 @@ export class AdminService {
     });
     if (!book) throw new NotFoundException('Book not found');
     const data: Prisma.BookUpdateInput = { ...dto };
+    if (data.coverImageKey) {
+      // Constrain the key to the format produced by coverUploadUrl
+      // (`covers/<uuid>.<ext>`). Without this, an admin could point a book's
+      // cover at any R2 key — including chapter content keys — which would be
+      // exfiltrated via the public cover URL.
+      if (!/^covers\/[0-9a-f-]{36}$/.test(String(data.coverImageKey))) {
+        throw new BadRequestException('coverImageKey must be a covers/<uuid> path');
+      }
+    }
     // When the admin uploads a new cover (coverImageKey set, coverUrl not
     // explicitly overridden), derive coverUrl from the R2 public host so
     // listings render the new image without a manual second update.

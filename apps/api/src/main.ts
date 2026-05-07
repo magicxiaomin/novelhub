@@ -3,19 +3,18 @@ import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import { json } from 'express';
 
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
-    // Default 100KB body limit blocks bulk chapter import (50 chapters × up
-    // to 200KB ≈ 10MB). Match the multipart cap we already use elsewhere.
-    bodyParser: true,
-    abortOnError: false,
   });
-  app.useBodyParser('json', { limit: '10mb' });
-  app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
+  // Bulk chapter import sends up to 50 chapters x 200KB per chunk (~10MB).
+  // Mount a wider JSON parser ONLY on that specific route — keep the global
+  // default at Nest's 100KB to limit DoS surface on other endpoints.
+  app.use('/admin/books/:bookId/chapters/bulk', json({ limit: '10mb' }));
   // Trust the first hop (Railway / Vercel / similar) so req.ip resolves to
   // the client address for FB CAPI attribution and rate-limit keys.
   if (process.env.NODE_ENV === 'production') {

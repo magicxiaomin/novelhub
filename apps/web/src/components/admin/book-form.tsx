@@ -11,17 +11,12 @@ import { Input } from '@/components/ui/input';
 import { adminApi, type AdminBook } from '@/lib/admin/api';
 import messages from '@/../messages/en.json';
 
-const optionalUrlSchema = z
-  .string()
-  .trim()
-  .refine((value) => value.length === 0 || z.string().url().safeParse(value).success, {
-    message: messages.admin.validation.urlOrEmpty,
-  });
-
 const bookFormSchema = z.object({
   title: z.string().trim().min(1).max(200),
   author: z.string().trim().min(1).max(120),
-  coverUrl: optionalUrlSchema,
+  // Backend CreateBookDto.coverUrl is required; empty values would render
+  // broken images on public listings.
+  coverUrl: z.string().trim().url(),
   description: z.string().trim().min(1).max(10000),
   category: z.string().trim().min(1).max(80),
   tags: z.string().max(500),

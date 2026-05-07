@@ -66,7 +66,8 @@
     "refund": "Refund",
     "dmca": "DMCA",
     "contact": "Contact",
-    "about": "About"
+    "about": "About",
+    "aria": "Footer"
   },
   "legal": {
     "todo": "<!-- TODO: legal review -->",
@@ -81,7 +82,7 @@
     "termsPlaceholder": "These placeholder terms are pending legal review.",
     "refundPlaceholder": "This placeholder refund policy is pending legal review.",
     "dmcaPlaceholder": "This placeholder DMCA policy is pending legal review.",
-    "dmcaEmail": "Send takedown notices to dmca@novelhub.app.",
+    "dmcaEmailLabel": "Send takedown notices to {email}.",
     "aboutBodyOne": "NovelHub is a mobile-first web novel reading app built for discovering serialized stories.",
     "aboutBodyTwo": "This about page is placeholder content pending legal review."
   },
@@ -154,6 +155,8 @@
       "regex": "Split regex",
       "file": "File",
       "parsed": "{count} chapters parsed",
+      "imported": "Imported {count} chapters.",
+      "importPartial": "Imported {imported} of {total} chapters before failing: {message}",
       "columns": {
         "order": "Order",
         "title": "Title",
