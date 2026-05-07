@@ -16,6 +16,10 @@ const MAX_CHAPTER_CONTENT_BYTES = 204800;
 const ALLOWED_COVER_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
 // The base coin package is $4.99 for 50 coins, which rounds to 10 cents/coin.
 const COIN_REVENUE_CENTS = 10;
+// Match the canonical UUID v4 shape so an admin can't point coverImageKey at
+// arbitrary R2 keys (e.g. chapter content) and exfiltrate via the public
+// cover URL. Mirrors the keys produced by AdminService.coverUploadUrl.
+const COVER_IMAGE_KEY_RE = /^covers\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const wordCount = (text: string): number =>
   text.trim().length === 0 ? 0 : text.trim().split(/\s+/).length;
@@ -41,6 +45,9 @@ export class AdminService {
   ) {}
 
   async createBook(dto: CreateBookDto): Promise<{ id: string }> {
+    if (dto.coverImageKey && !COVER_IMAGE_KEY_RE.test(dto.coverImageKey)) {
+      throw new BadRequestException('coverImageKey must be a covers/<uuid> path');
+    }
     const data: Prisma.BookCreateInput = {
       title: dto.title,
       author: dto.author,
@@ -144,14 +151,8 @@ export class AdminService {
     });
     if (!book) throw new NotFoundException('Book not found');
     const data: Prisma.BookUpdateInput = { ...dto };
-    if (data.coverImageKey) {
-      // Constrain the key to the format produced by coverUploadUrl
-      // (`covers/<uuid>.<ext>`). Without this, an admin could point a book's
-      // cover at any R2 key — including chapter content keys — which would be
-      // exfiltrated via the public cover URL.
-      if (!/^covers\/[0-9a-f-]{36}$/.test(String(data.coverImageKey))) {
-        throw new BadRequestException('coverImageKey must be a covers/<uuid> path');
-      }
+    if (data.coverImageKey && !COVER_IMAGE_KEY_RE.test(String(data.coverImageKey))) {
+      throw new BadRequestException('coverImageKey must be a covers/<uuid> path');
     }
     // When the admin uploads a new cover (coverImageKey set, coverUrl not
     // explicitly overridden), derive coverUrl from the R2 public host so
