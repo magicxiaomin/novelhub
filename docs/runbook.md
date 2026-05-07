@@ -57,13 +57,18 @@ Vercel deploys `apps/web` from `main` using the Next.js standalone build. Railwa
 
 Production deploys intentionally use the native Git repository integrations in Vercel and Railway. When those projects are connected to this repository and configured to auto-deploy from `main`, no GitHub Actions production deploy workflow is required; the CI gates stay in GitHub Actions, and each platform owns its own production rollout.
 
-The API container entrypoint runs:
+**Migrations run as a separate pre-deploy step, not in the API container ENTRYPOINT.** Running `prisma migrate deploy` at every container start makes every replica race for the Prisma advisory lock on horizontal scale-out, and a failed migration crash-loops every replica simultaneously instead of failing once and surfacing cleanly.
+
+Configure the deploy platform to run, before rolling out the new image:
 
 ```sh
 pnpm --filter @novelhub/db exec prisma migrate deploy --schema prisma/schema.prisma
 ```
 
-If migration deploy fails, the container exits non-zero so Railway can restart and surface the failure. `staging-deploy.yml` already exists for the separate staging VPS flow.
+- **Railway:** set this as the project's Pre-Deploy Command. Railway runs it once per deploy; the new replica only goes live when the migration step exits 0.
+- **Other platforms:** run it as a dedicated GitHub Actions deploy job, a `release` Procfile entry, or a one-shot k8s Job — whatever the platform's idiom for "exactly-once per release" is.
+
+If the migration step fails, the deploy halts before any new replica is rolled out. The previous image keeps serving until you fix the migration. `staging-deploy.yml` already exists for the separate staging VPS flow; that path runs migrations inside the deploy script for the same reason.
 
 Operational setup after merge remains manual: create and connect Vercel, Railway, Supabase, Upstash, Cloudflare, Stripe live-mode, Meta Business Manager, Sentry, UptimeRobot, and Discord or Slack alerting.
 

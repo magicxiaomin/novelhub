@@ -16,7 +16,12 @@ export class SentryUserInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (process.env.SENTRY_DSN && context.getType() === 'http') {
       const request = context.switchToHttp().getRequest<RequestWithOptionalUser>();
-      Sentry.setUser(request.user ? { id: request.user.id } : null);
+      // Bind to the per-request isolation scope, not the global current scope.
+      // @sentry/node v10 auto-isolation gives each HTTP request its own scope
+      // today, but `Sentry.setUser` writes to the *current* scope which can
+      // bleed across requests if async work escapes the request context.
+      // `getIsolationScope()` is the documented per-request boundary.
+      Sentry.getIsolationScope().setUser(request.user ? { id: request.user.id } : null);
     }
 
     return next.handle();
