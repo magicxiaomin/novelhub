@@ -11,6 +11,29 @@ to "fix" them — they reflect what we learned at that point in time.
 
 ---
 
+## Ticket 10 — feat(web,api): daily check-in system (Ticket 10)
+
+**What worked:** PR merged successfully via the auto-pipeline.
+
+**Pitfalls hit:** Postmerge analysis could not run — model output did not match expected format. A human should review the merged diff and append a manual lesson if anything is worth remembering.
+
+**Rule for future tickets:** None recorded for this ticket.
+
+---
+
+## Ticket 10 — Daily Check-in System
+
+**What worked:** Atomic claim via `prisma.$transaction` in `apps/api/src/modules/checkin/checkin.service.ts` wrapping `dailyCheckin.create` + `coins.adjustBalance(..., tx)` in one tx, with the `(userId, checkinDate)` unique constraint mapped to `ConflictException` on `P2002`. Reward table lives server-side in `checkin.constants.ts`; frontend never hardcodes coin amounts and reads `todayReward`/`nextReward` from the API.
+
+**Pitfalls hit:**
+
+- **Scope creep risk from stale ticket spec.** Ticket 10 listed reading-progress endpoints, but Ticket 08 (PR #31) had already shipped them. Codex correctly skipped re-implementation and called it out in the PR body. Without that check, the PR would have duplicated `/progress` handlers and conflicting types.
+- **UTC day boundary is a known MVP compromise.** `getUtcDayWindow` computes "today" in UTC, so a user in UTC-8 can claim at 4 PM and again at 4:01 PM local time after UTC midnight rolls. Documented in the service comment and ticket, but not yet user-correct.
+
+**Rule for future tickets:** Before implementing a ticket, diff its task list against shipped code — earlier tickets may have already absorbed scope, and re-implementing creates conflicts. Any coin-mutating endpoint must wrap the ledger write and `coins.adjustBalance` in a single `prisma.$transaction`, passing `tx` through; never adjust balance outside the row-creation transaction.
+
+---
+
 ## Ticket 01 — Initialize Monorepo and Tooling
 
 **What worked:** pnpm workspace + tsconfig path aliases set up cleanly; eslint
