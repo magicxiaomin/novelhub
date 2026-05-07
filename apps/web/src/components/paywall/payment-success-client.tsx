@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { fbTrackPurchase } from '@/lib/fb-pixel';
 import { fetchPaymentOrder } from '@/lib/queries';
 import {
   PAYMENT_SUCCESS_POLL_MS,
@@ -24,6 +25,7 @@ export function PaymentSuccessClient(): JSX.Element {
   const [now, setNow] = useState(startedAt);
   const [retryKey, setRetryKey] = useState(0);
   const redirected = useRef(false);
+  const tracked = useRef(false);
   const state: PaymentSuccessState = sessionId
     ? getPaymentSuccessState(order, startedAt, now)
     : 'missing-session';
@@ -59,6 +61,18 @@ export function PaymentSuccessClient(): JSX.Element {
     const timeout = window.setTimeout(() => router.push(target), 600);
     return () => window.clearTimeout(timeout);
   }, [router, state]);
+
+  useEffect(() => {
+    if (state !== 'completed' || !order || !sessionId || tracked.current) return;
+    tracked.current = true;
+    fbTrackPurchase({
+      eventName: order.type === 'COIN_PURCHASE' ? 'Purchase' : 'Subscribe',
+      eventId: sessionId,
+      value: order.amount / 100,
+      currency: order.currency.toUpperCase(),
+      contentIds: [order.type.toLowerCase()],
+    });
+  }, [order, sessionId, state]);
 
   const retry = (): void => {
     setOrder(null);

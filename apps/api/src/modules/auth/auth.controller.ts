@@ -25,25 +25,38 @@ import { GoogleAuthDto } from './dto/google.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { FbCapiService } from '../fb-capi/fb-capi.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 type AuthResponse = { user: AuthUser };
-type GoogleAuthResponse = AuthResponse & { isNewUser: boolean };
+type GoogleAuthResponse = AuthResponse & { isNewUser: boolean; created: boolean };
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly fbCapi: FbCapiService,
+  ) {}
 
   @Post('register')
+  // Global throttling is 60/min; registration gets a tighter public-endpoint cap
+  // because each successful call can fan out to email and FB CAPI providers.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user with email + password' })
   @ApiBody({ type: RegisterDto })
   async register(
     @Body() dto: RegisterDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const result = await this.authService.register(dto.email, dto.password);
+    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    const result = await this.authService.register(dto.email, dto.password, {
+      fbConsent,
+      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : undefined,
+      fbEventId: dto.fbEventId,
+    });
     setAuthCookies(res, result.tokens);
     return { user: result.user };
   }
@@ -67,11 +80,17 @@ export class AuthController {
   @ApiBody({ type: GoogleAuthDto })
   async google(
     @Body() dto: GoogleAuthDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<GoogleAuthResponse> {
-    const result = await this.authService.loginWithGoogle(dto.idToken);
+    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    const result = await this.authService.loginWithGoogle(dto.idToken, {
+      fbConsent,
+      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : undefined,
+      fbEventId: dto.fbEventId,
+    });
     setAuthCookies(res, result.tokens);
-    return { user: result.user, isNewUser: result.isNewUser };
+    return { user: result.user, isNewUser: result.isNewUser, created: result.created };
   }
 
   @Post('refresh')

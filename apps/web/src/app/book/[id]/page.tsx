@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { ChapterList } from '@/components/book/chapter-list';
 import { CollapsibleDescription } from '@/components/book/collapsible-description';
+import { BookViewContentEvent } from '@/components/book/book-view-content-event';
 import { RelatedBooks } from '@/components/book/related-books';
 import { StickyStartReading } from '@/components/book/sticky-cta';
 import { AppShell } from '@/components/layout/app-shell';
@@ -43,6 +44,7 @@ export default async function BookPage({ params }: Params): Promise<JSX.Element>
   return (
     <AppShell>
       <BookJsonLd book={book} rating={rating} />
+      <BookViewContentEvent bookId={book.id} />
 
       <header className="px-4 pt-4">
         <div className="flex gap-4">

@@ -24,6 +24,7 @@ import {
   fetchCoinTransactions,
   queryKeys,
 } from '@/lib/queries';
+import { fbTrackAddToCart, fbTrackInitiateCheckout } from '@/lib/fb-pixel';
 import {
   formatRelativeTimestamp,
   formatTransactionAmount,
@@ -80,6 +81,40 @@ export function RechargeClient(): JSX.Element {
 
   const transactionLabels = useMemo(() => messages.recharge as Record<string, string>, []);
 
+  const selectPackage = (packageId: CoinPackageId): void => {
+    setSelectedPackage(packageId);
+    fbTrackAddToCart({
+      value: COIN_PACKAGES[packageId].priceUsd,
+      currency: 'USD',
+      contentIds: [packageId],
+    });
+  };
+
+  const selectPlan = (plan: SubscriptionPlanId): void => {
+    setSelectedPlan(plan);
+    fbTrackAddToCart({
+      value: SUBSCRIPTION_PLANS[plan].priceUsd,
+      currency: 'USD',
+      contentIds: [plan],
+    });
+  };
+
+  const buyCoins = (): void => {
+    fbTrackInitiateCheckout({
+      value: COIN_PACKAGES[selectedPackage].priceUsd,
+      currency: 'USD',
+    });
+    coinCheckout.mutate(selectedPackage);
+  };
+
+  const subscribe = (): void => {
+    fbTrackInitiateCheckout({
+      value: SUBSCRIPTION_PLANS[selectedPlan].priceUsd,
+      currency: 'USD',
+    });
+    subscriptionCheckout.mutate(selectedPlan);
+  };
+
   if (isLoading || !user) {
     return (
       <AppShell>
@@ -135,11 +170,11 @@ export function RechargeClient(): JSX.Element {
           <CardContent className="pt-4">
             {tab === 'coins' ? (
               <div className="space-y-4">
-                <CoinsTab selectedPackage={selectedPackage} onSelectPackage={setSelectedPackage} />
+                <CoinsTab selectedPackage={selectedPackage} onSelectPackage={selectPackage} />
                 <Button
                   type="button"
                   disabled={coinCheckout.isPending}
-                  onClick={() => coinCheckout.mutate(selectedPackage)}
+                  onClick={buyCoins}
                   className="h-12 w-full bg-brand text-brand-foreground hover:bg-brand/90"
                 >
                   {messages.recharge.buyCoinsNow}
@@ -147,11 +182,11 @@ export function RechargeClient(): JSX.Element {
               </div>
             ) : (
               <div className="space-y-4">
-                <SubscribeTab selectedPlan={selectedPlan} onSelectPlan={setSelectedPlan} />
+                <SubscribeTab selectedPlan={selectedPlan} onSelectPlan={selectPlan} />
                 <Button
                   type="button"
                   disabled={subscriptionCheckout.isPending}
-                  onClick={() => subscriptionCheckout.mutate(selectedPlan)}
+                  onClick={subscribe}
                   className="h-12 w-full bg-brand text-brand-foreground hover:bg-brand/90"
                 >
                   {messages.recharge.subscribeNow}

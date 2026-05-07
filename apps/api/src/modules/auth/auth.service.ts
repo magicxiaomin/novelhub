@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import type { OAuth2Client } from 'google-auth-library';
+import { randomUUID } from 'node:crypto';
 
 import {
   ACCESS_TOKEN_TTL,
@@ -27,10 +28,12 @@ import {
 import { type StripeClient } from '../payments/stripe.client';
 import { STRIPE_CLIENT } from '../payments/stripe.constants';
 import { EmailService } from './email.service';
+import { FbCapiService } from '../fb-capi/fb-capi.service';
+import type { FbUserData } from '../fb-capi/fb-capi.types';
 
 export type TokenPair = { accessToken: string; refreshToken: string };
 export type AuthResult = { user: AuthUser; tokens: TokenPair };
-export type GoogleAuthResult = AuthResult & { isNewUser: boolean };
+export type GoogleAuthResult = AuthResult & { isNewUser: boolean; created: boolean };
 
 const BCRYPT_COST = 12;
 
@@ -50,9 +53,18 @@ export class AuthService {
     private readonly email: EmailService,
     @Inject(GOOGLE_OAUTH_CLIENT) private readonly googleClient: OAuth2Client,
     @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
+    private readonly fbCapi: FbCapiService,
   ) {}
 
-  async register(email: string, password: string): Promise<AuthResult> {
+  async register(
+    email: string,
+    password: string,
+    opts: {
+      fbConsent?: boolean;
+      fbUserData?: Omit<FbUserData, 'email'>;
+      fbEventId?: string;
+    } = {},
+  ): Promise<AuthResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -85,6 +97,17 @@ export class AuthService {
     void this.email
       .sendWelcomeEmail(created.email)
       .catch((err) => this.logger.error('Welcome email failed', err as Error));
+    if (opts.fbConsent === true) {
+      void this.fbCapi
+        .sendEvent(
+          'CompleteRegistration',
+          opts.fbEventId ?? randomUUID(),
+          { ...opts.fbUserData, email: created.email },
+          undefined,
+          created.id,
+        )
+        .catch((err) => this.logger.error('CompleteRegistration CAPI failed', err as Error));
+    }
 
     const tokens = await this.issueTokens(created.id, created.email);
     return {
@@ -113,7 +136,14 @@ export class AuthService {
     };
   }
 
-  async loginWithGoogle(idToken: string): Promise<GoogleAuthResult> {
+  async loginWithGoogle(
+    idToken: string,
+    opts: {
+      fbConsent?: boolean;
+      fbUserData?: Omit<FbUserData, 'email'>;
+      fbEventId?: string;
+    } = {},
+  ): Promise<GoogleAuthResult> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
       throw new UnauthorizedException('Google sign-in is not configured');
@@ -145,6 +175,7 @@ export class AuthService {
         user: this.toAuthUser(existingByGoogle, hasSub),
         tokens,
         isNewUser: false,
+        created: false,
       };
     }
 
@@ -162,6 +193,7 @@ export class AuthService {
         user: this.toAuthUser(linked, hasSub),
         tokens,
         isNewUser: false,
+        created: false,
       };
     }
 
@@ -187,12 +219,24 @@ export class AuthService {
     void this.email
       .sendWelcomeEmail(created.email)
       .catch((err) => this.logger.error('Welcome email failed', err as Error));
+    if (opts.fbConsent === true) {
+      void this.fbCapi
+        .sendEvent(
+          'CompleteRegistration',
+          opts.fbEventId ?? randomUUID(),
+          { ...opts.fbUserData, email: created.email },
+          undefined,
+          created.id,
+        )
+        .catch((err) => this.logger.error('CompleteRegistration CAPI failed', err as Error));
+    }
 
     const tokens = await this.issueTokens(created.id, created.email);
     return {
       user: this.toAuthUser(created, false),
       tokens,
       isNewUser: true,
+      created: true,
     };
   }
 

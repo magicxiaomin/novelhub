@@ -20,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
+import { fbTrackCompleteRegistration } from '@/lib/fb-pixel';
 import {
   loginWithEmail,
   loginWithGoogle,
@@ -127,8 +128,10 @@ export function AuthModal({
   });
 
   const signup = useMutation({
-    mutationFn: (values: SignupValues) =>
-      registerWithEmail({ email: values.email, password: values.password }),
+    mutationFn: (values: SignupValues) => {
+      const fbEventId = fbTrackCompleteRegistration({ method: 'email' }) ?? undefined;
+      return registerWithEmail({ email: values.email, password: values.password, fbEventId });
+    },
     onSuccess: () => void finishAuth(),
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {
@@ -140,8 +143,17 @@ export function AuthModal({
   });
 
   const googleLogin = useMutation({
-    mutationFn: loginWithGoogle,
-    onSuccess: () => void finishAuth(),
+    mutationFn: async (idToken: string) => {
+      const fbEventId = crypto.randomUUID();
+      const result = await loginWithGoogle({ idToken, fbEventId });
+      return { ...result, fbEventId };
+    },
+    onSuccess: (result) => {
+      if (result.created) {
+        fbTrackCompleteRegistration({ method: 'google', eventId: result.fbEventId });
+      }
+      void finishAuth();
+    },
     onError: () => toast.error(messages.auth.googleError),
   });
 

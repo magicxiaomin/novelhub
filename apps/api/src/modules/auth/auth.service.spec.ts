@@ -11,6 +11,7 @@ import bcrypt from 'bcryptjs';
 import { GOOGLE_OAUTH_CLIENT, PRISMA, SIGNUP_BONUS_COINS } from './auth.constants';
 import { AuthService } from './auth.service';
 import { EmailService } from './email.service';
+import { FbCapiService } from '../fb-capi/fb-capi.service';
 import { STRIPE_CLIENT } from '../payments/stripe.constants';
 
 type StoredUser = {
@@ -148,6 +149,10 @@ const makeStripeStub = () => {
   };
 };
 
+const makeFbCapiStub = () => ({
+  sendEvent: jest.fn(async (): Promise<void> => undefined),
+});
+
 describe('AuthService', () => {
   const ORIGINAL_ENV = { ...process.env };
   let service: AuthService;
@@ -155,6 +160,7 @@ describe('AuthService', () => {
   let emailStub: ReturnType<typeof makeEmailStub>;
   let googleStub: ReturnType<typeof makeGoogleStub>;
   let stripeStub: ReturnType<typeof makeStripeStub>;
+  let fbCapiStub: ReturnType<typeof makeFbCapiStub>;
 
   beforeEach(async () => {
     process.env.JWT_SECRET = 'test-access-secret';
@@ -166,6 +172,7 @@ describe('AuthService', () => {
     emailStub = makeEmailStub();
     googleStub = makeGoogleStub();
     stripeStub = makeStripeStub();
+    fbCapiStub = makeFbCapiStub();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -175,6 +182,7 @@ describe('AuthService', () => {
         { provide: EmailService, useValue: emailStub },
         { provide: GOOGLE_OAUTH_CLIENT, useValue: googleStub },
         { provide: STRIPE_CLIENT, useValue: stripeStub },
+        { provide: FbCapiService, useValue: fbCapiStub },
       ],
     }).compile();
 
@@ -200,6 +208,30 @@ describe('AuthService', () => {
       type: 'SIGNUP_BONUS',
     });
     expect(emailStub.sendWelcomeEmail).toHaveBeenCalledWith('luna@example.com');
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
+  });
+
+  it('register: sends CompleteRegistration CAPI with supplied event id when consent is granted', async () => {
+    await service.register('luna@example.com', 'password123', {
+      fbConsent: true,
+      fbUserData: { fbp: 'fbp-1', fbc: 'fbc-1' },
+      fbEventId: 'event-register-1',
+    });
+
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledTimes(1);
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledWith(
+      'CompleteRegistration',
+      'event-register-1',
+      { email: 'luna@example.com', fbp: 'fbp-1', fbc: 'fbc-1' },
+      undefined,
+      'user-1',
+    );
+  });
+
+  it('register: skips CompleteRegistration CAPI when consent is denied', async () => {
+    await service.register('luna@example.com', 'password123', { fbConsent: false });
+
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
   });
 
   it('register: rejects duplicate email with 409', async () => {
@@ -255,6 +287,67 @@ describe('AuthService', () => {
     expect(emailStub.sendWelcomeEmail).toHaveBeenCalled();
   });
 
+  it('google: new user sends CompleteRegistration CAPI when consent is granted', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-capi',
+        email: 'capi@example.com',
+        email_verified: true,
+      }),
+    });
+
+    await service.loginWithGoogle('fake-id-token', {
+      fbConsent: true,
+      fbUserData: { fbp: 'fbp-google', fbc: 'fbc-google' },
+      fbEventId: 'event-google-1',
+    });
+
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledTimes(1);
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledWith(
+      'CompleteRegistration',
+      'event-google-1',
+      { email: 'capi@example.com', fbp: 'fbp-google', fbc: 'fbc-google' },
+      undefined,
+      'user-1',
+    );
+  });
+
+  it('google: new user skips CompleteRegistration CAPI without consent', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-no-consent',
+        email: 'no-consent@example.com',
+        email_verified: true,
+      }),
+    });
+
+    await service.loginWithGoogle('fake-id-token');
+
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
+  });
+
+  it('google: existing google user never sends CompleteRegistration CAPI', async () => {
+    googleStub.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-returning',
+        email: 'returning@example.com',
+        email_verified: true,
+      }),
+    });
+    await service.loginWithGoogle('fake-id-token');
+    fbCapiStub.sendEvent.mockClear();
+
+    const result = await service.loginWithGoogle('fake-id-token', {
+      fbConsent: true,
+      fbUserData: { fbp: 'fbp-returning' },
+      fbEventId: 'event-returning-1',
+    });
+
+    expect(result.isNewUser).toBe(false);
+    expect(result.created).toBe(false);
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
+  });
+
   it('google: existing email links googleId without double bonus', async () => {
     await service.register('linkme@example.com', 'password123');
     expect(prismaStub.coinTxns).toHaveLength(1);
@@ -267,7 +360,9 @@ describe('AuthService', () => {
     });
     const result = await service.loginWithGoogle('fake');
     expect(result.isNewUser).toBe(false);
+    expect(result.created).toBe(false);
     expect(prismaStub.coinTxns).toHaveLength(1);
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
   });
 
   it('google: rejects unverified email', async () => {

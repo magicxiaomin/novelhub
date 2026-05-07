@@ -1,5 +1,6 @@
 import { BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { ORDER_TYPE } from '@novelhub/shared';
 
 import { PRISMA } from '../auth/auth.constants';
 import { CoinsService } from '../coins/coins.service';
@@ -404,6 +405,54 @@ describe('WebhookService', () => {
       orderType: 'COIN_PURCHASE',
       coinsGranted: 50,
       amountMinor: 499,
+    });
+  });
+
+  it('checkout.session.completed (subscription order): marks completed and publishes Subscribe purchase event from Order amounts', async () => {
+    const state = buildState();
+    state.orders.push({
+      id: 'order-sub-1',
+      userId: 'user-1',
+      stripeSessionId: 'cs_sub_1',
+      stripePaymentIntent: null,
+      type: ORDER_TYPE.SUBSCRIPTION,
+      amount: 1299,
+      currency: 'usd',
+      coinsGranted: null,
+      status: 'pending',
+      completedAt: null,
+      metadata: { planId: 'weekly' },
+    });
+    const event = {
+      id: 'evt_sub_checkout_1',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_sub_1',
+          customer: 'cus_sub_1',
+          metadata: {
+            userId: 'user-1',
+            orderType: ORDER_TYPE.SUBSCRIPTION,
+            planId: 'weekly',
+          },
+          amount_total: 1299,
+          currency: 'usd',
+        },
+      },
+    };
+    const { service, publishedEvents } = await buildService(state, () => event);
+    await service.handleEvent(Buffer.from('{}'), 'sig');
+
+    expect(state.orders[0]?.status).toBe('completed');
+    expect(publishedEvents).toHaveLength(1);
+    expect(publishedEvents[0]).toMatchObject({
+      userId: 'user-1',
+      orderId: 'order-sub-1',
+      orderType: ORDER_TYPE.SUBSCRIPTION,
+      amountMinor: 1299,
+      currency: 'usd',
+      coinsGranted: null,
+      stripeSessionId: 'cs_sub_1',
     });
   });
 

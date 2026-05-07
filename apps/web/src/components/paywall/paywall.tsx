@@ -15,6 +15,7 @@ import { useAuth } from '@/components/providers';
 import { CoinsTab } from '@/components/paywall/coins-tab';
 import { SubscribeTab } from '@/components/paywall/subscribe-tab';
 import { createCoinCheckout, createSubscriptionCheckout } from '@/lib/queries';
+import { fbTrackAddToCart, fbTrackInitiateCheckout } from '@/lib/fb-pixel';
 import { READER_RETURN_URL_KEY } from '@/lib/payment-success';
 import { cn } from '@/lib/utils';
 import type { LockedChapter } from '@/lib/types';
@@ -43,10 +44,32 @@ export function Paywall({
     window.sessionStorage.setItem(READER_RETURN_URL_KEY, currentUrl);
   };
 
+  const selectPlan = (plan: SubscriptionPlanId): void => {
+    setSelectedPlan(plan);
+    fbTrackAddToCart({
+      value: SUBSCRIPTION_PLANS[plan].priceUsd,
+      currency: 'USD',
+      contentIds: [plan],
+    });
+  };
+
+  const selectPackage = (packageId: CoinPackageId): void => {
+    setSelectedPackage(packageId);
+    fbTrackAddToCart({
+      value: COIN_PACKAGES[packageId].priceUsd,
+      currency: 'USD',
+      contentIds: [packageId],
+    });
+  };
+
   const runSubscriptionCheckout = async (): Promise<void> => {
     setSubmitting(true);
     try {
       rememberReturnUrl();
+      fbTrackInitiateCheckout({
+        value: SUBSCRIPTION_PLANS[selectedPlan].priceUsd,
+        currency: 'USD',
+      });
       const checkout = await createSubscriptionCheckout(selectedPlan);
       window.location.assign(checkout.url);
     } catch {
@@ -73,6 +96,10 @@ export function Paywall({
     setSubmitting(true);
     try {
       rememberReturnUrl();
+      fbTrackInitiateCheckout({
+        value: COIN_PACKAGES[selectedPackage].priceUsd,
+        currency: 'USD',
+      });
       const checkout = await createCoinCheckout(selectedPackage);
       window.location.assign(checkout.url);
     } catch {
@@ -136,9 +163,9 @@ export function Paywall({
 
           <div className="mt-5">
             {tab === 'subscribe' ? (
-              <SubscribeTab selectedPlan={selectedPlan} onSelectPlan={setSelectedPlan} />
+              <SubscribeTab selectedPlan={selectedPlan} onSelectPlan={selectPlan} />
             ) : (
-              <CoinsTab selectedPackage={selectedPackage} onSelectPackage={setSelectedPackage} />
+              <CoinsTab selectedPackage={selectedPackage} onSelectPackage={selectPackage} />
             )}
           </div>
         </div>

@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { Suspense } from 'react';
 
+import { ConsentBanner } from '@/components/consent/consent-banner';
+import { FbTracking } from '@/components/consent/fb-tracking';
 import { Providers } from '@/components/providers';
 import { Toaster } from '@/components/ui/toaster';
 import messages from '../../messages/en.json';
@@ -31,7 +34,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={bodyFont.variable}>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <Suspense fallback={null}>
+            <FbTracking />
+          </Suspense>
+          <ConsentBanner />
+        </Providers>
         <Toaster />
       </body>
     </html>

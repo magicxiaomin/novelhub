@@ -6,6 +6,8 @@ import type { PaymentOrder } from './types';
 const order = (status: PaymentOrder['status']): PaymentOrder => ({
   status,
   type: 'COIN_PURCHASE',
+  amount: 999,
+  currency: 'usd',
   coinsGranted: 50,
   completedAt: status === 'completed' ? '2026-05-06T00:00:00.000Z' : null,
 });

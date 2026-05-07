@@ -10,6 +10,11 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
+  // Trust the first hop (Railway / Vercel / similar) so req.ip resolves to
+  // the client address for FB CAPI attribution and rate-limit keys.
+  if (process.env.NODE_ENV === 'production') {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
 
   app.use(cookieParser());
   app.useGlobalPipes(

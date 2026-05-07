@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   buildCoinPackageProductName,
   COIN_PACKAGES,
@@ -17,9 +17,9 @@ import {
   SUBSCRIPTION_PLANS,
   type SubscriptionPlanId,
 } from '@novelhub/shared';
-import type Stripe from 'stripe';
 
 import { PRISMA, SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
+import type { FbUserData } from '../fb-capi/fb-capi.types';
 
 import { type StripeClient } from './stripe.client';
 import { METADATA_KEY, STRIPE_CLIENT } from './stripe.constants';
@@ -43,6 +43,11 @@ export type SubscriptionSummary = {
   canceledAt: string | null;
 };
 
+export type CheckoutFbMetadata = {
+  fbConsent: boolean;
+  fbUserData: Omit<FbUserData, 'email'> | null;
+};
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -55,6 +60,7 @@ export class PaymentsService {
   async createCoinCheckout(
     userId: string,
     packageId: CoinPackageId,
+    fbMetadata: CheckoutFbMetadata = { fbConsent: false, fbUserData: null },
   ): Promise<{ url: string; sessionId: string }> {
     const pkg = COIN_PACKAGES[packageId];
     if (!pkg) {
@@ -94,7 +100,7 @@ export class PaymentsService {
       type: ORDER_TYPE.COIN_PURCHASE,
       amountCents,
       coinsGranted: pkg.coins,
-      metadata: { packageId },
+      metadata: this.orderMetadata({ packageId }, fbMetadata),
     });
 
     if (!session.url) {
@@ -106,6 +112,7 @@ export class PaymentsService {
   async createSubscriptionCheckout(
     userId: string,
     plan: SubscriptionPlanId,
+    fbMetadata: CheckoutFbMetadata = { fbConsent: false, fbUserData: null },
   ): Promise<{ url: string; sessionId: string }> {
     const planMeta = SUBSCRIPTION_PLANS[plan];
     if (!planMeta) {
@@ -142,7 +149,7 @@ export class PaymentsService {
       type: ORDER_TYPE.SUBSCRIPTION,
       amountCents: Math.round(planMeta.priceUsd * 100),
       coinsGranted: null,
-      metadata: { planId: plan },
+      metadata: this.orderMetadata({ planId: plan }, fbMetadata),
     });
 
     if (!session.url) {
@@ -223,6 +230,8 @@ export class PaymentsService {
   ): Promise<{
     status: string;
     type: string;
+    amount: number;
+    currency: string;
     coinsGranted: number | null;
     completedAt: Date | null;
   }> {
@@ -232,6 +241,8 @@ export class PaymentsService {
         userId: true,
         status: true,
         type: true,
+        amount: true,
+        currency: true,
         coinsGranted: true,
         completedAt: true,
       },
@@ -242,6 +253,8 @@ export class PaymentsService {
     return {
       status: order.status,
       type: order.type,
+      amount: order.amount,
+      currency: order.currency,
       coinsGranted: order.coinsGranted,
       completedAt: order.completedAt,
     };
@@ -284,7 +297,7 @@ export class PaymentsService {
     type: 'COIN_PURCHASE' | 'SUBSCRIPTION';
     amountCents: number;
     coinsGranted: number | null;
-    metadata: Stripe.Metadata;
+    metadata: Prisma.InputJsonValue;
   }): Promise<void> {
     try {
       await this.prisma.order.create({
@@ -306,5 +319,25 @@ export class PaymentsService {
         `Failed to pre-create pending order for session ${input.sessionId}: ${(err as Error).message}`,
       );
     }
+  }
+
+  private orderMetadata(
+    base: Record<string, string>,
+    fbMetadata: CheckoutFbMetadata,
+  ): Prisma.InputJsonObject {
+    return {
+      ...base,
+      fbConsent: fbMetadata.fbConsent,
+      fbUserData: fbMetadata.fbConsent ? this.orderFbUserData(fbMetadata.fbUserData) : null,
+    };
+  }
+
+  private orderFbUserData(
+    fbUserData: Omit<FbUserData, 'email'> | null,
+  ): Prisma.InputJsonObject | null {
+    if (!fbUserData) return null;
+    return Object.fromEntries(
+      Object.entries(fbUserData).filter(([, value]) => value !== undefined),
+    ) as Prisma.InputJsonObject;
   }
 }

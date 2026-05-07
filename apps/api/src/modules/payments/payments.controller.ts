@@ -8,11 +8,14 @@ import {
   UnauthorizedException,
   UseGuards,
   Body,
+  Req,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FbCapiService } from '../fb-capi/fb-capi.service';
 
 import { CheckoutCoinsDto, CheckoutSubscriptionDto } from './dto/checkout.dto';
 import { PaymentsService } from './payments.service';
@@ -22,7 +25,10 @@ import { PaymentsService } from './payments.service';
 @Controller('payments')
 @UseGuards(JwtAuthGuard)
 export class PaymentsController {
-  constructor(private readonly payments: PaymentsService) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly fbCapi: FbCapiService,
+  ) {}
 
   @Post('checkout/coins')
   @HttpCode(HttpStatus.CREATED)
@@ -31,9 +37,14 @@ export class PaymentsController {
   checkoutCoins(
     @CurrentUser() user: { id: string } | null,
     @Body() dto: CheckoutCoinsDto,
+    @Req() req: Request,
   ): Promise<{ url: string; sessionId: string }> {
     if (!user) throw new UnauthorizedException();
-    return this.payments.createCoinCheckout(user.id, dto.packageId);
+    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    return this.payments.createCoinCheckout(user.id, dto.packageId, {
+      fbConsent,
+      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
+    });
   }
 
   @Post('checkout/subscription')
@@ -43,9 +54,14 @@ export class PaymentsController {
   checkoutSubscription(
     @CurrentUser() user: { id: string } | null,
     @Body() dto: CheckoutSubscriptionDto,
+    @Req() req: Request,
   ): Promise<{ url: string; sessionId: string }> {
     if (!user) throw new UnauthorizedException();
-    return this.payments.createSubscriptionCheckout(user.id, dto.plan);
+    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    return this.payments.createSubscriptionCheckout(user.id, dto.plan, {
+      fbConsent,
+      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
+    });
   }
 
   @Get('portal')
@@ -75,6 +91,8 @@ export class PaymentsController {
   ): Promise<{
     status: string;
     type: string;
+    amount: number;
+    currency: string;
     coinsGranted: number | null;
     completedAt: Date | null;
   }> {
