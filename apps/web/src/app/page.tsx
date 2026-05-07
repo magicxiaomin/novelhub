@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
 import { BookRail } from '@/components/home/book-rail';
 import { CategorySection } from '@/components/home/category-section';
+import { CheckinCard } from '@/components/home/checkin-card';
 import { ContinueReadingRail } from '@/components/home/continue-reading-rail';
 import { FeaturedCarousel } from '@/components/home/featured-carousel';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +30,8 @@ export default function HomePage(): JSX.Element {
   return (
     <AppShell>
       <div className="pt-3">
+        <CheckinCard />
+
         {featured.isLoading ? (
           <Skeleton className="mx-4 aspect-[16/9] rounded-2xl" />
         ) : (

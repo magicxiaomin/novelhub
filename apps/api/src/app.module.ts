@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BooksModule } from './modules/books/books.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { ChaptersModule } from './modules/chapters/chapters.module';
+import { CheckinModule } from './modules/checkin/checkin.module';
 import { CoinsModule } from './modules/coins/coins.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ReadingProgressModule } from './modules/reading-progress/reading-progress.module';
@@ -31,6 +32,7 @@ import { UnlocksModule } from './modules/unlocks/unlocks.module';
     CoinsModule,
     UnlocksModule,
     ReadingProgressModule,
+    CheckinModule,
     PaymentsModule,
     AdminModule,
   ],

@@ -136,3 +136,17 @@ export type CoinTransaction = {
   balanceAfter: number;
   createdAt: string;
 };
+
+export type CheckinStatus = {
+  today: string;
+  claimedToday: boolean;
+  streakCount: number;
+  nextReward: number;
+  todayReward: number;
+};
+
+export type CheckinClaim = {
+  streakCount: number;
+  coinsAwarded: number;
+  newBalance: number;
+};

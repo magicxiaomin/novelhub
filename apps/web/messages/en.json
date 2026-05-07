@@ -39,6 +39,16 @@
     "seeAll": "See all",
     "progress": "Chapter {chapterNumber} · {scrollPercent}%"
   },
+  "checkin": {
+    "title": "Daily check-in",
+    "claimBody": "Claim {coins} coins",
+    "claimedBody": "Come back tomorrow for {coins} coins",
+    "claimCta": "Claim {coins}",
+    "claimedCta": "Claimed today",
+    "success": "+{coins} coins!",
+    "alreadyClaimed": "Already claimed today",
+    "error": "Check-in could not be claimed."
+  },
   "errors": {
     "somethingWrong": "Something went wrong",
     "tryAgain": "Try again",
