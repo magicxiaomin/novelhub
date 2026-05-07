@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { FB_CONSENT_ACCEPTED, FB_CONSENT_DECLINED } from '@novelhub/shared';
 
 import { Button } from '@/components/ui/button';
 import {
-  FB_CONSENT_ACCEPTED,
-  FB_CONSENT_DECLINED,
   fbTrackPageView,
   initPixel,
   readTrackingConsent,
@@ -30,6 +29,7 @@ export function ConsentBanner(): JSX.Element | null {
 
   const decline = (): void => {
     setTrackingConsent(FB_CONSENT_DECLINED);
+    clearTrackingCookies();
     setVisible(false);
     window.dispatchEvent(new Event('tracking-consent-changed'));
   };
@@ -55,4 +55,13 @@ export function ConsentBanner(): JSX.Element | null {
       </div>
     </div>
   );
+}
+
+function clearTrackingCookies(): void {
+  document.cookie = `_fbc=; path=/; max-age=0; SameSite=Lax${secureCookieAttribute()}`;
+  document.cookie = `_fbp=; path=/; max-age=0; SameSite=Lax${secureCookieAttribute()}`;
+}
+
+function secureCookieAttribute(): string {
+  return typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
 }

@@ -59,7 +59,11 @@ export class AuthService {
   async register(
     email: string,
     password: string,
-    fbUserData?: Omit<FbUserData, 'email'>,
+    opts: {
+      fbConsent?: boolean;
+      fbUserData?: Omit<FbUserData, 'email'>;
+      fbEventId?: string;
+    } = {},
   ): Promise<AuthResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({
@@ -93,15 +97,17 @@ export class AuthService {
     void this.email
       .sendWelcomeEmail(created.email)
       .catch((err) => this.logger.error('Welcome email failed', err as Error));
-    void this.fbCapi
-      .sendEvent(
-        'CompleteRegistration',
-        randomUUID(),
-        { ...fbUserData, email: created.email },
-        undefined,
-        created.id,
-      )
-      .catch((err) => this.logger.error('CompleteRegistration CAPI failed', err as Error));
+    if (opts.fbConsent !== false) {
+      void this.fbCapi
+        .sendEvent(
+          'CompleteRegistration',
+          opts.fbEventId ?? randomUUID(),
+          { ...opts.fbUserData, email: created.email },
+          undefined,
+          created.id,
+        )
+        .catch((err) => this.logger.error('CompleteRegistration CAPI failed', err as Error));
+    }
 
     const tokens = await this.issueTokens(created.id, created.email);
     return {

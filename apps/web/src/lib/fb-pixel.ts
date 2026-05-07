@@ -1,6 +1,5 @@
-export const FB_CONSENT_COOKIE = 'consent';
-export const FB_CONSENT_ACCEPTED = 'accepted';
-export const FB_CONSENT_DECLINED = 'declined';
+import { FB_CONSENT_ACCEPTED, FB_CONSENT_COOKIE, FB_CONSENT_DECLINED } from '@novelhub/shared';
+
 export const FB_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 declare global {
@@ -36,12 +35,13 @@ export function hasTrackingConsent(): boolean {
 }
 
 export function setTrackingConsent(value: typeof FB_CONSENT_ACCEPTED | typeof FB_CONSENT_DECLINED) {
-  document.cookie = `${FB_CONSENT_COOKIE}=${value}; path=/; max-age=${FB_COOKIE_MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${FB_CONSENT_COOKIE}=${value}; path=/; max-age=${FB_COOKIE_MAX_AGE}; SameSite=Lax${secureCookieAttribute()}`;
 }
 
 export function readTrackingConsent(): string | null {
   if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(/(?:^|;\s*)consent=([^;]+)/);
+  const escapedName = escapeRegExp(FB_CONSENT_COOKIE);
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${escapedName}=([^;]+)`));
   return match ? decodeURIComponent(match[1] ?? '') : null;
 }
 
@@ -108,6 +108,10 @@ export function fbTrackPurchase(input: {
   );
 }
 
+export function fbTrackCompleteRegistration(input: { method: string }): TrackResult {
+  return track('CompleteRegistration', { method: input.method });
+}
+
 function track(
   eventName: string,
   customData: Record<string, unknown> = {},
@@ -121,6 +125,14 @@ function track(
 
 function compact(data: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+}
+
+function secureCookieAttribute(): string {
+  return typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function installFbqStub(): void {

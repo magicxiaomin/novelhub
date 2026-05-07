@@ -2,10 +2,31 @@ import { Test, type TestingModule } from '@nestjs/testing';
 
 import { PRISMA } from '../../auth/auth.constants';
 import { FbCapiService } from '../fb-capi.service';
+import type { FbUserData } from '../fb-capi.types';
 
 import { FbPurchaseEventPublisher } from './fb-purchase-event.publisher';
 
+type TestOrderMetadata = {
+  fbConsent: boolean;
+  fbUserData: Omit<FbUserData, 'email'> | null;
+};
+
 const makePrismaStub = () => ({
+  order: {
+    findUnique: jest.fn(
+      async (): Promise<{ metadata: TestOrderMetadata }> => ({
+        metadata: {
+          fbConsent: true,
+          fbUserData: {
+            fbp: 'fbp-1',
+            fbc: 'fbc-1',
+            clientIpAddress: '203.0.113.10',
+            clientUserAgent: 'UA',
+          },
+        },
+      }),
+    ),
+  },
   user: {
     findUnique: jest.fn(async () => ({ email: 'buyer@example.com' })),
   },
@@ -50,7 +71,13 @@ describe('FbPurchaseEventPublisher', () => {
     expect(fbCapi.sendEvent).toHaveBeenCalledWith(
       'Purchase',
       'cs_123',
-      { email: 'buyer@example.com' },
+      {
+        email: 'buyer@example.com',
+        fbp: 'fbp-1',
+        fbc: 'fbc-1',
+        clientIpAddress: '203.0.113.10',
+        clientUserAgent: 'UA',
+      },
       {
         currency: 'USD',
         value: 9.99,
@@ -75,7 +102,13 @@ describe('FbPurchaseEventPublisher', () => {
     expect(fbCapi.sendEvent).toHaveBeenCalledWith(
       'Subscribe',
       'cs_456',
-      { email: 'buyer@example.com' },
+      {
+        email: 'buyer@example.com',
+        fbp: 'fbp-1',
+        fbc: 'fbc-1',
+        clientIpAddress: '203.0.113.10',
+        clientUserAgent: 'UA',
+      },
       {
         currency: 'USD',
         value: 12.99,
@@ -84,5 +117,23 @@ describe('FbPurchaseEventPublisher', () => {
       },
       'user-1',
     );
+  });
+
+  it('skips publish when the Order metadata has no FB consent', async () => {
+    prisma.order.findUnique.mockResolvedValueOnce({
+      metadata: { fbConsent: false, fbUserData: null },
+    });
+
+    await publisher.publish({
+      userId: 'user-1',
+      orderId: 'order-1',
+      orderType: 'COIN_PURCHASE',
+      amountMinor: 999,
+      currency: 'usd',
+      coinsGranted: 120,
+      stripeSessionId: 'cs_123',
+    });
+
+    expect(fbCapi.sendEvent).not.toHaveBeenCalled();
   });
 });

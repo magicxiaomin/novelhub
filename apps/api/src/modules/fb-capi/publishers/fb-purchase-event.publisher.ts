@@ -7,6 +7,12 @@ import {
   type PurchaseEventPublisher,
 } from '../../payments/purchase-event.publisher';
 import { FbCapiService } from '../fb-capi.service';
+import type { FbUserData } from '../fb-capi.types';
+
+type OrderFbMetadata = {
+  fbConsent?: boolean;
+  fbUserData?: Omit<FbUserData, 'email'> | null;
+};
 
 @Injectable()
 export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
@@ -19,6 +25,13 @@ export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
 
   async publish(event: PurchaseCompletedEvent): Promise<void> {
     try {
+      const order = await this.prisma.order.findUnique({
+        where: { id: event.orderId },
+        select: { metadata: true },
+      });
+      const meta = order?.metadata as OrderFbMetadata | null;
+      if (!meta?.fbConsent) return;
+
       const user = await this.prisma.user.findUnique({
         where: { id: event.userId },
         select: { email: true },
@@ -28,11 +41,10 @@ export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
         return;
       }
 
-      // TODO: Webhooks do not include browser consent/_fbp/_fbc; revisit when consent is persisted on User.
       await this.fbCapi.sendEvent(
         event.orderType === 'SUBSCRIPTION' ? 'Subscribe' : 'Purchase',
         event.stripeSessionId,
-        { email: user.email },
+        { ...(meta.fbUserData ?? {}), email: user.email },
         {
           currency: event.currency.toUpperCase(),
           value: event.amountMinor / 100,

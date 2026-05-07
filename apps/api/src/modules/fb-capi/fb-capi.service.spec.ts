@@ -109,6 +109,24 @@ describe('FbCapiService', () => {
     expect(JSON.stringify(body)).not.toContain('USER@Example.COM');
   });
 
+  it('sends the access token in the JSON body, not the Graph API URL', async () => {
+    await service.sendEvent('Purchase', 'event-1', { email: 'a@example.com' });
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe('https://graph.facebook.com/v18.0/pixel-123/events');
+    expect(String(url)).not.toContain('access_token');
+    const body = JSON.parse(String(init?.body)) as { access_token?: string };
+    expect(body.access_token).toBe('token-123');
+  });
+
+  it('caps stored responseBody at 4 KB', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('x'.repeat(5000), { status: 200 }));
+
+    await service.sendEvent('Purchase', 'event-1', { email: 'a@example.com' });
+
+    expect(prismaStub.events.get('event-1')?.responseBody).toHaveLength(4096);
+  });
+
   it('includes test_event_code in non-production when configured', async () => {
     process.env.FB_TEST_EVENT_CODE = 'TEST123';
 

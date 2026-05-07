@@ -19,7 +19,7 @@ import { WebhookService } from './webhook.service';
     PaymentsService,
     WebhookService,
     StripeClientProvider,
-    { provide: PURCHASE_EVENT_PUBLISHER, useClass: FbPurchaseEventPublisher },
+    { provide: PURCHASE_EVENT_PUBLISHER, useExisting: FbPurchaseEventPublisher },
   ],
   exports: [PaymentsService, WebhookService, PURCHASE_EVENT_PUBLISHER],
 })

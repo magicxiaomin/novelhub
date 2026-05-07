@@ -210,6 +210,29 @@ describe('AuthService', () => {
     expect(emailStub.sendWelcomeEmail).toHaveBeenCalledWith('luna@example.com');
   });
 
+  it('register: sends CompleteRegistration CAPI with supplied event id when consent is granted', async () => {
+    await service.register('luna@example.com', 'password123', {
+      fbConsent: true,
+      fbUserData: { fbp: 'fbp-1', fbc: 'fbc-1' },
+      fbEventId: 'event-register-1',
+    });
+
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledTimes(1);
+    expect(fbCapiStub.sendEvent).toHaveBeenCalledWith(
+      'CompleteRegistration',
+      'event-register-1',
+      { email: 'luna@example.com', fbp: 'fbp-1', fbc: 'fbc-1' },
+      undefined,
+      'user-1',
+    );
+  });
+
+  it('register: skips CompleteRegistration CAPI when consent is denied', async () => {
+    await service.register('luna@example.com', 'password123', { fbConsent: false });
+
+    expect(fbCapiStub.sendEvent).not.toHaveBeenCalled();
+  });
+
   it('register: rejects duplicate email with 409', async () => {
     await service.register('luna@example.com', 'password123');
     await expect(service.register('luna@example.com', 'password456')).rejects.toBeInstanceOf(

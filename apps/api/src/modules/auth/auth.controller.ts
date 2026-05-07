@@ -48,11 +48,12 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const result = await this.authService.register(
-      dto.email,
-      dto.password,
-      this.fbCapi.shouldSendForRequest(req) ? this.fbCapi.extractFbUserData(req) : undefined,
-    );
+    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    const result = await this.authService.register(dto.email, dto.password, {
+      fbConsent,
+      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : undefined,
+      fbEventId: dto.fbEventId,
+    });
     setAuthCookies(res, result.tokens);
     return { user: result.user };
   }

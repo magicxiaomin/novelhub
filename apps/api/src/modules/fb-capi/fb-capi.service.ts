@@ -37,9 +37,10 @@ export class FbCapiService {
       if (existing) return;
 
       const payload = this.buildPayload(eventName, eventId, userData, customData);
+      payload.access_token = token;
       const url = `https://graph.facebook.com/${FB_GRAPH_API_VERSION}/${encodeURIComponent(
         pixelId,
-      )}/events?access_token=${encodeURIComponent(token)}`;
+      )}/events`;
 
       let responseCode: number | null = null;
       let responseBody: string | null = null;
@@ -50,7 +51,8 @@ export class FbCapiService {
           body: JSON.stringify(payload),
         });
         responseCode = response.status;
-        responseBody = await response.text();
+        const fullText = await response.text();
+        responseBody = fullText.slice(0, 4096);
       } catch (err) {
         this.logger.error('FB CAPI network error', err as Error);
       }
@@ -62,6 +64,7 @@ export class FbCapiService {
           userId,
           payload,
           responseCode,
+          // TODO: Add a retention job for old FbEvent rows.
           responseBody,
         },
       });

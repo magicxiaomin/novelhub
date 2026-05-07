@@ -125,6 +125,7 @@ export const loginWithEmail = (body: {
 export const registerWithEmail = (body: {
   email: string;
   password: string;
+  fbEventId?: string;
 }): Promise<{ user: AuthUser }> => apiFetch('/auth/register', { method: 'POST', body });
 
 export const loginWithGoogle = (idToken: string): Promise<{ user: AuthUser }> =>
