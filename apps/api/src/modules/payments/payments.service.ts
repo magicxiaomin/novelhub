@@ -283,9 +283,9 @@ export class PaymentsService {
   ): Promise<{ id: string; email: string; stripeCustomerId: string | null }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, stripeCustomerId: true, deletedAt: true },
+      select: { id: true, email: true, stripeCustomerId: true, deletedAt: true, bannedAt: true },
     });
-    if (!user || user.deletedAt) {
+    if (!user || user.deletedAt || user.bannedAt) {
       throw new UnauthorizedException();
     }
     return { id: user.id, email: user.email, stripeCustomerId: user.stripeCustomerId };

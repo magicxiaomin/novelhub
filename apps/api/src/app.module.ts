@@ -17,6 +17,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ReadingProgressModule } from './modules/reading-progress/reading-progress.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { SupportModule } from './modules/support/support.module';
 import { UnlocksModule } from './modules/unlocks/unlocks.module';
 
 @Module({
@@ -41,6 +42,7 @@ import { UnlocksModule } from './modules/unlocks/unlocks.module';
     PaymentsModule,
     NotificationsModule,
     AdminModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [

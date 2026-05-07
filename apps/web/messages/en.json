@@ -51,8 +51,168 @@
   },
   "consent": {
     "body": "We use cookies to measure usage and improve the service. See our Privacy Policy for details.",
-    "decline": "Decline",
-    "accept": "Accept"
+    "reject": "Reject",
+    "customize": "Customize",
+    "accept": "Accept",
+    "customizeTitle": "Cookie preferences",
+    "necessary": "Necessary",
+    "analytics": "Analytics",
+    "marketing": "Marketing",
+    "save": "Save preferences"
+  },
+  "footer": {
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "refund": "Refund",
+    "dmca": "DMCA",
+    "contact": "Contact",
+    "about": "About",
+    "aria": "Footer"
+  },
+  "legal": {
+    "todo": "<!-- TODO: legal review -->",
+    "lastUpdated": "Last updated: 2026-05-07",
+    "privacyTitle": "Privacy Policy",
+    "termsTitle": "Terms of Service",
+    "refundTitle": "Refund Policy",
+    "dmcaTitle": "DMCA Policy",
+    "contactTitle": "Contact Us",
+    "aboutTitle": "About NovelHub",
+    "placeholder": "NovelHub takes your privacy seriously. This is placeholder content pending legal review.",
+    "termsPlaceholder": "These placeholder terms are pending legal review.",
+    "refundPlaceholder": "This placeholder refund policy is pending legal review.",
+    "dmcaPlaceholder": "This placeholder DMCA policy is pending legal review.",
+    "dmcaEmailLabel": "Send takedown notices to {email}.",
+    "aboutBodyOne": "NovelHub is a mobile-first web novel reading app built for discovering serialized stories.",
+    "aboutBodyTwo": "This about page is placeholder content pending legal review."
+  },
+  "contact": {
+    "name": "Name",
+    "email": "Email",
+    "subject": "Subject",
+    "body": "Message",
+    "submit": "Send message",
+    "sent": "Message sent."
+  },
+  "admin": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "books": "Books",
+      "chapters": "Chapters",
+      "users": "Users",
+      "orders": "Orders",
+      "push": "Push"
+    },
+    "table": {
+      "filter": "Filter rows...",
+      "empty": "No results.",
+      "page": "Page {page} of {pages}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "actions": {
+      "edit": "Edit",
+      "save": "Save",
+      "create": "Create",
+      "delete": "Delete",
+      "ban": "Ban",
+      "unban": "Unban",
+      "send": "Send",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "upload": "Upload"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "signups": "Signups",
+      "payingUsers": "Paying users",
+      "revenue": "Revenue",
+      "roas": "ROAS estimate",
+      "weekly": "7-day performance",
+      "topBooks": {
+        "title": "Top selling books",
+        "book": "Book",
+        "revenue": "Revenue",
+        "empty": "No coin unlocks in the last 30 days."
+      }
+    },
+    "books": {
+      "title": "Books",
+      "new": "New book",
+      "edit": "Edit book",
+      "cover": "Cover image",
+      "delete": {
+        "title": "Delete book?",
+        "description": "This soft-deletes the book and removes it from public listings.",
+        "confirm": "Delete book"
+      }
+    },
+    "chapters": {
+      "title": "Chapters",
+      "edit": "Edit chapter",
+      "import": "Bulk import",
+      "bookId": "Book ID",
+      "regex": "Split regex",
+      "file": "File",
+      "parsed": "{count} chapters parsed",
+      "imported": "Imported {count} chapters.",
+      "importPartial": "Imported {imported} of {total} chapters before failing: {message}",
+      "columns": {
+        "order": "Order",
+        "title": "Title",
+        "free": "Free"
+      }
+    },
+    "users": {
+      "title": "Users",
+      "detail": "User detail",
+      "search": "Search email prefix",
+      "columns": {
+        "email": "Email",
+        "coins": "Coins",
+        "admin": "Admin",
+        "banned": "Banned"
+      }
+    },
+    "orders": {
+      "title": "Orders",
+      "search": "Search session or email",
+      "status": "Status",
+      "columns": {
+        "email": "Email",
+        "session": "Session",
+        "type": "Type",
+        "amount": "Amount",
+        "status": "Status",
+        "created": "Created"
+      }
+    },
+    "push": {
+      "title": "Push broadcast",
+      "body": "Body",
+      "url": "URL",
+      "segment": "Segment",
+      "segmentAll": "All",
+      "confirmTitle": "Send broadcast?"
+    },
+    "fields": {
+      "title": "Title",
+      "author": "Author",
+      "coverUrl": "Cover URL",
+      "description": "Description",
+      "category": "Category",
+      "tags": "Tags",
+      "status": "Status",
+      "freeChapterCount": "Free chapters",
+      "coinPerChapter": "Coins per chapter",
+      "content": "Content",
+      "isFree": "Free"
+    },
+    "validation": {
+      "urlOrEmpty": "Enter a valid URL or leave blank.",
+      "httpsUrl": "Enter a valid https URL.",
+      "coverUrlRequired": "Cover URL is required for new books."
+    }
   },
   "pwa": {
     "installTitle": "Install NovelHub",

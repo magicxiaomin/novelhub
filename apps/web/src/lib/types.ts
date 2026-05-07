@@ -9,6 +9,8 @@ export type AuthUser = {
   coinBalance: number;
   hasPassword: boolean;
   hasActiveSubscription: boolean;
+  isAdmin: boolean;
+  bannedAt: string | null;
 };
 
 export type BookSummary = {

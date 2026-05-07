@@ -4,7 +4,9 @@ import type { PrismaClient } from '@prisma/client';
 import { JwtStrategy } from './jwt.strategy';
 
 describe('JwtStrategy', () => {
-  const makeStrategy = (user: { id: string; email: string; deletedAt: Date | null } | null) => {
+  const makeStrategy = (
+    user: { id: string; email: string; deletedAt: Date | null; bannedAt: Date | null } | null,
+  ) => {
     const findUnique = jest.fn(async () => user);
     const prisma = {
       user: {
@@ -20,6 +22,7 @@ describe('JwtStrategy', () => {
       id: 'user-1',
       email: 'luna@example.com',
       deletedAt: null,
+      bannedAt: null,
     });
 
     await expect(
@@ -27,7 +30,7 @@ describe('JwtStrategy', () => {
     ).resolves.toEqual({ id: 'user-1', email: 'luna@example.com' });
     expect(findUnique).toHaveBeenCalledWith({
       where: { id: 'user-1' },
-      select: { id: true, email: true, deletedAt: true },
+      select: { id: true, email: true, deletedAt: true, bannedAt: true },
     });
   });
 
@@ -36,6 +39,20 @@ describe('JwtStrategy', () => {
       id: 'user-1',
       email: 'luna@example.com',
       deletedAt: new Date(),
+      bannedAt: null,
+    });
+
+    await expect(
+      strategy.validate({ sub: 'user-1', email: 'luna@example.com', type: 'access' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('validate: rejects banned users', async () => {
+    const { strategy } = makeStrategy({
+      id: 'user-1',
+      email: 'luna@example.com',
+      deletedAt: null,
+      bannedAt: new Date(),
     });
 
     await expect(

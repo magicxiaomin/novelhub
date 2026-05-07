@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import { json, type NextFunction, type Request, type Response } from 'express';
 
 import { AppModule } from './app.module';
 
@@ -10,6 +11,23 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
+  // Bulk chapter import sends up to 50 chapters x 200KB per chunk (~10MB).
+  // Mount a wider JSON parser ONLY on that specific route — keep the global
+  // default at Nest's 100KB to limit DoS surface on other endpoints.
+  // Gate the wider parser behind an auth-cookie-presence check so anonymous
+  // attackers can't burn CPU/memory parsing 10MB of garbage before the
+  // AdminGuard fires.
+  app.use(
+    '/admin/books/:bookId/chapters/bulk',
+    (req: Request, res: Response, next: NextFunction) => {
+      // The auth cookie is `jwt=...` (apps/api/src/modules/auth/auth.constants.ts).
+      if (!req.headers.cookie?.includes('jwt=')) {
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
+      }
+      json({ limit: '10mb' })(req, res, next);
+    },
+  );
   // Trust the first hop (Railway / Vercel / similar) so req.ip resolves to
   // the client address for FB CAPI attribution and rate-limit keys.
   if (process.env.NODE_ENV === 'production') {

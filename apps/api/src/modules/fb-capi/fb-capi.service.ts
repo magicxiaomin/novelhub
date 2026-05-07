@@ -6,7 +6,9 @@ import type { Request } from 'express';
 
 import { PRISMA } from '../auth/auth.constants';
 
-import { FB_CONSENT_ACCEPTED, FB_CONSENT_COOKIE, FB_GRAPH_API_VERSION } from './fb-capi.constants';
+import { parseConsent } from '@novelhub/shared';
+
+import { CONSENT_COOKIE, FB_GRAPH_API_VERSION } from './fb-capi.constants';
 import type { FbCustomData, FbEventPayload, FbUserData } from './fb-capi.types';
 
 @Injectable()
@@ -82,7 +84,7 @@ export class FbCapiService {
   }
 
   shouldSendForRequest(req: Request): boolean {
-    return this.readCookie(req, FB_CONSENT_COOKIE) === FB_CONSENT_ACCEPTED;
+    return parseConsent(this.readCookie(req, CONSENT_COOKIE))?.marketing === true;
   }
 
   extractFbUserData(req: Request, email?: string): FbUserData {

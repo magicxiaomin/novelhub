@@ -1,4 +1,12 @@
-import { FB_CONSENT_ACCEPTED, FB_CONSENT_COOKIE, FB_CONSENT_DECLINED } from '@novelhub/shared';
+import {
+  CONSENT_COOKIE,
+  CONSENT_COOKIE_DAYS,
+  parseConsent,
+  serializeConsent,
+  type ConsentCategories,
+} from '@novelhub/shared';
+
+import { setDaysCookie } from './cookies';
 
 export const FB_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -31,18 +39,22 @@ let initialized = false;
 
 export function hasTrackingConsent(): boolean {
   if (typeof document === 'undefined') return false;
-  return document.cookie.split('; ').includes(`${FB_CONSENT_COOKIE}=${FB_CONSENT_ACCEPTED}`);
+  return parseConsent(readRawCookie(CONSENT_COOKIE))?.marketing === true;
 }
 
-export function setTrackingConsent(value: typeof FB_CONSENT_ACCEPTED | typeof FB_CONSENT_DECLINED) {
-  document.cookie = `${FB_CONSENT_COOKIE}=${value}; path=/; max-age=${FB_COOKIE_MAX_AGE}; SameSite=Lax${secureCookieAttribute()}`;
+export function setTrackingConsent(value: ConsentCategories): void {
+  setDaysCookie(CONSENT_COOKIE, serializeConsent(value), CONSENT_COOKIE_DAYS);
 }
 
-export function readTrackingConsent(): string | null {
+export function readTrackingConsent(): ConsentCategories | null {
   if (typeof document === 'undefined') return null;
-  const escapedName = escapeRegExp(FB_CONSENT_COOKIE);
+  return parseConsent(readRawCookie(CONSENT_COOKIE));
+}
+
+function readRawCookie(name: string): string | null {
+  const escapedName = escapeRegExp(name);
   const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${escapedName}=([^;]+)`));
-  return match ? decodeURIComponent(match[1] ?? '') : null;
+  return match ? (match[1] ?? '') : null;
 }
 
 export function initPixel(): void {
@@ -128,10 +140,6 @@ function track(
 
 function compact(data: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
-}
-
-function secureCookieAttribute(): string {
-  return typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
 }
 
 function escapeRegExp(value: string): string {

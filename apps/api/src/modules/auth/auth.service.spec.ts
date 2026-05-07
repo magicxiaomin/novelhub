@@ -24,6 +24,7 @@ type StoredUser = {
   isAdmin: boolean;
   createdAt: Date;
   updatedAt: Date;
+  bannedAt: Date | null;
   deletedAt: Date | null;
 };
 
@@ -79,6 +80,7 @@ const makePrismaStub = () => {
         isAdmin: false,
         createdAt: now,
         updatedAt: now,
+        bannedAt: null,
         deletedAt: null,
       };
       users.set(id, user);

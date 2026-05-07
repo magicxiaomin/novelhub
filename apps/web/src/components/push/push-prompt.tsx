@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { hasCookie, setDaysCookie } from '@/lib/cookies';
+import { readTrackingConsent } from '@/lib/fb-pixel';
 import { CHAPTERS_READ_COUNT_EVENT, getChaptersReadCount } from '@/lib/read-count';
 import { fetchReadingProgress, grantPushBonus, queryKeys } from '@/lib/queries';
 import messages from '@/../messages/en.json';
@@ -53,6 +54,7 @@ export function PushPrompt(): JSX.Element | null {
   const [scriptReady, setScriptReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
   const grantMutation = useMutation({
     mutationFn: grantPushBonus,
@@ -70,10 +72,20 @@ export function PushPrompt(): JSX.Element | null {
   });
 
   useEffect(() => {
+    const updateConsent = (): void => {
+      setMarketingConsent(readTrackingConsent()?.marketing === true);
+    };
+    updateConsent();
+    window.addEventListener('tracking-consent-changed', updateConsent);
+    return () => window.removeEventListener('tracking-consent-changed', updateConsent);
+  }, []);
+
+  useEffect(() => {
     const updateEligibility = (): void => {
       setEligible(
         Boolean(user) &&
           Boolean(appId) &&
+          marketingConsent &&
           getChaptersReadCount() >= MIN_CHAPTERS_READ &&
           !hasCookie(DISMISSED_COOKIE) &&
           canAskForNotifications(),
@@ -82,7 +94,7 @@ export function PushPrompt(): JSX.Element | null {
     updateEligibility();
     window.addEventListener(CHAPTERS_READ_COUNT_EVENT, updateEligibility);
     return () => window.removeEventListener(CHAPTERS_READ_COUNT_EVENT, updateEligibility);
-  }, [appId, user]);
+  }, [appId, marketingConsent, user]);
 
   useEffect(() => {
     if (!eligible || !scriptReady || !appId || initialized) return;
@@ -96,7 +108,7 @@ export function PushPrompt(): JSX.Element | null {
     });
   }, [appId, eligible, initialized, scriptReady, user]);
 
-  if (!eligible || !appId) return null;
+  if (!marketingConsent || !eligible || !appId) return null;
 
   const dismiss = (): void => {
     setDaysCookie(DISMISSED_COOKIE, new Date().toISOString(), 7);

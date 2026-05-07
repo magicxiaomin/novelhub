@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 
 import { ConsentBanner } from '@/components/consent/consent-banner';
 import { FbTracking } from '@/components/consent/fb-tracking';
+import { Footer } from '@/components/layout/footer';
 import { Providers } from '@/components/providers';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { PushPrompt } from '@/components/push/push-prompt';
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <Providers>
           {children}
+          <Footer />
           <Suspense fallback={null}>
             <FbTracking />
           </Suspense>

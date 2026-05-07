@@ -31,6 +31,12 @@ export class CreateBookDto {
   @MaxLength(500)
   coverUrl!: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  coverImageKey?: string;
+
   @ApiProperty()
   @IsString()
   @MaxLength(5000)
