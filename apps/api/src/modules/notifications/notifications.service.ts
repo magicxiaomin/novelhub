@@ -66,7 +66,10 @@ export class NotificationsService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (err) {
-      if (hasPrismaCode(err, 'P2034') || isSerializationError(err)) {
+      // P2002 = the partial unique index on (user_id) WHERE type='PUSH_REWARD'
+      // rejected a duplicate; P2034 / 40001 = serializable conflict the loser
+      // hit. Both mean another tx already granted the reward.
+      if (hasPrismaCode(err, 'P2002') || hasPrismaCode(err, 'P2034') || isSerializationError(err)) {
         return { granted: false, reason: 'already_granted' };
       }
       throw err;

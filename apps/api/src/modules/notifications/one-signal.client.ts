@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+// 5s ceiling on each OneSignal HTTP call. Their API normally responds in
+// <500ms; anything longer means an incident and we'd rather fail fast than
+// pin a Nest worker waiting on a hung connection. The 5/min throttle in
+// front of grantBonus already bounds blast radius if every retry trips this.
+const ONESIGNAL_REQUEST_TIMEOUT_MS = 5000;
+
 type OneSignalSendInput = {
   title: string;
   body: string;
@@ -59,14 +65,21 @@ export class OneSignalClient {
     }
     if (input.segments?.length) payload.included_segments = input.segments;
 
-    const res = await fetch('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    let res: Response;
+    try {
+      res = await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        signal: AbortSignal.timeout(ONESIGNAL_REQUEST_TIMEOUT_MS),
+        headers: {
+          Authorization: `Basic ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      this.logger.warn(`OneSignal send aborted: ${describeFetchError(err)}`);
+      return { sent: false };
+    }
 
     if (!res.ok) {
       const body = await res.text();
@@ -84,16 +97,23 @@ export class OneSignalClient {
       return false;
     }
 
-    const res = await fetch(
-      `https://api.onesignal.com/apps/${encodeURIComponent(this.appId)}/users/by/external_id/${encodeURIComponent(userId)}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Key ${this.apiKey}`,
-          Accept: 'application/json',
+    let res: Response;
+    try {
+      res = await fetch(
+        `https://api.onesignal.com/apps/${encodeURIComponent(this.appId)}/users/by/external_id/${encodeURIComponent(userId)}`,
+        {
+          method: 'GET',
+          signal: AbortSignal.timeout(ONESIGNAL_REQUEST_TIMEOUT_MS),
+          headers: {
+            Authorization: `Key ${this.apiKey}`,
+            Accept: 'application/json',
+          },
         },
-      },
-    );
+      );
+    } catch (err) {
+      this.logger.warn(`OneSignal subscription check aborted: ${describeFetchError(err)}`);
+      return false;
+    }
 
     if (!res.ok) {
       const body = await res.text();
@@ -116,3 +136,13 @@ export class OneSignalClient {
 
 const isWebPushSubscriptionType = (type: unknown): boolean =>
   typeof type === 'string' && type.toLowerCase().replace(/[\s_-]/g, '') === 'webpush';
+
+const describeFetchError = (err: unknown): string => {
+  if (err instanceof Error) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      return `request timed out after ${ONESIGNAL_REQUEST_TIMEOUT_MS}ms`;
+    }
+    return err.message;
+  }
+  return 'unknown error';
+};
