@@ -11,6 +11,21 @@ to "fix" them — they reflect what we learned at that point in time.
 
 ---
 
+## Ticket 12 — PWA and Push Notifications
+
+**What worked:** `withCronLock` for multi-replica cron safety; detecting prior grants via `CoinTransaction.type='PUSH_REWARD'` instead of a new user column; env-presence-gating in `OneSignalClient` so a missing REST key warns rather than crashes.
+
+**Pitfalls hit:**
+
+- **Session-level pg advisory locks leak across pooled connections.** `pg_try_advisory_lock`'s unlock can land on a different backend than the holder, silently jamming every subsequent tick. Use `pg_try_advisory_xact_lock` inside `prisma.$transaction` so it auto-releases.
+- **OneSignal `optIn()` resolves on BOTH accept and deny.** Trusting the promise would reward users who declined. `push-prompt.tsx` re-reads `PushSubscription.optedIn` / `Notification.permission` before granting.
+- **Concurrent grant-bonus calls double-rewarded.** `findFirst`+insert isn't atomic. Use `Prisma.TransactionIsolationLevel.Serializable` and catch `P2034`/`40001` as `already_granted`.
+- **SW could silently cache `/api/` on env misconfig.** `next.config.mjs` builds the NetworkOnly rule from `NEXT_PUBLIC_APP_URL` but falls back to a relative `/api/` regex so a malformed URL never lets user-scoped data into the cache.
+
+**Rule for future tickets:** Crons use `withCronLock` (transaction-scoped advisory). External SDK opt-in flows verify final state, not promise resolution. First-time-only rewards run at Serializable with `P2034`/`40001` → `already_granted`. SW `runtimeCaching` always includes a NetworkOnly `/api/` rule that survives missing env vars.
+
+---
+
 ## Ticket 01 — Initialize Monorepo and Tooling
 
 **What worked:** pnpm workspace + tsconfig path aliases set up cleanly; eslint
