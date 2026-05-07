@@ -121,7 +121,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
-    if (!user || user.deletedAt || !user.passwordHash) {
+    if (!user || user.deletedAt || user.bannedAt || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
@@ -168,7 +168,7 @@ export class AuthService {
     const existingByGoogle = await this.prisma.user.findUnique({
       where: { googleId },
     });
-    if (existingByGoogle && !existingByGoogle.deletedAt) {
+    if (existingByGoogle && !existingByGoogle.deletedAt && !existingByGoogle.bannedAt) {
       const hasSub = await this.checkActiveSubscription(existingByGoogle.id);
       const tokens = await this.issueTokens(existingByGoogle.id, existingByGoogle.email);
       return {
@@ -182,7 +182,7 @@ export class AuthService {
     const existingByEmail = await this.prisma.user.findUnique({
       where: { email },
     });
-    if (existingByEmail && !existingByEmail.deletedAt) {
+    if (existingByEmail && !existingByEmail.deletedAt && !existingByEmail.bannedAt) {
       const linked = await this.prisma.user.update({
         where: { id: existingByEmail.id },
         data: { googleId, emailVerified: true },
@@ -255,7 +255,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
     });
-    if (!user || user.deletedAt) {
+    if (!user || user.deletedAt || user.bannedAt) {
       throw new UnauthorizedException('Invalid refresh token');
     }
     return this.issueTokens(user.id, user.email);
@@ -265,7 +265,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
-    if (!user || user.deletedAt) {
+    if (!user || user.deletedAt || user.bannedAt) {
       throw new UnauthorizedException();
     }
     const hasActiveSubscription = await this.checkActiveSubscription(user.id);
@@ -409,7 +409,14 @@ export class AuthService {
   }
 
   private toAuthUser(
-    user: { id: string; email: string; coinBalance: number; passwordHash: string | null },
+    user: {
+      id: string;
+      email: string;
+      coinBalance: number;
+      passwordHash: string | null;
+      isAdmin: boolean;
+      bannedAt: Date | null;
+    },
     hasActiveSubscription: boolean,
   ): AuthUser {
     return {
@@ -418,6 +425,8 @@ export class AuthService {
       coinBalance: user.coinBalance,
       hasPassword: user.passwordHash != null,
       hasActiveSubscription,
+      isAdmin: user.isAdmin,
+      bannedAt: user.bannedAt?.toISOString() ?? null,
     };
   }
 }

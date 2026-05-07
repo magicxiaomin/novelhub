@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { CONSENT_COOKIE, parseConsent } from '@novelhub/shared';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -40,7 +41,7 @@ export class PaymentsController {
     @Req() req: Request,
   ): Promise<{ url: string; sessionId: string }> {
     if (!user) throw new UnauthorizedException();
-    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    const fbConsent = parseConsent(this.readCookie(req, CONSENT_COOKIE))?.marketing === true;
     return this.payments.createCoinCheckout(user.id, dto.packageId, {
       fbConsent,
       fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
@@ -57,7 +58,7 @@ export class PaymentsController {
     @Req() req: Request,
   ): Promise<{ url: string; sessionId: string }> {
     if (!user) throw new UnauthorizedException();
-    const fbConsent = this.fbCapi.shouldSendForRequest(req);
+    const fbConsent = parseConsent(this.readCookie(req, CONSENT_COOKIE))?.marketing === true;
     return this.payments.createSubscriptionCheckout(user.id, dto.plan, {
       fbConsent,
       fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
@@ -98,5 +99,9 @@ export class PaymentsController {
   }> {
     if (!user) throw new UnauthorizedException();
     return this.payments.getOrderStatus(user.id, sessionId);
+  }
+
+  private readCookie(req: Request, name: string): string | undefined {
+    return (req as Request & { cookies?: Record<string, string> }).cookies?.[name];
   }
 }

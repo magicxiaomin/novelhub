@@ -20,6 +20,7 @@ model User {
   isAdmin          Boolean   @default(false) @map("is_admin")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
+  bannedAt         DateTime? @map("banned_at")
   deletedAt        DateTime? @map("deleted_at")
 
   subscriptions Subscription[]
@@ -37,6 +38,7 @@ model Book {
   title            String
   author           String
   coverUrl         String    @map("cover_url")
+  coverImageKey    String?   @map("cover_image_key")
   description      String    @db.Text
   category         String
   tags             String[]

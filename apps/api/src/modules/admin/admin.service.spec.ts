@@ -114,7 +114,12 @@ const buildPrismaStub = () => {
 describe('AdminService', () => {
   let service: AdminService;
   let stub: ReturnType<typeof buildPrismaStub>;
-  let storage: { uploadText: jest.Mock; getSignedUrl: jest.Mock; getText: jest.Mock };
+  let storage: {
+    uploadText: jest.Mock;
+    getSignedUrl: jest.Mock;
+    getSignedUploadUrl: jest.Mock;
+    getText: jest.Mock;
+  };
   let cache: { set: jest.Mock; del: jest.Mock; get: jest.Mock };
 
   beforeEach(async () => {
@@ -122,6 +127,7 @@ describe('AdminService', () => {
     storage = {
       uploadText: jest.fn(async () => undefined),
       getSignedUrl: jest.fn(async () => 'https://signed/url'),
+      getSignedUploadUrl: jest.fn(async () => 'https://signed/upload'),
       getText: jest.fn(async () => ''),
     };
     cache = {

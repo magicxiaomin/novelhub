@@ -1,5 +1,17 @@
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 
 export class UpdateChapterDto {
   @ApiPropertyOptional()
@@ -42,4 +54,32 @@ export class BulkImportOptionsDto {
   @IsOptional()
   @IsBoolean()
   replace?: boolean;
+}
+
+export class BulkChapterDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  title!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(204800)
+  content!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isFree?: boolean;
+}
+
+export class BulkCreateChaptersDto {
+  @ApiProperty({ type: [BulkChapterDto] })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => BulkChapterDto)
+  chapters!: BulkChapterDto[];
 }

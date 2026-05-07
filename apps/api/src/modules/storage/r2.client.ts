@@ -35,6 +35,19 @@ export class R2StorageClient implements StorageClient {
     });
   }
 
+  async getSignedUploadUrl(
+    key: string,
+    contentType: string,
+    expiresInSeconds: number = SIGNED_URL_TTL_SECONDS,
+  ): Promise<string> {
+    const { client, bucket } = this.requireClient();
+    return getSignedUrl(
+      client,
+      new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
+      { expiresIn: expiresInSeconds },
+    );
+  }
+
   async getText(key: string): Promise<string> {
     const { client, bucket } = this.requireClient();
     const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
