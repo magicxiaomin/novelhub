@@ -152,3 +152,9 @@ export type CheckinClaim = {
   coinsAwarded: number;
   newBalance: number;
 };
+
+export type PushGrantBonus = {
+  granted: boolean;
+  balance?: number;
+  reason?: 'already_granted' | 'no_subscription';
+};

@@ -54,6 +54,24 @@
     "decline": "Decline",
     "accept": "Accept"
   },
+  "pwa": {
+    "installTitle": "Install NovelHub",
+    "installBody": "Add NovelHub to your home screen for faster reading.",
+    "installCta": "Install",
+    "dismiss": "Not now",
+    "iosTitle": "Add NovelHub to Home Screen",
+    "iosBody": "Tap the share icon, then choose Add to Home Screen.",
+    "iosImageAlt": "iOS Add to Home Screen placeholder",
+    "gotIt": "Got it"
+  },
+  "push": {
+    "title": "Get notified when your favorite books update?",
+    "body": "Enable push notifications and get 10 coins on your first grant.",
+    "allow": "Allow",
+    "deny": "Not now",
+    "bonusSuccess": "+{coins} coins!",
+    "bonusError": "Push reward could not be claimed."
+  },
   "errors": {
     "somethingWrong": "Something went wrong",
     "tryAgain": "Try again",

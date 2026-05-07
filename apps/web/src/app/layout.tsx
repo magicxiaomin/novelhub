@@ -5,6 +5,8 @@ import { Suspense } from 'react';
 import { ConsentBanner } from '@/components/consent/consent-banner';
 import { FbTracking } from '@/components/consent/fb-tracking';
 import { Providers } from '@/components/providers';
+import { InstallPrompt } from '@/components/pwa/install-prompt';
+import { PushPrompt } from '@/components/push/push-prompt';
 import { Toaster } from '@/components/ui/toaster';
 import messages from '../../messages/en.json';
 
@@ -21,6 +23,24 @@ export const metadata: Metadata = {
   description: messages.metadata.description,
   applicationName: 'NovelHub',
   formatDetection: { telephone: false },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'NovelHub',
+    startupImage: [
+      {
+        url: '/splash/iphone-1170x2532.png',
+        media:
+          '(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)',
+      },
+      {
+        url: '/splash/iphone-1284x2778.png',
+        media:
+          '(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)',
+      },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
@@ -39,6 +59,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Suspense fallback={null}>
             <FbTracking />
           </Suspense>
+          <InstallPrompt />
+          <PushPrompt />
           <ConsentBanner />
         </Providers>
         <Toaster />

@@ -21,6 +21,7 @@ import {
   queryKeys,
   saveReadingProgress,
 } from '@/lib/queries';
+import { incrementChaptersReadCount } from '@/lib/read-count';
 import {
   DEFAULT_READER_SETTINGS,
   loadReaderSettings,
@@ -54,6 +55,7 @@ export function ReaderContent({
   const lastToolbarScrollY = useRef(0);
   const lastPersistedScrollY = useRef(0);
   const restored = useRef(false);
+  const countedRead = useRef(false);
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const unlocks = useQuery({
@@ -83,6 +85,12 @@ export function ReaderContent({
   useEffect(() => {
     saveReaderSettings(window.localStorage, settings);
   }, [settings]);
+
+  useEffect(() => {
+    if (countedRead.current || !contentQuery.isSuccess || !contentQuery.data) return;
+    countedRead.current = true;
+    incrementChaptersReadCount();
+  }, [contentQuery.data, contentQuery.isSuccess]);
 
   useEffect(() => {
     let cancelled = false;
