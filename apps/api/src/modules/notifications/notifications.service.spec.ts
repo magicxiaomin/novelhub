@@ -106,6 +106,18 @@ describe('NotificationsService', () => {
     expect(coins.adjustBalance).not.toHaveBeenCalled();
   });
 
+  it('grantBonus: treats a P2002 unique-index violation as already granted', async () => {
+    const { service, prisma, tx, coins } = buildService();
+    tx.coinTransaction.findFirst.mockResolvedValue(null);
+    jest.spyOn(coins, 'adjustBalance').mockResolvedValue({ balance: 42, transactionId: 'txn-1' });
+    prisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
+
+    await expect(service.grantBonus('user-1')).resolves.toEqual({
+      granted: false,
+      reason: 'already_granted',
+    });
+  });
+
   it('grantBonus: treats a concurrent serializable transaction loser as already granted', async () => {
     const { service, prisma, tx, coins } = buildService();
     tx.coinTransaction.findFirst.mockResolvedValue(null);

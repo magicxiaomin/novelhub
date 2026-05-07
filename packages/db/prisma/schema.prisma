@@ -139,6 +139,9 @@ model CoinTransaction {
 
   @@index([userId])
   @@index([createdAt])
+  // Partial unique index `coin_transactions_push_reward_user_idx`
+  // (one PUSH_REWARD row per user) is enforced via raw SQL migration
+  // because Prisma's @@unique cannot express a WHERE clause.
   @@map("coin_transactions")
 }
 
