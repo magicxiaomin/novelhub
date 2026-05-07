@@ -4,6 +4,13 @@ export * from './consent';
 export * from './push-copy';
 export * from './routes';
 
+export const BOOK_STATUSES = ['ONGOING', 'COMPLETED'] as const;
+export type BookStatus = (typeof BOOK_STATUSES)[number];
+export const BOOK_STATUS = {
+  ONGOING: 'ONGOING',
+  COMPLETED: 'COMPLETED',
+} as const satisfies Record<string, BookStatus>;
+
 export const PUSH_PERMISSION_REWARD_COINS = 10;
 
 export const SUBSCRIPTION_STATUSES = ['active', 'past_due', 'canceled', 'expired'] as const;

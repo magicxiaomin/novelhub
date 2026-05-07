@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { BOOK_STATUS, BOOK_STATUSES, type BookStatus } from '@novelhub/shared';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -14,13 +15,14 @@ import messages from '@/../messages/en.json';
 const bookFormSchema = z.object({
   title: z.string().trim().min(1).max(200),
   author: z.string().trim().min(1).max(120),
-  // Backend CreateBookDto.coverUrl is required; empty values would render
-  // broken images on public listings.
-  coverUrl: z.string().trim().url(),
+  // coverUrl is optional in the form when an upload key will be set after
+  // creation; submit() validates that at least one is present so we don't
+  // create books with broken cover images.
+  coverUrl: z.string().trim().url().or(z.literal('')),
   description: z.string().trim().min(1).max(10000),
   category: z.string().trim().min(1).max(80),
   tags: z.string().max(500),
-  status: z.string().trim().min(1).max(40),
+  status: z.enum(BOOK_STATUSES),
   freeChapterCount: z.coerce.number().int().min(0),
   coinPerChapter: z.coerce.number().int().min(1),
 });
@@ -34,7 +36,7 @@ const emptyBook: BookFormValues = {
   description: '',
   category: '',
   tags: '',
-  status: 'ONGOING',
+  status: BOOK_STATUS.ONGOING,
   freeChapterCount: 3,
   coinPerChapter: 5,
 };
@@ -52,7 +54,9 @@ export function BookForm({ book }: { book?: AdminBook }): JSX.Element {
           description: book.description,
           category: book.category,
           tags: book.tags.join(', '),
-          status: book.status,
+          status: BOOK_STATUSES.includes(book.status as BookStatus)
+            ? (book.status as BookStatus)
+            : BOOK_STATUS.ONGOING,
           freeChapterCount: book.freeChapterCount,
           coinPerChapter: book.coinPerChapter,
         }
@@ -60,6 +64,12 @@ export function BookForm({ book }: { book?: AdminBook }): JSX.Element {
   });
 
   const submit = async (values: BookFormValues): Promise<void> => {
+    // Reject create flow without a cover URL; on update we allow blank because
+    // a cover may already be set via key+derived URL on the persisted record.
+    if (!book && values.coverUrl.length === 0) {
+      form.setError('coverUrl', { message: messages.admin.validation.coverUrlRequired });
+      return;
+    }
     setSaving(true);
     try {
       const body = {
@@ -91,7 +101,7 @@ export function BookForm({ book }: { book?: AdminBook }): JSX.Element {
 
   return (
     <form
-      onSubmit={form.handleSubmit((values) => void submit(values))}
+      onSubmit={form.handleSubmit((values: BookFormValues) => void submit(values))}
       className="grid max-w-2xl gap-4"
     >
       <Input {...form.register('title')} placeholder={messages.admin.fields.title} />

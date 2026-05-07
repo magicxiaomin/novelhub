@@ -15,7 +15,10 @@ import { adminApi } from '@/lib/admin/api';
 import messages from '@/../messages/en.json';
 
 const DEFAULT_REGEX = '^Chapter\\s+\\d+';
-const CHUNK_SIZE = 50;
+// Each chapter is capped at 200KB (apps/api MAX_CHAPTER_CONTENT_BYTES). The
+// backend bulk-import route accepts up to 10MB JSON; 25 chapters * 200KB =
+// 5MB raw plus JSON escape overhead stays comfortably under the cap.
+const CHUNK_SIZE = 25;
 
 const importFormSchema = z.object({
   bookId: z.string().uuid(),

@@ -210,7 +210,8 @@
     },
     "validation": {
       "urlOrEmpty": "Enter a valid URL or leave blank.",
-      "httpsUrl": "Enter a valid https URL."
+      "httpsUrl": "Enter a valid https URL.",
+      "coverUrlRequired": "Cover URL is required for new books."
     }
   },
   "pwa": {

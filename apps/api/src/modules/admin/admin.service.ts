@@ -2,6 +2,8 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException } fr
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
+import { COIN_PACKAGES } from '@novelhub/shared';
+
 import { PRISMA } from '../auth/auth.constants';
 import { CACHE_CLIENT, type CacheClient } from '../cache/cache.constants';
 import { BooksService } from '../books/books.service';
@@ -14,8 +16,11 @@ import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './d
 const DEFAULT_DELIMITER = '\n\n---\n\n';
 const MAX_CHAPTER_CONTENT_BYTES = 204800;
 const ALLOWED_COVER_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
-// The base coin package is $4.99 for 50 coins, which rounds to 10 cents/coin.
-const COIN_REVENUE_CENTS = 10;
+// Derive cents/coin from the canonical pricing source instead of hardcoding,
+// so dashboard ROAS estimates track pack-pricing changes automatically.
+const COIN_REVENUE_CENTS = Math.round(
+  (COIN_PACKAGES.pack_50.priceUsd * 100) / COIN_PACKAGES.pack_50.coins,
+);
 // Match the canonical UUID v4 shape so an admin can't point coverImageKey at
 // arbitrary R2 keys (e.g. chapter content) and exfiltrate via the public
 // cover URL. Mirrors the keys produced by AdminService.coverUploadUrl.
