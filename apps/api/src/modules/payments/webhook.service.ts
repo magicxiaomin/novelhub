@@ -160,8 +160,25 @@ export class WebhookService {
       await this.completeCoinOrder(session, userId, metadata);
     } else if (orderType === ORDER_TYPE.SUBSCRIPTION) {
       // Subscription state is owned by customer.subscription.* events.
-      // Mark the Order as completed for audit; nothing else to do here.
+      // Mark the Order as completed for audit, then publish the purchase
+      // event so CAPI fires Subscribe (idempotent at the FbEvent.event_id
+      // unique constraint, so Stripe redeliveries are safe).
       await this.markOrderCompleted(session);
+      const order = await this.prisma.order.findUnique({
+        where: { stripeSessionId: session.id },
+        select: { id: true, amount: true, currency: true },
+      });
+      if (order) {
+        await this.purchasePublisher.publish({
+          userId,
+          orderId: order.id,
+          orderType: ORDER_TYPE.SUBSCRIPTION,
+          amountMinor: order.amount,
+          currency: order.currency,
+          coinsGranted: null,
+          stripeSessionId: session.id,
+        });
+      }
     }
   }
 

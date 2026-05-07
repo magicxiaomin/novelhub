@@ -49,6 +49,11 @@
     "alreadyClaimed": "Already claimed today",
     "error": "Check-in could not be claimed."
   },
+  "consent": {
+    "body": "We use cookies to measure usage and improve the service. See our Privacy Policy for details.",
+    "decline": "Decline",
+    "accept": "Accept"
+  },
   "errors": {
     "somethingWrong": "Something went wrong",
     "tryAgain": "Try again",

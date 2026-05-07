@@ -11,6 +11,7 @@ import { CacheModule } from './modules/cache/cache.module';
 import { ChaptersModule } from './modules/chapters/chapters.module';
 import { CheckinModule } from './modules/checkin/checkin.module';
 import { CoinsModule } from './modules/coins/coins.module';
+import { FbCapiModule } from './modules/fb-capi/fb-capi.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ReadingProgressModule } from './modules/reading-progress/reading-progress.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -33,6 +34,7 @@ import { UnlocksModule } from './modules/unlocks/unlocks.module';
     UnlocksModule,
     ReadingProgressModule,
     CheckinModule,
+    FbCapiModule,
     PaymentsModule,
     AdminModule,
   ],

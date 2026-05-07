@@ -25,6 +25,7 @@ import { GoogleAuthDto } from './dto/google.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { FbCapiService } from '../fb-capi/fb-capi.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 type AuthResponse = { user: AuthUser };
@@ -33,7 +34,10 @@ type GoogleAuthResponse = AuthResponse & { isNewUser: boolean };
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly fbCapi: FbCapiService,
+  ) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -41,9 +45,14 @@ export class AuthController {
   @ApiBody({ type: RegisterDto })
   async register(
     @Body() dto: RegisterDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    const result = await this.authService.register(dto.email, dto.password);
+    const result = await this.authService.register(
+      dto.email,
+      dto.password,
+      this.fbCapi.shouldSendForRequest(req) ? this.fbCapi.extractFbUserData(req) : undefined,
+    );
     setAuthCookies(res, result.tokens);
     return { user: result.user };
   }

@@ -11,6 +11,7 @@ import bcrypt from 'bcryptjs';
 import { GOOGLE_OAUTH_CLIENT, PRISMA, SIGNUP_BONUS_COINS } from './auth.constants';
 import { AuthService } from './auth.service';
 import { EmailService } from './email.service';
+import { FbCapiService } from '../fb-capi/fb-capi.service';
 import { STRIPE_CLIENT } from '../payments/stripe.constants';
 
 type StoredUser = {
@@ -148,6 +149,10 @@ const makeStripeStub = () => {
   };
 };
 
+const makeFbCapiStub = () => ({
+  sendEvent: jest.fn(async (): Promise<void> => undefined),
+});
+
 describe('AuthService', () => {
   const ORIGINAL_ENV = { ...process.env };
   let service: AuthService;
@@ -155,6 +160,7 @@ describe('AuthService', () => {
   let emailStub: ReturnType<typeof makeEmailStub>;
   let googleStub: ReturnType<typeof makeGoogleStub>;
   let stripeStub: ReturnType<typeof makeStripeStub>;
+  let fbCapiStub: ReturnType<typeof makeFbCapiStub>;
 
   beforeEach(async () => {
     process.env.JWT_SECRET = 'test-access-secret';
@@ -166,6 +172,7 @@ describe('AuthService', () => {
     emailStub = makeEmailStub();
     googleStub = makeGoogleStub();
     stripeStub = makeStripeStub();
+    fbCapiStub = makeFbCapiStub();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -175,6 +182,7 @@ describe('AuthService', () => {
         { provide: EmailService, useValue: emailStub },
         { provide: GOOGLE_OAUTH_CLIENT, useValue: googleStub },
         { provide: STRIPE_CLIENT, useValue: stripeStub },
+        { provide: FbCapiService, useValue: fbCapiStub },
       ],
     }).compile();
 

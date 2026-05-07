@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import type { OAuth2Client } from 'google-auth-library';
+import { randomUUID } from 'node:crypto';
 
 import {
   ACCESS_TOKEN_TTL,
@@ -27,6 +28,8 @@ import {
 import { type StripeClient } from '../payments/stripe.client';
 import { STRIPE_CLIENT } from '../payments/stripe.constants';
 import { EmailService } from './email.service';
+import { FbCapiService } from '../fb-capi/fb-capi.service';
+import type { FbUserData } from '../fb-capi/fb-capi.types';
 
 export type TokenPair = { accessToken: string; refreshToken: string };
 export type AuthResult = { user: AuthUser; tokens: TokenPair };
@@ -50,9 +53,14 @@ export class AuthService {
     private readonly email: EmailService,
     @Inject(GOOGLE_OAUTH_CLIENT) private readonly googleClient: OAuth2Client,
     @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
+    private readonly fbCapi: FbCapiService,
   ) {}
 
-  async register(email: string, password: string): Promise<AuthResult> {
+  async register(
+    email: string,
+    password: string,
+    fbUserData?: Omit<FbUserData, 'email'>,
+  ): Promise<AuthResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -85,6 +93,15 @@ export class AuthService {
     void this.email
       .sendWelcomeEmail(created.email)
       .catch((err) => this.logger.error('Welcome email failed', err as Error));
+    void this.fbCapi
+      .sendEvent(
+        'CompleteRegistration',
+        randomUUID(),
+        { ...fbUserData, email: created.email },
+        undefined,
+        created.id,
+      )
+      .catch((err) => this.logger.error('CompleteRegistration CAPI failed', err as Error));
 
     const tokens = await this.issueTokens(created.id, created.email);
     return {
