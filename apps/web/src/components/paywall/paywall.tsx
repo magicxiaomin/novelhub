@@ -32,7 +32,7 @@ export function Paywall({
   currentUrl: string;
   onDismiss: () => void;
 }): JSX.Element {
-  const { user, openAuthModal } = useAuth();
+  const { user, openAuthModal, isLoading: authLoading } = useAuth();
   const [tab, setTab] = useState<PaywallTab>('subscribe');
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanId>(
     SUBSCRIPTION_PLANS.weekly.id,
@@ -79,6 +79,11 @@ export function Paywall({
   };
 
   const startSubscriptionCheckout = async (): Promise<void> => {
+    // Wait for /auth/me to resolve before deciding signed-in vs anonymous;
+    // otherwise a logged-in user racing the page load gets the auth modal
+    // they don't need (and a 401 toast if checkout fires before the JWT
+    // cookie arrives).
+    if (authLoading) return;
     if (!user) {
       openAuthModal({
         mode: 'signin',
@@ -109,6 +114,7 @@ export function Paywall({
   };
 
   const startCoinCheckout = async (): Promise<void> => {
+    if (authLoading) return;
     if (!user) {
       openAuthModal({
         mode: 'signin',

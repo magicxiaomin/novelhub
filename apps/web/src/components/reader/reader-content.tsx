@@ -58,9 +58,12 @@ export function ReaderContent({
   const countedRead = useRef(false);
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Scope the unlock fetch to the current book so a heavy reader (>1000
+  // unlocks across the catalog) doesn't have later chapters of THIS book
+  // misclassified as locked because they fell off the first page.
   const unlocks = useQuery({
-    queryKey: queryKeys.unlocks(1, 1000),
-    queryFn: () => fetchUnlocks(1, 1000),
+    queryKey: queryKeys.unlocks(1, 200, chapter.bookId),
+    queryFn: () => fetchUnlocks(1, 200, chapter.bookId),
     enabled: Boolean(user),
   });
   const contentQuery = useQuery({
@@ -120,7 +123,12 @@ export function ReaderContent({
   }, []);
 
   useEffect(() => {
+    // Wait for chapter text to render before scrolling — without this gate,
+    // requestAnimationFrame fires while document.documentElement.scrollHeight
+    // is still the skeleton height and the percent-to-y mapping lands at
+    // the wrong y-position.
     if (chapter.isLocked || !user || restored.current) return;
+    if (!contentQuery.isSuccess || !contentQuery.data) return;
     restored.current = true;
     fetchChapterReadingProgress(chapter.bookId, chapter.id)
       .then((progress) => {
@@ -131,7 +139,7 @@ export function ReaderContent({
         });
       })
       .catch(() => undefined);
-  }, [chapter, user]);
+  }, [chapter, user, contentQuery.isSuccess, contentQuery.data]);
 
   useEffect(() => {
     if (chapter.isLocked || !user) return;

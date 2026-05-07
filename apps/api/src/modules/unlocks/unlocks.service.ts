@@ -136,13 +136,14 @@ export class UnlocksService {
     userId: string,
     page: number = 1,
     limit: number = 20,
+    bookId?: string,
   ): Promise<{
     items: UnlockListItem[];
     total: number;
     page: number;
     limit: number;
   }> {
-    const where = { userId };
+    const where = bookId ? { userId, chapter: { bookId } } : { userId };
     const [items, total] = await Promise.all([
       this.prisma.chapterUnlock.findMany({
         where,
