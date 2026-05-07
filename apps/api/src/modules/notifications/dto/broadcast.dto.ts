@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
 
 export class BroadcastDto {
   @ApiProperty()
@@ -14,9 +14,9 @@ export class BroadcastDto {
   @MaxLength(500)
   body!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ format: 'uri' })
   @IsOptional()
-  @IsString()
+  @IsUrl({ require_protocol: true, protocols: ['https'] })
   @MaxLength(500)
   url?: string;
 

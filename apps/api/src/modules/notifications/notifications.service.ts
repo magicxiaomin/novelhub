@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 
 import { PRISMA } from '../auth/auth.constants';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
@@ -10,7 +10,7 @@ import { OneSignalClient } from './one-signal.client';
 
 export type GrantBonusResult =
   | { granted: true; balance: number }
-  | { granted: false; reason: 'already_granted' };
+  | { granted: false; reason: 'already_granted' | 'no_subscription' };
 
 export type ReEngagementTarget = {
   userId: string;
@@ -41,22 +41,35 @@ export class NotificationsService {
   ) {}
 
   async grantBonus(userId: string): Promise<GrantBonusResult> {
-    return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.coinTransaction.findFirst({
-        where: { userId, type: COIN_TXN_TYPE.PUSH_REWARD },
-        select: { id: true },
-      });
-      if (existing) return { granted: false, reason: 'already_granted' };
+    const hasActivePushSubscription = await this.oneSignal.hasActivePushSubscription(userId);
+    if (!hasActivePushSubscription) return { granted: false, reason: 'no_subscription' };
 
-      const { balance } = await this.coins.adjustBalance(
-        userId,
-        PUSH_PERMISSION_REWARD_COINS,
-        COIN_TXN_TYPE.PUSH_REWARD,
-        null,
-        tx,
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.coinTransaction.findFirst({
+            where: { userId, type: COIN_TXN_TYPE.PUSH_REWARD },
+            select: { id: true },
+          });
+          if (existing) return { granted: false, reason: 'already_granted' };
+
+          const { balance } = await this.coins.adjustBalance(
+            userId,
+            PUSH_PERMISSION_REWARD_COINS,
+            COIN_TXN_TYPE.PUSH_REWARD,
+            null,
+            tx,
+          );
+          return { granted: true, balance };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
-      return { granted: true, balance };
-    });
+    } catch (err) {
+      if (hasPrismaCode(err, 'P2034') || isSerializationError(err)) {
+        return { granted: false, reason: 'already_granted' };
+      }
+      throw err;
+    }
   }
 
   async broadcast(input: {
@@ -128,6 +141,7 @@ export class NotificationsService {
     const upper = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
     const rows = await this.prisma.subscription.findMany({
       where: {
+        status: 'active',
         currentPeriodEnd: { gte: lower, lte: upper },
         cancelAtPeriodEnd: false,
       },
@@ -149,3 +163,27 @@ export class NotificationsService {
     }
   }
 }
+
+const hasPrismaCode = (err: unknown, code: string): boolean =>
+  typeof err === 'object' &&
+  err !== null &&
+  'code' in err &&
+  (err as { code?: unknown }).code === code;
+
+const isSerializationError = (err: unknown): boolean => {
+  if (typeof err !== 'object' || err === null) return false;
+  const maybeError = err as { message?: unknown; meta?: unknown };
+  if (
+    typeof maybeError.message === 'string' &&
+    maybeError.message.toLowerCase().includes('could not serialize access')
+  ) {
+    return true;
+  }
+  if (typeof maybeError.meta !== 'object' || maybeError.meta === null) return false;
+  const meta = maybeError.meta as { code?: unknown; message?: unknown };
+  return (
+    meta.code === '40001' ||
+    (typeof meta.message === 'string' &&
+      meta.message.toLowerCase().includes('could not serialize access'))
+  );
+};

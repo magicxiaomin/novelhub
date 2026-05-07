@@ -3,53 +3,63 @@ import withPWAInit from 'next-pwa';
 const imageHost = process.env.NEXT_PUBLIC_IMAGE_HOST;
 const r2PublicHost = process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const runtimeCaching = [
+  {
+    urlPattern: /^https?:\/\/.*\/api\/.*$/i,
+    handler: 'NetworkFirst',
+    options: {
+      cacheName: 'api-cache',
+      expiration: { maxEntries: 32, maxAgeSeconds: 5 * 60 },
+    },
+  },
+  {
+    urlPattern: /\/_next\/static\/.*/i,
+    handler: 'CacheFirst',
+    options: {
+      cacheName: 'next-static',
+      expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60 },
+    },
+  },
+  {
+    urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+    handler: 'CacheFirst',
+    options: {
+      cacheName: 'font-cache',
+      expiration: { maxEntries: 16, maxAgeSeconds: 365 * 24 * 60 * 60 },
+    },
+  },
+];
+
+if (imageHost) {
+  runtimeCaching.push({
+    urlPattern: new RegExp(`^https://${escapeRegExp(imageHost)}/`),
+    handler: 'CacheFirst',
+    options: {
+      cacheName: 'image-cache',
+      expiration: { maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 },
+    },
+  });
+}
+
+if (r2PublicHost) {
+  runtimeCaching.push({
+    urlPattern: new RegExp(`^https://${escapeRegExp(r2PublicHost)}/`),
+    handler: 'CacheFirst',
+    options: {
+      cacheName: 'chapter-content-cache',
+      expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 },
+    },
+  });
+}
+
 const withPWA = withPWAInit({
   dest: 'public',
   disable: process.env.NODE_ENV !== 'production',
   register: true,
   skipWaiting: true,
-  runtimeCaching: [
-    {
-      urlPattern: /^https?:\/\/.*\/api\/.*$/i,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'api-cache',
-        expiration: { maxEntries: 32, maxAgeSeconds: 5 * 60 },
-      },
-    },
-    {
-      urlPattern: /\/_next\/static\/.*/i,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'next-static',
-        expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60 },
-      },
-    },
-    {
-      urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'font-cache',
-        expiration: { maxEntries: 16, maxAgeSeconds: 365 * 24 * 60 * 60 },
-      },
-    },
-    {
-      urlPattern: ({ url }) => Boolean(imageHost && url.hostname === imageHost),
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'image-cache',
-        expiration: { maxEntries: 64, maxAgeSeconds: 7 * 24 * 60 * 60 },
-      },
-    },
-    {
-      urlPattern: ({ url }) => Boolean(r2PublicHost && url.hostname === r2PublicHost),
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'chapter-content-cache',
-        expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 },
-      },
-    },
-  ],
+  runtimeCaching,
 });
 
 /** @type {import('next').NextConfig} */

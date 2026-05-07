@@ -17,6 +17,16 @@ type OneSignalPayload = {
   included_segments?: string[];
 };
 
+type OneSignalSubscription = {
+  id?: unknown;
+  type?: unknown;
+  enabled?: unknown;
+};
+
+type OneSignalUserResponse = {
+  subscriptions?: OneSignalSubscription[];
+};
+
 @Injectable()
 export class OneSignalClient {
   private readonly logger = new Logger(OneSignalClient.name);
@@ -67,4 +77,42 @@ export class OneSignalClient {
     const parsed = (await res.json()) as { id?: string };
     return { sent: true, id: parsed.id };
   }
+
+  async hasActivePushSubscription(userId: string): Promise<boolean> {
+    if (!this.apiKey || !this.appId) {
+      this.logger.warn('Skipping OneSignal subscription check because credentials are missing.');
+      return false;
+    }
+
+    const res = await fetch(
+      `https://api.onesignal.com/apps/${encodeURIComponent(this.appId)}/users/by/external_id/${encodeURIComponent(userId)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Key ${this.apiKey}`,
+          Accept: 'application/json',
+        },
+      },
+    );
+
+    if (!res.ok) {
+      const body = await res.text();
+      this.logger.warn(`OneSignal subscription check failed with ${res.status}: ${body}`);
+      return false;
+    }
+
+    const parsed = (await res.json()) as OneSignalUserResponse;
+    return (
+      parsed.subscriptions?.some(
+        (subscription) =>
+          typeof subscription.id === 'string' &&
+          subscription.id.length > 0 &&
+          subscription.enabled === true &&
+          isWebPushSubscriptionType(subscription.type),
+      ) ?? false
+    );
+  }
 }
+
+const isWebPushSubscriptionType = (type: unknown): boolean =>
+  typeof type === 'string' && type.toLowerCase().replace(/[\s_-]/g, '') === 'webpush';

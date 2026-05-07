@@ -27,9 +27,13 @@ type OneSignalApi = {
   init: (options: { appId: string; allowLocalhostAsSecureOrigin?: boolean }) => Promise<void>;
   login: (externalId: string) => Promise<void>;
   User: {
+    addTag: (key: string, value: string) => Promise<void>;
     addTags: (tags: Record<string, string>) => Promise<void>;
     PushSubscription: {
       optIn: () => Promise<void>;
+      optedIn?: boolean;
+      subscribed?: boolean;
+      isOptedIn?: boolean;
     };
   };
 };
@@ -99,7 +103,18 @@ export function PushPrompt(): JSX.Element | null {
     window.OneSignalDeferred = window.OneSignalDeferred ?? [];
     window.OneSignalDeferred.push(async (OneSignal) => {
       await OneSignal.User.PushSubscription.optIn();
+      // optIn resolves after both accepted and denied prompts, so verify the final state.
+      const isSubscribed =
+        OneSignal.User.PushSubscription.optedIn ??
+        OneSignal.User.PushSubscription.subscribed ??
+        OneSignal.User.PushSubscription.isOptedIn ??
+        window.Notification.permission === 'granted';
       setOpen(false);
+      if (!isSubscribed) {
+        setDaysCookie(DISMISSED_COOKIE, '1', 7);
+        setEligible(false);
+        return;
+      }
       grantMutation.mutate();
     });
   };
@@ -150,12 +165,9 @@ async function tagUser(
   await oneSignal.login(userId);
   const progress = await fetchReadingProgress().catch(() => []);
   const lastBookId = progress[0]?.bookId;
-  const tags: Record<string, string> = {
-    userId,
-    subscriptionStatus: hasActiveSubscription ? 'active' : 'inactive',
-  };
-  if (lastBookId) tags.lastBookId = lastBookId;
-  await oneSignal.User.addTags(tags);
+  await oneSignal.User.addTag('user_id', userId);
+  await oneSignal.User.addTag('subscription_status', hasActiveSubscription ? 'active' : 'inactive');
+  if (lastBookId) await oneSignal.User.addTag('last_book_id', lastBookId);
 }
 
 function canAskForNotifications(): boolean {

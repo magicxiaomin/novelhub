@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
 import { CoinsService } from '../coins/coins.service';
@@ -15,7 +15,7 @@ type TxStub = {
 };
 
 type PrismaStub = {
-  $transaction: jest.Mock;
+  $transaction: jest.Mock<Promise<unknown>, [(client: TxStub) => Promise<unknown>, unknown?]>;
   readingProgress: {
     findMany: jest.Mock;
     findFirst: jest.Mock;
@@ -54,6 +54,7 @@ const buildService = (overrides?: {
   } as unknown as CoinsService;
   const oneSignal = {
     sendNotification: jest.fn(),
+    hasActivePushSubscription: jest.fn().mockResolvedValue(true),
     ...overrides?.oneSignal,
   } as unknown as OneSignalClient;
 
@@ -68,11 +69,15 @@ const buildService = (overrides?: {
 
 describe('NotificationsService', () => {
   it('grantBonus: grants 10 coins when no prior PUSH_REWARD transaction exists', async () => {
-    const { service, tx, coins } = buildService();
+    const { service, prisma, tx, coins, oneSignal } = buildService();
     tx.coinTransaction.findFirst.mockResolvedValue(null);
     jest.spyOn(coins, 'adjustBalance').mockResolvedValue({ balance: 42, transactionId: 'txn-1' });
 
     await expect(service.grantBonus('user-1')).resolves.toEqual({ granted: true, balance: 42 });
+    expect(oneSignal.hasActivePushSubscription).toHaveBeenCalledWith('user-1');
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
     expect(tx.coinTransaction.findFirst).toHaveBeenCalledWith({
       where: { userId: 'user-1', type: COIN_TXN_TYPE.PUSH_REWARD },
       select: { id: true },
@@ -87,14 +92,34 @@ describe('NotificationsService', () => {
   });
 
   it('grantBonus: returns already_granted when prior PUSH_REWARD transaction exists', async () => {
-    const { service, tx, coins } = buildService();
+    const { service, prisma, tx, coins } = buildService();
     tx.coinTransaction.findFirst.mockResolvedValue({ id: 'txn-existing' });
 
     await expect(service.grantBonus('user-1')).resolves.toEqual({
       granted: false,
       reason: 'already_granted',
     });
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
     expect(coins.adjustBalance).not.toHaveBeenCalled();
+  });
+
+  it('grantBonus: treats a concurrent serializable transaction loser as already granted', async () => {
+    const { service, prisma, tx, coins } = buildService();
+    tx.coinTransaction.findFirst.mockResolvedValue(null);
+    jest.spyOn(coins, 'adjustBalance').mockResolvedValue({ balance: 42, transactionId: 'txn-1' });
+    prisma.$transaction
+      .mockImplementationOnce((fn: (client: TxStub) => Promise<unknown>) => fn(tx))
+      .mockRejectedValueOnce({ code: 'P2034' });
+
+    await expect(
+      Promise.all([service.grantBonus('user-1'), service.grantBonus('user-1')]),
+    ).resolves.toEqual([
+      { granted: true, balance: 42 },
+      { granted: false, reason: 'already_granted' },
+    ]);
+    expect(coins.adjustBalance).toHaveBeenCalledTimes(1);
   });
 
   it('broadcast: sends to the default All segment when segmentName is omitted', async () => {
@@ -199,6 +224,7 @@ describe('NotificationsService', () => {
     ]);
     expect(prisma.subscription.findMany).toHaveBeenCalledWith({
       where: {
+        status: 'active',
         currentPeriodEnd: {
           gte: new Date('2026-05-10T09:00:00.000Z'),
           lte: new Date('2026-05-11T09:00:00.000Z'),
