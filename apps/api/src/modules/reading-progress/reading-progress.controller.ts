@@ -9,13 +9,21 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ApiCookieAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCookieAuth,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { ListProgressDto } from './dto/list-progress.dto';
+import { ProgressListItemDto } from './dto/progress-list-item.dto';
 import { ProgressResponseDto } from './dto/progress-response.dto';
 import { SaveProgressDto } from './dto/save-progress.dto';
 import {
@@ -26,6 +34,7 @@ import {
 
 @ApiTags('reading-progress')
 @ApiCookieAuth()
+@ApiExtraModels(ProgressResponseDto, ProgressListItemDto)
 @Controller('reading-progress')
 @UseGuards(JwtAuthGuard)
 export class ReadingProgressController {
@@ -48,7 +57,17 @@ export class ReadingProgressController {
   @ApiOperation({
     summary: 'Fetch current user reading progress or recent Continue Reading entries',
   })
-  @ApiOkResponse({ description: 'A single row, null, or recent progress entries' })
+  @ApiOkResponse({
+    description:
+      'When `bookId` or `chapterId` is provided: a single matching progress row, or `null` if none exists. Otherwise: an array of the 10 most recent Continue Reading entries.',
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(ProgressResponseDto) },
+        { type: 'null' },
+        { type: 'array', items: { $ref: getSchemaPath(ProgressListItemDto) } },
+      ],
+    },
+  })
   get(
     @CurrentUser() user: { id: string } | null,
     @Query() query: ListProgressDto,
