@@ -73,9 +73,23 @@ if (r2PublicHost) {
   });
 }
 
+// `output: 'standalone'` is the right shape for the Phase 1 self-hosted
+// VPS / Vercel deploy. `next-on-pages` (Task 14) wants the default
+// (non-standalone) output and synthesises its own _worker.js — leaving
+// `standalone` set produces extra .next/standalone scaffolding that's
+// dead code on Pages.
+const isPagesBuild = process.env.BUILD_TARGET === 'pages';
+
+// Disable next-pwa during the next-on-pages build target as well — the
+// generator writes `public/sw.js` + `public/workbox-*.js` to disk, which
+// then get picked up by the next `pnpm dev` from the same checkout and
+// poison browsers that previously visited via this dev origin (the SW
+// CacheFirst rule precaches now-stale chunk hashes). Cloudflare Pages
+// will get a SW from `next-on-pages`'s own pipeline once that's wired
+// in Task 18; until then keep the dev tree clean.
 const withPWA = withPWAInit({
   dest: 'public',
-  disable: process.env.NODE_ENV !== 'production',
+  disable: process.env.NODE_ENV !== 'production' || isPagesBuild,
   register: true,
   skipWaiting: true,
   runtimeCaching,
@@ -93,17 +107,28 @@ if (r2PublicHost) {
   remotePatterns.push({ protocol: 'https', hostname: r2PublicHost });
 }
 
-// `output: 'standalone'` is the right shape for the Phase 1 self-hosted
-// VPS / Vercel deploy. `next-on-pages` (Task 14) wants the default
-// (non-standalone) output and synthesises its own _worker.js — leaving
-// `standalone` set produces extra .next/standalone scaffolding that's
-// dead code on Pages. We branch on BUILD_TARGET=pages so a single
-// codebase still ships both builds during the Phase 1 → Phase 2 cutover.
-const isPagesBuild = process.env.BUILD_TARGET === 'pages';
+// Dev-only same-origin proxy. When DEV_TUNNEL_API_PROXY=1 is set on the
+// Next.js dev server, browser-side `fetch('/api-proxy/auth/login')`
+// rewrites to `http://localhost:4000/auth/login` so cookies stay
+// first-party. Lets a Cloudflare Quick Tunnel exposing only :3000 still
+// support the full authenticated flow without crossing SameSite. Has
+// zero effect in production builds (the env var is never set there).
+const devApiProxy =
+  process.env.DEV_TUNNEL_API_PROXY === '1' || process.env.NEXT_PUBLIC_API_URL === '/api-proxy';
 
 const nextConfig = {
   output: isPagesBuild ? undefined : 'standalone',
   reactStrictMode: true,
+  ...(devApiProxy && {
+    async rewrites() {
+      return [
+        {
+          source: '/api-proxy/:path*',
+          destination: 'http://localhost:4000/:path*',
+        },
+      ];
+    },
+  }),
   // `outputFileTracingRoot` is needed for the standalone monorepo build so
   // pnpm-workspace symlinks resolve. `next-on-pages` does its own tracing
   // and trips over the monorepo prefix, so leave it default for Pages.

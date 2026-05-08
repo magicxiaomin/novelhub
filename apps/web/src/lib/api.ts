@@ -36,14 +36,18 @@ const buildUrl = (
   path: string,
   query?: Record<string, string | number | boolean | undefined>,
 ): string => {
-  const url = new URL(path.startsWith('/') ? path : `/${path}`, getBaseUrl());
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const baseUrl = getBaseUrl();
+  const url = baseUrl.startsWith('/')
+    ? new URL(`${baseUrl}${normalizedPath}`, window.location.origin)
+    : new URL(normalizedPath, baseUrl);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined) continue;
       url.searchParams.set(k, String(v));
     }
   }
-  return url.toString();
+  return baseUrl.startsWith('/') ? `${url.pathname}${url.search}` : url.toString();
 };
 
 export async function apiFetch<T>(
