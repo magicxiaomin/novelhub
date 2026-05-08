@@ -17,7 +17,9 @@ export class RenewalReminderCron {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
   ) {}
 
-  @Cron('0 9 * * *')
+  // See re-engagement.cron.ts: opt out of the in-process scheduler when
+  // CRON_DRIVER=vercel (Phase 1). Local dev keeps the in-process scheduler.
+  @Cron('0 9 * * *', { disabled: process.env.CRON_DRIVER === 'vercel' })
   async handle(): Promise<void> {
     try {
       await withCronLock(this.prisma, RENEWAL_REMINDER_LOCK_KEY, () =>

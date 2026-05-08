@@ -1,0 +1,36 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm --filter @novelhub/shared build && pnpm --filter @novelhub/db prisma:generate",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet ./ ../../packages/shared ../../packages/db",
+  "functions": {
+    "api/[...path].ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/cron/re-engagement.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "api/cron/renewal-reminders.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/re-engagement",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/renewal-reminders",
+      "schedule": "0 9 * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/api/$1"
+    }
+  ]
+}
