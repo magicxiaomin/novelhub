@@ -13,12 +13,42 @@ import {
   SUBSCRIPTION_ACTIVE_STATUSES,
 } from './auth.constants';
 import { AuthError } from './auth.errors';
-import { type StripeClient } from '../payments/stripe.client';
-import { EmailService } from './email.service';
-import { FbCapiService } from '../fb-capi/fb-capi.service';
-import type { FbUserData } from '../fb-capi/fb-capi.types';
+import type { FbCustomData, FbUserData } from '../fb-capi/fb-capi.types';
 import type { GoogleIdVerifier } from './google-id-verifier';
 import type { JoseJwtClient } from './jose-jwt.client';
+
+// Structural deps: AuthService consumes only the methods listed below from
+// each collaborator. The Nest stack passes real `@Injectable` class instances
+// (EmailService, FbCapiService, StripeClient); the Cloudflare Worker passes
+// plain-class equivalents from `apps/api/src/worker/services/*`. Declaring
+// the surface here means importing the Nest classes' types is unnecessary,
+// which would otherwise pull `@nestjs/common` (incompatible with Workers).
+export type AuthEmailClient = {
+  sendWelcomeEmail(to: string): Promise<void>;
+  sendPasswordResetEmail(to: string, resetUrl: string): Promise<void>;
+};
+
+export type AuthFbCapiClient = {
+  sendEvent(
+    eventName: string,
+    eventId: string,
+    userData: FbUserData,
+    customData?: FbCustomData,
+    userId?: string,
+  ): Promise<void>;
+};
+
+// Slim Stripe surface — only the `subscriptions.cancel` path AuthService
+// uses via deleteAccount. The Nest provider's full LazyStripe satisfies
+// this; the Worker's stub throws on `get()` because deleteAccount is not
+// yet wired into the Hono routes (Task 13).
+export type AuthStripeClient = {
+  get(): {
+    subscriptions: {
+      cancel(id: string): Promise<unknown>;
+    };
+  };
+};
 
 export type TokenPair = { accessToken: string; refreshToken: string };
 export type AuthResult = { user: AuthUser; tokens: TokenPair };
@@ -28,10 +58,10 @@ export type AuthServiceDeps = {
   jwt: JoseJwtClient;
   refreshJwt: JoseJwtClient;
   resetJwt: JoseJwtClient;
-  email: EmailService;
+  email: AuthEmailClient;
   googleVerifier: GoogleIdVerifier;
-  stripe: StripeClient;
-  fbCapi: FbCapiService;
+  stripe: AuthStripeClient;
+  fbCapi: AuthFbCapiClient;
 };
 
 const BCRYPT_COST = 12;
@@ -281,7 +311,7 @@ export class AuthService {
       select: { stripeSubscriptionId: true },
     });
     if (activeSubs.length > 0) {
-      let stripe: ReturnType<StripeClient['get']> | null = null;
+      let stripe: ReturnType<AuthStripeClient['get']> | null = null;
       try {
         stripe = this.deps.stripe.get();
       } catch (err) {
