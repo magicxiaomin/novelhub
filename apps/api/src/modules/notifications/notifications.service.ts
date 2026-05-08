@@ -1,13 +1,17 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { PUSH_COPY, ROUTES } from '@novelhub/shared';
 
-import { PRISMA } from '../auth/auth.constants';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
-import { CoinsService } from '../coins/coins.service';
+import type { CoinsService } from '../coins/coins.service';
 
 import { ONESIGNAL_DEFAULT_SEGMENT, PUSH_PERMISSION_REWARD_COINS } from './notifications.constants';
-import { OneSignalClient } from './one-signal.client';
+import type { OneSignalClient } from './one-signal.client';
+
+export type NotificationsServiceDeps = {
+  prisma: PrismaClient;
+  coins: CoinsService;
+  oneSignal: OneSignalClient;
+};
 
 export type GrantBonusResult =
   | { granted: true; balance: number }
@@ -31,15 +35,23 @@ type ProgressRow = {
   chapter: { order: number };
 };
 
-@Injectable()
-export class NotificationsService {
-  private readonly logger = new Logger(NotificationsService.name);
+const log = {
+  log(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.log(`[NotificationsService] ${msg}`);
+  },
+};
 
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly coins: CoinsService,
-    private readonly oneSignal: OneSignalClient,
-  ) {}
+export class NotificationsService {
+  private readonly prisma: PrismaClient;
+  private readonly coins: CoinsService;
+  private readonly oneSignal: OneSignalClient;
+
+  constructor(deps: NotificationsServiceDeps) {
+    this.prisma = deps.prisma;
+    this.coins = deps.coins;
+    this.oneSignal = deps.oneSignal;
+  }
 
   async grantBonus(userId: string): Promise<GrantBonusResult> {
     const hasActivePushSubscription = await this.oneSignal.hasActivePushSubscription(userId);
@@ -136,7 +148,7 @@ export class NotificationsService {
         url: ROUTES.read(target.bookId, target.chapterNumber),
         includeExternalUserIds: [target.userId],
       });
-      this.logger.log(`Re-engagement push attempted for ${target.userId}: ${res.sent}`);
+      log.log(`Re-engagement push attempted for ${target.userId}: ${res.sent}`);
     }
   }
 
@@ -163,7 +175,7 @@ export class NotificationsService {
         url: ROUTES.account(),
         includeExternalUserIds: [target.userId],
       });
-      this.logger.log(`Renewal push attempted for ${target.userId}: ${res.sent}`);
+      log.log(`Renewal push attempted for ${target.userId}: ${res.sent}`);
     }
   }
 }

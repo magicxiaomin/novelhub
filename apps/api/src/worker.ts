@@ -17,6 +17,7 @@ import { HTTPException } from 'hono/http-exception';
 import { DomainError } from './common/domain.errors';
 import { prismaMiddleware } from './worker/db/prisma';
 import type { AuthVariables } from './worker/middleware/auth';
+import { withCronLock } from './modules/notifications/cron/leader-election';
 import { authRoutes } from './worker/routes/auth';
 import { booksRoutes } from './worker/routes/books';
 import { chaptersRoutes } from './worker/routes/chapters';
@@ -26,6 +27,11 @@ import { paymentsRoutes } from './worker/routes/payments';
 import { readingProgressRoutes } from './worker/routes/reading-progress';
 import { unlocksRoutes } from './worker/routes/unlocks';
 import { webhookRoutes } from './worker/routes/webhook';
+import { makePrisma } from './worker/db/prisma';
+import {
+  makeNotificationsService,
+  type NotificationsWorkerEnv,
+} from './worker/services/notifications-factory';
 import type { PaymentsWorkerEnv } from './worker/services/payments-factory';
 
 type HealthResponse = {
@@ -134,12 +140,62 @@ app.onError((err, c) => {
   );
 });
 
-// Scheduled handler stub. Task 8 dispatches by event.cron string. Until then
-// every cron tick is a no-op so a pre-prod cron deploy can't break anything.
-async function scheduled(event: ScheduledEvent, env: PaymentsWorkerEnv, ctx: ExecutionContext) {
-  void event;
-  void env;
-  void ctx;
+// Cron schedules — keep these in sync with `[triggers].crons` in
+// wrangler.toml. The Workers runtime delivers `event.cron` as the literal
+// schedule string from the config, so we dispatch by direct equality.
+const CRON_RE_ENGAGEMENT = '0 */6 * * *';
+const CRON_RENEWAL_REMINDER = '0 9 * * *';
+
+// Distinct advisory-lock keys per cron path so a stuck re-engagement run
+// can't block renewal reminders. Values intentionally match the Nest cron
+// classes (12001 / 12002) so a hybrid Nest+Worker deployment doesn't try
+// to run the same cron twice in parallel.
+const RE_ENGAGEMENT_LOCK_KEY = 12001;
+const RENEWAL_REMINDER_LOCK_KEY = 12002;
+
+type WorkerEnvForScheduled = PaymentsWorkerEnv & NotificationsWorkerEnv;
+
+/**
+ * Scheduled handler — Cloudflare invokes this on each `[triggers].crons`
+ * tick. The body opens one Prisma client, calls the matching cron via
+ * `withCronLock` (transaction-level advisory lock so duplicate Worker
+ * instances don't double-run), and tears the connection down.
+ *
+ * `ctx.waitUntil` extends the Worker's lifetime past the immediate
+ * response so a cron run that takes >1s isn't truncated.
+ */
+async function scheduled(
+  event: ScheduledEvent,
+  env: WorkerEnvForScheduled,
+  ctx: ExecutionContext,
+): Promise<void> {
+  const work = (async (): Promise<void> => {
+    const { prisma, pool } = makePrisma(env.DATABASE_URL ?? '');
+    try {
+      const notifications = makeNotificationsService(env, prisma);
+      switch (event.cron) {
+        case CRON_RE_ENGAGEMENT:
+          await withCronLock(prisma, RE_ENGAGEMENT_LOCK_KEY, () =>
+            notifications.sendReEngagement(),
+          );
+          break;
+        case CRON_RENEWAL_REMINDER:
+          await withCronLock(prisma, RENEWAL_REMINDER_LOCK_KEY, () =>
+            notifications.sendRenewalReminders(),
+          );
+          break;
+        default:
+          // eslint-disable-next-line no-console
+          console.warn(`[worker.scheduled] unknown cron schedule: ${event.cron}`);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[worker.scheduled] cron ${event.cron} failed:`, err);
+    } finally {
+      await pool.end().catch(() => undefined);
+    }
+  })();
+  ctx.waitUntil(work);
 }
 
 export default {
