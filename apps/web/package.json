@@ -7,7 +7,10 @@
     "build": "pnpm --filter @novelhub/shared build && next build",
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "pages:build": "BUILD_TARGET=pages pnpm --filter @novelhub/shared build && BUILD_TARGET=pages next-on-pages",
+    "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name novelhub-web",
+    "pages:dev": "wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat --port=8788"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -35,6 +38,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^22.14.0",
     "@types/react": "^18.3.20",

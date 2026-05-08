@@ -93,23 +93,54 @@ if (r2PublicHost) {
   remotePatterns.push({ protocol: 'https', hostname: r2PublicHost });
 }
 
+// `output: 'standalone'` is the right shape for the Phase 1 self-hosted
+// VPS / Vercel deploy. `next-on-pages` (Task 14) wants the default
+// (non-standalone) output and synthesises its own _worker.js — leaving
+// `standalone` set produces extra .next/standalone scaffolding that's
+// dead code on Pages. We branch on BUILD_TARGET=pages so a single
+// codebase still ships both builds during the Phase 1 → Phase 2 cutover.
+const isPagesBuild = process.env.BUILD_TARGET === 'pages';
+
 const nextConfig = {
-  output: 'standalone',
+  output: isPagesBuild ? undefined : 'standalone',
   reactStrictMode: true,
-  experimental: {
-    outputFileTracingRoot: path.join(__dirname, '../../'),
-  },
+  // `outputFileTracingRoot` is needed for the standalone monorepo build so
+  // pnpm-workspace symlinks resolve. `next-on-pages` does its own tracing
+  // and trips over the monorepo prefix, so leave it default for Pages.
+  experimental: isPagesBuild
+    ? undefined
+    : {
+        outputFileTracingRoot: path.join(__dirname, '../../'),
+      },
   images: {
     remotePatterns,
+    // Pages doesn't run Next's image optimizer — Cloudflare Images is the
+    // intended path post-cutover. `unoptimized` keeps `<Image>` working as
+    // a regular <img> until that wiring lands (Task 18 phase 2). The
+    // standalone build keeps the optimizer enabled.
+    unoptimized: isPagesBuild,
   },
 };
 
-export default withSentryConfig(withPWA(nextConfig), {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT_WEB,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  silent: !process.env.SENTRY_AUTH_TOKEN,
-  sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
-  },
-});
+// On the Pages target, skip Sentry's webpack wrapper. Its source-map
+// upload plugin emits duplicated identifiers in the function bundles
+// that next-on-pages' deduper rejects with
+// "A duplicated identifier has been detected in the same function file."
+// The Sentry runtime hooks (sentry.client/edge/server.config.ts) still
+// load via Next's instrumentation hooks; only the build-time wrapper
+// is skipped. Source-map uploads happen from the standalone build path
+// (Phase 1) and once Cloudflare's source-map ingestion is wired in
+// Task 18 we'll restore the wrapper here.
+const finalConfig = withPWA(nextConfig);
+
+export default isPagesBuild
+  ? finalConfig
+  : withSentryConfig(finalConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT_WEB,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.SENTRY_AUTH_TOKEN,
+      sourcemaps: {
+        disable: !process.env.SENTRY_AUTH_TOKEN,
+      },
+    });

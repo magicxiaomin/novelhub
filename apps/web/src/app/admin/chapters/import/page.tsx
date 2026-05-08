@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = 'edge';
+
 import mammoth from 'mammoth';
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
