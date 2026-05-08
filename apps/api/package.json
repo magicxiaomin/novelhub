@@ -29,6 +29,7 @@
     "@novelhub/shared": "workspace:*",
     "@prisma/adapter-pg": "^6.6.0",
     "@prisma/client": "^6.6.0",
+    "@sentry/cloudflare": "^10.52.0",
     "@sentry/node": "^10.52.0",
     "aws4fetch": "^1.0.20",
     "bcryptjs": "^2.4.3",
