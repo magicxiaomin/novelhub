@@ -8,16 +8,18 @@
  *   - `POST /auth/google` (needs FB-CAPI consent path + GOOGLE_CLIENT_ID).
  *   - `DELETE /auth/account` (consumes the Stripe client).
  */
-import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
+
+import { zValidator } from '@hono/zod-validator';
 
 import { DomainError } from '../../common/domain.errors';
 import { COOKIE_REFRESH } from '../../modules/auth/auth.constants';
 import { clearAuthCookies, setAuthCookies } from '../cookies';
 import type { PrismaVariables } from '../db/prisma';
 import { requireAuth, type AuthVariables } from '../middleware/auth';
+import { validationHook } from '../middleware/validator';
 import { makeAuthService, type WorkerEnv } from '../services/auth-factory';
 import {
   forgotPasswordSchema,
@@ -34,14 +36,14 @@ export const authRoutes = new Hono<{
   Bindings: Bindings;
   Variables: PrismaVariables & Partial<AuthVariables>;
 }>()
-  .post('/register', zValidator('json', registerSchema), async (c) => {
+  .post('/register', zValidator('json', registerSchema, validationHook), async (c) => {
     const { email, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
     const result = await auth.register(email, password);
     setAuthCookies(c, result.tokens, isProd(c.env));
     return c.json({ user: result.user }, 201);
   })
-  .post('/login', zValidator('json', loginSchema), async (c) => {
+  .post('/login', zValidator('json', loginSchema, validationHook), async (c) => {
     const { email, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
     const result = await auth.login(email, password);
@@ -69,13 +71,13 @@ export const authRoutes = new Hono<{
     const fresh = await auth.getCurrentUser(user.id);
     return c.json({ user: fresh }, 200);
   })
-  .post('/forgot-password', zValidator('json', forgotPasswordSchema), async (c) => {
+  .post('/forgot-password', zValidator('json', forgotPasswordSchema, validationHook), async (c) => {
     const { email } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
     await auth.forgotPassword(email);
     return c.body(null, 204);
   })
-  .post('/reset-password', zValidator('json', resetPasswordSchema), async (c) => {
+  .post('/reset-password', zValidator('json', resetPasswordSchema, validationHook), async (c) => {
     const { token, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
     await auth.resetPassword(token, password);

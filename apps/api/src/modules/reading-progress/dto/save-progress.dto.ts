@@ -2,7 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNumber, IsUUID, Max, Min } from 'class-validator';
 
-export class SaveProgressDto {
+import type { SaveProgressDto as SaveProgressType } from './save-progress.types';
+
+export class SaveProgressDto implements SaveProgressType {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('4')
   chapterId!: string;
