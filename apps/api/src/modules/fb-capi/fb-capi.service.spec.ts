@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { FbCapiService, type FbCapiServiceDeps } from './fb-capi.service';
+import { buildFbCapiRequestFromHeaders } from './request';
 
 type StoredFbEvent = {
   eventName: string;
@@ -219,5 +220,44 @@ describe('FbCapiService', () => {
       responseBody: null,
     });
     expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it('extracts _fbp and _fbc from the Nest Express request cookie shape', () => {
+    const req = {
+      cookies: {
+        _fbp: 'fb.1.1778198400000.111',
+        _fbc: 'fb.1.1778198400000.click',
+      },
+      ip: '203.0.113.10',
+      headers: {
+        'user-agent': 'Mozilla/5.0 Nest',
+      },
+    };
+
+    expect(service.extractFbUserData(req, 'reader@example.com')).toEqual({
+      email: 'reader@example.com',
+      fbp: 'fb.1.1778198400000.111',
+      fbc: 'fb.1.1778198400000.click',
+      clientIpAddress: '203.0.113.10',
+      clientUserAgent: 'Mozilla/5.0 Nest',
+    });
+  });
+
+  it('extracts _fbp and _fbc from the Worker Hono cookie header shape', () => {
+    const req = buildFbCapiRequestFromHeaders({
+      cookieHeader:
+        'consent=%7B%22analytics%22%3Atrue%2C%22marketing%22%3Atrue%7D; _fbp=fb.1.1778198400000.222; _fbc=fb.1.1778198400000.worker',
+      ip: '198.51.100.20',
+      userAgent: 'Mozilla/5.0 Worker',
+    });
+
+    expect(service.shouldSendForRequest(req)).toBe(true);
+    expect(service.extractFbUserData(req)).toEqual({
+      email: undefined,
+      fbp: 'fb.1.1778198400000.222',
+      fbc: 'fb.1.1778198400000.worker',
+      clientIpAddress: '198.51.100.20',
+      clientUserAgent: 'Mozilla/5.0 Worker',
+    });
   });
 });
