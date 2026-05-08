@@ -17,7 +17,11 @@ export class ReEngagementCron {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
   ) {}
 
-  @Cron('0 */6 * * *')
+  // `disabled: CRON_DRIVER === 'vercel'` opts out of the in-process scheduler
+  // when Vercel Cron is the source of truth (Phase 1). Local dev and any
+  // future container deployment leave CRON_DRIVER unset and keep the
+  // @nestjs/schedule scheduler authoritative.
+  @Cron('0 */6 * * *', { disabled: process.env.CRON_DRIVER === 'vercel' })
   async handle(): Promise<void> {
     try {
       await withCronLock(this.prisma, RE_ENGAGEMENT_LOCK_KEY, () =>

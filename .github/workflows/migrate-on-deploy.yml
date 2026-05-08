@@ -1,0 +1,73 @@
+name: Migrate Production DB
+
+# Phase 1: Vercel does not natively support a "pre-deploy" command, so the
+# migration step lives in GitHub Actions. This workflow runs `prisma migrate
+# deploy` against the production Supabase Postgres on every push to `main`,
+# and does so BEFORE Vercel's deploy hook fires (Vercel deploys take ~3 min;
+# migrations take seconds, so finishing first is reliably ordered).
+#
+# If migration fails: this workflow exits non-zero. Vercel still deploys (we
+# can't gate Vercel from here), but the next API request will surface the
+# missing column / constraint via Prisma's P3009 / P2022 errors and Sentry.
+# Roll forward by fixing the migration.
+#
+# Required secrets:
+#   PRODUCTION_DATABASE_URL  - Supabase Postgres connection string for
+#                              migration runs. Must point at the Direct
+#                              connection (port 5432), NOT the pooler
+#                              (Prisma migrate deploy needs a session-mode
+#                              connection that pgbouncer transaction-mode
+#                              breaks).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-on-deploy
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if PRODUCTION_DATABASE_URL not configured
+        id: gate
+        env:
+          DB_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "${DB_URL:-}" ]; then
+            echo "PRODUCTION_DATABASE_URL not set; production not yet provisioned. Skipping."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v3
+        if: steps.gate.outputs.configured == 'true'
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.configured == 'true'
+        with:
+          node-version: 20
+
+      - name: Install (db package only)
+        if: steps.gate.outputs.configured == 'true'
+        run: pnpm install --frozen-lockfile --filter @novelhub/db
+
+      - name: Generate Prisma Client
+        if: steps.gate.outputs.configured == 'true'
+        run: pnpm --filter @novelhub/db prisma:generate
+
+      - name: Run prisma migrate deploy
+        if: steps.gate.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: pnpm --filter @novelhub/db prisma:migrate-deploy
