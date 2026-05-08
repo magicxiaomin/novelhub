@@ -11,15 +11,22 @@ describe('AppController', () => {
         {
           provide: AppService,
           useValue: {
-            getHealth: () => ({ app: 'NovelHub', status: 'ok' }),
+            getHealth: async () => ({
+              app: 'NovelHub',
+              status: 'ok',
+              db: 'ok',
+              uptimeSeconds: 1,
+              timestamp: '2026-05-08T00:00:00.000Z',
+            }),
           },
         },
       ],
     }).compile();
 
-    expect(moduleRef.get(AppController).getHealth()).toEqual({
+    await expect(moduleRef.get(AppController).getHealth()).resolves.toMatchObject({
       app: 'NovelHub',
       status: 'ok',
+      db: 'ok',
     });
   });
 });
