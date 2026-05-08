@@ -111,6 +111,9 @@ importers:
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
+      express:
+        specifier: ^4.21.0
+        version: 4.22.1
       hono:
         specifier: ^4.6.0
         version: 4.12.18
