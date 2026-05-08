@@ -2,7 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
-export class ListBooksDto {
+import type {
+  ListBooksDto as ListBooksType,
+  ListChaptersDto as ListChaptersType,
+  SearchBooksDto as SearchBooksType,
+} from './list-books.types';
+
+export class ListBooksDto implements ListBooksType {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -35,7 +41,7 @@ export class ListBooksDto {
   limit?: number;
 }
 
-export class SearchBooksDto {
+export class SearchBooksDto implements SearchBooksType {
   @ApiPropertyOptional({ description: 'Free-text search across title + author' })
   @IsOptional()
   @IsString()
@@ -57,7 +63,7 @@ export class SearchBooksDto {
   limit?: number;
 }
 
-export class ListChaptersDto {
+export class ListChaptersDto implements ListChaptersType {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)
