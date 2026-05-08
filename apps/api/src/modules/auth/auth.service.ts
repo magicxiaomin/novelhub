@@ -12,7 +12,7 @@ import {
   SIGNUP_BONUS_COINS,
   SUBSCRIPTION_ACTIVE_STATUSES,
 } from './auth.constants';
-import { AuthError } from './auth.errors';
+import { DomainError } from '../../common/domain.errors';
 import type { FbCustomData, FbUserData } from '../fb-capi/fb-capi.types';
 import type { GoogleIdVerifier } from './google-id-verifier';
 import type { JoseJwtClient } from './jose-jwt.client';
@@ -89,7 +89,7 @@ export class AuthService {
       where: { email: normalizedEmail },
     });
     if (existing) {
-      throw AuthError.conflict('Email already registered');
+      throw DomainError.conflict('Email already registered');
     }
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
@@ -141,11 +141,11 @@ export class AuthService {
       where: { email: normalizedEmail },
     });
     if (!user || user.deletedAt || user.bannedAt || !user.passwordHash) {
-      throw AuthError.unauthorized('Invalid email or password');
+      throw DomainError.unauthorized('Invalid email or password');
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
-      throw AuthError.unauthorized('Invalid email or password');
+      throw DomainError.unauthorized('Invalid email or password');
     }
     const hasActiveSubscription = await this.checkActiveSubscription(user.id);
     const tokens = await this.issueTokens(user.id, user.email);
@@ -165,7 +165,7 @@ export class AuthService {
   ): Promise<GoogleAuthResult> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
-      throw AuthError.unauthorized('Google sign-in is not configured');
+      throw DomainError.unauthorized('Google sign-in is not configured');
     }
     let payload: { sub?: string; email?: string; email_verified?: boolean };
     try {
@@ -175,12 +175,12 @@ export class AuthService {
       });
       payload = ticket.getPayload() ?? {};
     } catch {
-      throw AuthError.unauthorized('Invalid Google token');
+      throw DomainError.unauthorized('Invalid Google token');
     }
     const googleId = payload.sub;
     const emailRaw = payload.email;
     if (!googleId || !emailRaw || !payload.email_verified) {
-      throw AuthError.unauthorized('Google account is not verified');
+      throw DomainError.unauthorized('Google account is not verified');
     }
     const email = emailRaw.trim().toLowerCase();
 
@@ -264,16 +264,16 @@ export class AuthService {
     try {
       payload = await this.deps.refreshJwt.verifyAsync<JwtPayload>(refreshToken);
     } catch {
-      throw AuthError.unauthorized('Invalid refresh token');
+      throw DomainError.unauthorized('Invalid refresh token');
     }
     if (payload.type !== 'refresh' || !payload.sub) {
-      throw AuthError.unauthorized('Invalid refresh token');
+      throw DomainError.unauthorized('Invalid refresh token');
     }
     const user = await this.deps.prisma.user.findUnique({
       where: { id: payload.sub },
     });
     if (!user || user.deletedAt || user.bannedAt) {
-      throw AuthError.unauthorized('Invalid refresh token');
+      throw DomainError.unauthorized('Invalid refresh token');
     }
     return this.issueTokens(user.id, user.email);
   }
@@ -283,7 +283,7 @@ export class AuthService {
       where: { id: userId },
     });
     if (!user || user.deletedAt || user.bannedAt) {
-      throw AuthError.unauthorized();
+      throw DomainError.unauthorized();
     }
     const hasActiveSubscription = await this.checkActiveSubscription(user.id);
     return this.toAuthUser(user, hasActiveSubscription);
@@ -299,11 +299,11 @@ export class AuthService {
     }
     if (user.passwordHash) {
       if (!password || password.length < 8) {
-        throw AuthError.unauthorized('Invalid password');
+        throw DomainError.unauthorized('Invalid password');
       }
       const passwordOk = await bcrypt.compare(password, user.passwordHash);
       if (!passwordOk) {
-        throw AuthError.unauthorized('Invalid password');
+        throw DomainError.unauthorized('Invalid password');
       }
     }
     const activeSubs = await this.deps.prisma.subscription.findMany({
@@ -319,7 +319,7 @@ export class AuthService {
           `Failed to initialize Stripe while deleting user ${userId}`,
           err instanceof Error ? err.stack : String(err),
         );
-        throw AuthError.internal(
+        throw DomainError.internal(
           'Failed to cancel active subscription. Please try again or contact support.',
         );
       }
@@ -340,7 +340,7 @@ export class AuthService {
             `Failed to cancel subscription ${sub.stripeSubscriptionId}`,
             err instanceof Error ? err.stack : String(err),
           );
-          throw AuthError.internal(
+          throw DomainError.internal(
             'Failed to cancel active subscription. Please try again or contact support.',
           );
         }
@@ -379,16 +379,16 @@ export class AuthService {
     try {
       payload = await this.deps.resetJwt.verifyAsync<JwtPayload>(token);
     } catch {
-      throw AuthError.badRequest('Reset link is invalid or expired');
+      throw DomainError.badRequest('Reset link is invalid or expired');
     }
     if (payload.type !== 'reset' || !payload.sub) {
-      throw AuthError.badRequest('Reset link is invalid or expired');
+      throw DomainError.badRequest('Reset link is invalid or expired');
     }
     const user = await this.deps.prisma.user.findUnique({
       where: { id: payload.sub },
     });
     if (!user || user.deletedAt) {
-      throw AuthError.badRequest('Reset link is invalid or expired');
+      throw DomainError.badRequest('Reset link is invalid or expired');
     }
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
     await this.deps.prisma.user.update({

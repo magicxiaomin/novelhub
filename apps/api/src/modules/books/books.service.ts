@@ -1,8 +1,7 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
-import { PRISMA } from '../auth/auth.constants';
-import { BOOK_LIST_TTL_SECONDS, CACHE_CLIENT, type CacheClient } from '../cache/cache.constants';
+import { DomainError } from '../../common/domain.errors';
+import { BOOK_LIST_TTL_SECONDS, type CacheClient } from '../cache/cache.constants';
 
 import type {
   BookDetail,
@@ -12,6 +11,11 @@ import type {
   Paginated,
 } from './books.types';
 import type { ListBooksDto, ListChaptersDto, SearchBooksDto } from './dto/list-books.dto';
+
+export type BooksServiceDeps = {
+  prisma: PrismaClient;
+  cache: CacheClient;
+};
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -62,12 +66,14 @@ const toChapterSummary = (chapter: {
   wordCount: chapter.wordCount,
 });
 
-@Injectable()
 export class BooksService {
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(CACHE_CLIENT) private readonly cache: CacheClient,
-  ) {}
+  private readonly prisma: PrismaClient;
+  private readonly cache: CacheClient;
+
+  constructor(deps: BooksServiceDeps) {
+    this.prisma = deps.prisma;
+    this.cache = deps.cache;
+  }
 
   async list(query: ListBooksDto): Promise<Paginated<BookSummary>> {
     const page = query.page ?? DEFAULT_PAGE;
@@ -194,7 +200,7 @@ export class BooksService {
       },
     });
     if (!book) {
-      throw new NotFoundException('Book not found');
+      throw DomainError.notFound('Book not found');
     }
     const summary = toBookSummary(book);
     return {
@@ -210,7 +216,7 @@ export class BooksService {
       select: { id: true },
     });
     if (!exists) {
-      throw new NotFoundException('Book not found');
+      throw DomainError.notFound('Book not found');
     }
     const page = query.page ?? DEFAULT_PAGE;
     const limit = query.limit ?? DEFAULT_CHAPTER_PAGE_SIZE;

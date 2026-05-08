@@ -1,11 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
-
-import { PRISMA } from '../auth/auth.constants';
-import { CACHE_CLIENT } from '../cache/cache.constants';
-import { STORAGE_CLIENT } from '../storage/storage.constants';
-
-import { ChaptersService } from './chapters.service';
+import { ChaptersService, type ChaptersServiceDeps } from './chapters.service';
 
 type FakeChapter = {
   id: string;
@@ -188,22 +181,19 @@ const buildState = (
 });
 
 describe('ChaptersService access matrix', () => {
-  const buildService = async (
+  const buildService = (
     state: ReturnType<typeof buildState>,
-  ): Promise<{
+  ): {
     service: ChaptersService;
     stubs: ReturnType<typeof buildStubs>;
-  }> => {
+  } => {
     const stubs = buildStubs();
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ChaptersService,
-        { provide: PRISMA, useValue: buildPrismaStub(state) },
-        { provide: STORAGE_CLIENT, useValue: stubs.storage },
-        { provide: CACHE_CLIENT, useValue: stubs.cache },
-      ],
-    }).compile();
-    return { service: module.get(ChaptersService), stubs };
+    const deps = {
+      prisma: buildPrismaStub(state),
+      storage: stubs.storage,
+      cache: stubs.cache,
+    } as unknown as ChaptersServiceDeps;
+    return { service: new ChaptersService(deps), stubs };
   };
 
   it('guest reading a free chapter → unlocked with content URL', async () => {
@@ -315,17 +305,17 @@ describe('ChaptersService access matrix', () => {
 
   it('NotFound for unknown chapter id', async () => {
     const { service } = await buildService(buildState());
-    await expect(
-      service.readChapter('00000000-0000-0000-0000-000000000999', null),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.readChapter('00000000-0000-0000-0000-000000000999', null)).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('NotFound when book is soft-deleted', async () => {
     const state = buildState();
     state.books[0]!.deletedAt = new Date();
     const { service } = await buildService(state);
-    await expect(service.readChapter(PAID_CHAPTER.id, null)).rejects.toBeInstanceOf(
-      NotFoundException,
+    await expect(service.readChapter(PAID_CHAPTER.id, null)).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
     );
   });
 });

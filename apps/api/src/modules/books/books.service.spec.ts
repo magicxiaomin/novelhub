@@ -1,10 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
+import type { CacheClient } from '../cache/cache.constants';
 
-import { PRISMA } from '../auth/auth.constants';
-import { CACHE_CLIENT } from '../cache/cache.constants';
-
-import { BooksService } from './books.service';
+import { BooksService, type BooksServiceDeps } from './books.service';
 
 type FakeBook = {
   id: string;
@@ -143,25 +139,22 @@ const buildPrismaStub = (state: { books: FakeBook[]; chapters: FakeChapter[] }) 
 });
 
 describe('BooksService', () => {
-  const buildService = async (
+  const buildService = (
     state: ReturnType<typeof buildState>,
-  ): Promise<{
+  ): {
     service: BooksService;
-    cache: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
-  }> => {
+    cache: CacheClient & { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+  } => {
     const cache = {
       get: jest.fn(async () => null),
       set: jest.fn(async () => undefined),
       del: jest.fn(async () => undefined),
     };
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        BooksService,
-        { provide: PRISMA, useValue: buildPrismaStub(state) },
-        { provide: CACHE_CLIENT, useValue: cache },
-      ],
-    }).compile();
-    return { service: module.get(BooksService), cache };
+    const deps = {
+      prisma: buildPrismaStub(state),
+      cache,
+    } as unknown as BooksServiceDeps;
+    return { service: new BooksService(deps), cache: cache as never };
   };
 
   const buildState = () => ({
@@ -270,7 +263,9 @@ describe('BooksService', () => {
 
   it('getById 404 for missing book', async () => {
     const { service } = await buildService(buildState());
-    await expect(service.getById('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getById('missing')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('listChapters paginates', async () => {
@@ -284,7 +279,9 @@ describe('BooksService', () => {
 
   it('listChapters 404 for missing book', async () => {
     const { service } = await buildService(buildState());
-    await expect(service.listChapters('missing', {})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.listChapters('missing', {})).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('categories returns counts sorted desc', async () => {
