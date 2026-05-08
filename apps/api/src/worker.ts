@@ -55,13 +55,26 @@ const app = new Hono<{ Bindings: AppEnv; Variables: Partial<AuthVariables> }>();
 
 // Mirrors apps/api/src/app.controller.ts — same envelope shape so the
 // frontend health probe / UptimeRobot keyword match keeps working when DNS
-// flips to the Worker. `db: 'degraded'` until Task 4 wires Hyperdrive +
-// Prisma, where this becomes a real `SELECT 1`.
-app.get('/health', (c) => {
+// flips to the Worker. Opens a per-request Prisma client inline (not via
+// the `prismaMiddleware` chain) so the probe still answers `db: 'fail'`
+// when the DB is unreachable instead of bubbling a 500.
+app.get('/health', async (c) => {
+  let db: 'ok' | 'fail' = 'fail';
+  if (c.env.DATABASE_URL) {
+    const { prisma, pool } = makePrisma(c.env.DATABASE_URL);
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      db = 'ok';
+    } catch {
+      db = 'fail';
+    } finally {
+      await pool.end().catch(() => undefined);
+    }
+  }
   const body: HealthResponse = {
     app: APP_NAME,
-    status: 'degraded',
-    db: 'degraded',
+    status: db === 'ok' ? 'ok' : 'degraded',
+    db,
     uptimeSeconds: Math.floor((Date.now() - STARTED_AT) / 1000),
     timestamp: new Date().toISOString(),
   };
