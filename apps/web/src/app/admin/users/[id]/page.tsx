@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = 'edge';
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { PageTitle } from '@/components/admin/page-title';

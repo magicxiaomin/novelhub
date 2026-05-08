@@ -1,0 +1,34 @@
+# Cloudflare Pages config for the Next.js web app — Task 14.
+#
+# This file is consumed by `wrangler pages deploy` (and `wrangler pages dev`)
+# when the user runs the local toolchain or a CI deploy invokes wrangler
+# against this directory. The Cloudflare dashboard's Pages project must
+# also have `nodejs_compat` set under Settings → Functions → Compatibility
+# flags, or the runtime will reject @sentry/nextjs's edge bundle.
+#
+# Deploy flow (after Task 15 DNS cutover):
+#   1. `pnpm --filter @novelhub/web pages:build`
+#         (runs next-on-pages → .vercel/output/static/_worker.js)
+#   2. `pnpm --filter @novelhub/web pages:deploy`
+#         (uploads to the `novelhub-web` Pages project)
+#
+# Bindings here are inert until the user creates the Pages project and
+# wires the corresponding KV / R2 / D1 namespaces in the dashboard.
+
+name = "novelhub-web"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# ---- Environments -----------------------------------------------------------
+# Pages auto-creates a Production environment + a Preview environment per
+# branch. Use the dashboard to set non-secret vars (NEXT_PUBLIC_*); secrets
+# (SENTRY_AUTH_TOKEN, etc.) go via `wrangler pages secret put <NAME>
+# --project-name novelhub-web`.
+
+[env.production]
+# Production-only overrides go here. Empty for now — Pages reads
+# environment variables from the project-level config in the dashboard.
+
+[env.preview]
+# Preview branch overrides — keep parity with production for now.

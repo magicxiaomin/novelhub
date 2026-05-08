@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = 'edge';
+
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
