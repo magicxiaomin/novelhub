@@ -17,9 +17,10 @@ name: Deploy API (Cloudflare Workers)
 #   1. staging  → `wrangler deploy --env staging`     (always)
 #   2. prod     → `wrangler deploy --env production`  (gated on staging)
 #
-# Each job is a no-op when `CLOUDFLARE_API_TOKEN` is not configured —
-# that lets the workflow exist on `main` before the user has wired
-# Cloudflare secrets, without breaking the pipeline.
+# Each job is a no-op when Cloudflare secrets are not configured — that
+# lets the workflow exist on `main` before the user has wired Cloudflare
+# secrets, without breaking the pipeline. Once the repo variable
+# `PRODUCTION_LIVE=true` is set, missing production secrets fail loudly.
 #
 # Required secrets:
 #   CLOUDFLARE_API_TOKEN   - API token with `Workers Scripts:Edit`,
@@ -32,6 +33,11 @@ name: Deploy API (Cloudflare Workers)
 # SENTRY_DSN, FB_CAPI_*, R2_*, RESEND_API_KEY, etc.) are managed via
 # `wrangler secret put <NAME> --env <env>` from a local terminal, NOT via
 # this workflow. That keeps deploy-time tokens off the GitHub runner.
+#
+# Optional repo variable:
+#   PRODUCTION_LIVE=true  - Once production is cut over and healthy,
+#                           missing production deploy secrets fail the
+#                           production job instead of skipping cleanly.
 
 on:
   workflow_run:
@@ -129,10 +135,24 @@ jobs:
         id: gate
         env:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           MODE: ${{ github.event.inputs.environment }}
+          PRODUCTION_LIVE: ${{ vars.PRODUCTION_LIVE }}
         run: |
+          missing=""
           if [ -z "${TOKEN:-}" ]; then
-            echo "CLOUDFLARE_API_TOKEN not set; Cloudflare not yet provisioned. Skipping."
+            missing="CLOUDFLARE_API_TOKEN"
+          fi
+          if [ -z "${ACCOUNT_ID:-}" ]; then
+            missing="${missing:+$missing, }CLOUDFLARE_ACCOUNT_ID"
+          fi
+
+          if [ -n "${missing}" ]; then
+            if [ "${PRODUCTION_LIVE:-}" = "true" ]; then
+              echo "::error::PRODUCTION_LIVE=true but required production deploy secret(s) are missing: ${missing}. Configure them before deploying production."
+              exit 1
+            fi
+            echo "Cloudflare production secret(s) not set (${missing}); production not yet provisioned. Skipping."
             echo "deploy=false" >> "$GITHUB_OUTPUT"
           elif [ "${MODE:-both}" = "staging-only" ]; then
             echo "Manual dispatch requested staging-only; skipping production."
