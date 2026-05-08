@@ -28,6 +28,11 @@ name: Migrate Production DB
 #                                     Format: postgresql://USER:PASS@HOST:5432/DB
 #                                     Do NOT use the Supabase pooler URL or
 #                                     a Hyperdrive HTTP URL here.
+#
+# Optional repo variable:
+#   PRODUCTION_LIVE=true            - Once production is cut over and healthy,
+#                                     missing required secrets fail the workflow
+#                                     instead of skipping cleanly.
 
 on:
   push:
@@ -50,8 +55,13 @@ jobs:
         id: gate
         env:
           DB_URL: ${{ secrets.PRODUCTION_DATABASE_URL_DIRECT }}
+          PRODUCTION_LIVE: ${{ vars.PRODUCTION_LIVE }}
         run: |
           if [ -z "${DB_URL:-}" ]; then
+            if [ "${PRODUCTION_LIVE:-}" = "true" ]; then
+              echo "::error::PRODUCTION_LIVE=true but PRODUCTION_DATABASE_URL_DIRECT is not set. Configure the secret before deploying production."
+              exit 1
+            fi
             echo "PRODUCTION_DATABASE_URL_DIRECT not set; production not yet provisioned. Skipping."
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else

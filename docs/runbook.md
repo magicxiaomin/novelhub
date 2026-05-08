@@ -56,6 +56,12 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 | `CLOUDFLARE_API_TOKEN`           | From Stage 1 step 6.                                                                                               |
 | `CLOUDFLARE_ACCOUNT_ID`          | dash.cloudflare.com home → right sidebar.                                                                          |
 
+GitHub repo → Settings → Secrets and variables → Actions → Variables:
+
+| Variable                              | Value                                                                                                                                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRODUCTION_LIVE` (vars, NOT secrets) | `true` (set this AFTER stage 6 DNS cutover, AFTER you've confirmed the new stack is healthy. Until set, both workflows treat the production jobs as optional and skip cleanly.) |
+
 ### Stage 3 — Worker secrets
 
 Pushed via `wrangler secret put` from a local terminal so deploy-time tokens stay off the GitHub runner. Repeat for `--env staging` then `--env production`:
