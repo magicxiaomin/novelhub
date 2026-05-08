@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 
 import { SIGNUP_BONUS_COINS } from './auth.constants';
-import { AuthError } from './auth.errors';
+import { DomainError } from '../../common/domain.errors';
 import { AuthService, type AuthServiceDeps } from './auth.service';
 import { JoseJwtClient } from './jose-jwt.client';
 
@@ -146,8 +146,8 @@ const makeFbCapiStub = () => ({
   sendEvent: jest.fn(async (): Promise<void> => undefined),
 });
 
-const expectAuthError = (status: 400 | 401 | 409 | 500) =>
-  expect.objectContaining({ status, name: AuthError.name });
+const expectDomainError = (status: 400 | 401 | 409 | 500) =>
+  expect.objectContaining({ status, name: DomainError.name });
 
 describe('AuthService', () => {
   const ORIGINAL_ENV = { ...process.env };
@@ -235,7 +235,7 @@ describe('AuthService', () => {
   it('register: rejects duplicate email with 409', async () => {
     await service.register('luna@example.com', 'password123');
     await expect(service.register('luna@example.com', 'password456')).rejects.toEqual(
-      expectAuthError(409),
+      expectDomainError(409),
     );
   });
 
@@ -249,13 +249,13 @@ describe('AuthService', () => {
   it('login: 401 on wrong password', async () => {
     await service.register('luna@example.com', 'password123');
     await expect(service.login('luna@example.com', 'wrongpass')).rejects.toEqual(
-      expectAuthError(401),
+      expectDomainError(401),
     );
   });
 
   it('login: 401 on unknown email (no leak)', async () => {
     await expect(service.login('ghost@example.com', 'whatever')).rejects.toEqual(
-      expectAuthError(401),
+      expectDomainError(401),
     );
   });
 
@@ -265,7 +265,7 @@ describe('AuthService', () => {
     if (!onlyUser) throw new Error('no user created');
     onlyUser.deletedAt = new Date();
     await expect(service.login('luna@example.com', 'password123')).rejects.toEqual(
-      expectAuthError(401),
+      expectDomainError(401),
     );
   });
 
@@ -371,12 +371,12 @@ describe('AuthService', () => {
         email_verified: false,
       }),
     });
-    await expect(service.loginWithGoogle('fake')).rejects.toEqual(expectAuthError(401));
+    await expect(service.loginWithGoogle('fake')).rejects.toEqual(expectDomainError(401));
   });
 
   it('google: 401 when verifyIdToken throws', async () => {
     googleStub.verifyIdToken.mockRejectedValue(new Error('bad token'));
-    await expect(service.loginWithGoogle('garbage')).rejects.toEqual(expectAuthError(401));
+    await expect(service.loginWithGoogle('garbage')).rejects.toEqual(expectDomainError(401));
   });
 
   it('refresh: issues fresh tokens for valid refresh JWT', async () => {
@@ -388,11 +388,11 @@ describe('AuthService', () => {
 
   it('refresh: rejects access token used as refresh token', async () => {
     const reg = await service.register('luna@example.com', 'password123');
-    await expect(service.refresh(reg.tokens.accessToken)).rejects.toEqual(expectAuthError(401));
+    await expect(service.refresh(reg.tokens.accessToken)).rejects.toEqual(expectDomainError(401));
   });
 
   it('refresh: rejects garbage', async () => {
-    await expect(service.refresh('not-a-jwt')).rejects.toEqual(expectAuthError(401));
+    await expect(service.refresh('not-a-jwt')).rejects.toEqual(expectDomainError(401));
   });
 
   it('forgot-password: silent on unknown email, sends email when found', async () => {
@@ -423,13 +423,13 @@ describe('AuthService', () => {
   it('reset-password: rejects an access token used as reset token', async () => {
     const reg = await service.register('luna@example.com', 'oldpassword');
     await expect(service.resetPassword(reg.tokens.accessToken, 'newpassword')).rejects.toEqual(
-      expectAuthError(400),
+      expectDomainError(400),
     );
   });
 
   it('reset-password: rejects garbage', async () => {
     await expect(service.resetPassword('not-a-jwt', 'newpassword')).rejects.toEqual(
-      expectAuthError(400),
+      expectDomainError(400),
     );
   });
 
@@ -445,7 +445,7 @@ describe('AuthService', () => {
     const stored = Array.from(prismaStub.users.values())[0];
     if (!stored) throw new Error('no user');
     stored.deletedAt = new Date();
-    await expect(service.getCurrentUser(reg.user.id)).rejects.toEqual(expectAuthError(401));
+    await expect(service.getCurrentUser(reg.user.id)).rejects.toEqual(expectDomainError(401));
   });
 
   it('deleteAccount: soft-deletes an active user', async () => {
@@ -457,7 +457,7 @@ describe('AuthService', () => {
   it('deleteAccount: 401 on invalid password', async () => {
     const reg = await service.register('luna@example.com', 'password123');
     await expect(service.deleteAccount(reg.user.id, 'wrongpass')).rejects.toEqual(
-      expectAuthError(401),
+      expectDomainError(401),
     );
   });
 
@@ -535,7 +535,7 @@ describe('AuthService', () => {
     stripeStub.stripe.subscriptions.cancel.mockRejectedValueOnce(new Error('stripe unavailable'));
 
     await expect(service.deleteAccount(reg.user.id, 'password123')).rejects.toEqual(
-      expectAuthError(500),
+      expectDomainError(500),
     );
 
     expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeNull();

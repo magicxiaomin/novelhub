@@ -1,17 +1,9 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 
-import { PRISMA, SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
-import {
-  CACHE_CLIENT,
-  CHAPTER_PREVIEW_TTL_SECONDS,
-  type CacheClient,
-} from '../cache/cache.constants';
-import {
-  SIGNED_URL_TTL_SECONDS,
-  STORAGE_CLIENT,
-  type StorageClient,
-} from '../storage/storage.constants';
+import { DomainError } from '../../common/domain.errors';
+import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
+import { CHAPTER_PREVIEW_TTL_SECONDS, type CacheClient } from '../cache/cache.constants';
+import { SIGNED_URL_TTL_SECONDS, type StorageClient } from '../storage/storage.constants';
 
 import type {
   ChapterReadResponse,
@@ -23,15 +15,33 @@ const PREVIEW_LENGTH = 100;
 
 const previewCacheKey = (chapterId: string): string => `chapter:preview:${chapterId}`;
 
-@Injectable()
-export class ChaptersService {
-  private readonly logger = new Logger(ChaptersService.name);
+export type ChaptersServiceDeps = {
+  prisma: PrismaClient;
+  storage: StorageClient;
+  cache: CacheClient;
+};
 
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(STORAGE_CLIENT) private readonly storage: StorageClient,
-    @Inject(CACHE_CLIENT) private readonly cache: CacheClient,
-  ) {}
+const log = {
+  warn(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.warn(`[ChaptersService] ${msg}`);
+  },
+  error(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.error(`[ChaptersService] ${msg}`);
+  },
+};
+
+export class ChaptersService {
+  private readonly prisma: PrismaClient;
+  private readonly storage: StorageClient;
+  private readonly cache: CacheClient;
+
+  constructor(deps: ChaptersServiceDeps) {
+    this.prisma = deps.prisma;
+    this.storage = deps.storage;
+    this.cache = deps.cache;
+  }
 
   async readChapter(chapterId: string, userId: string | null): Promise<ChapterReadResponse> {
     const chapter = await this.prisma.chapter.findFirst({
@@ -47,7 +57,7 @@ export class ChaptersService {
       },
     });
     if (!chapter || chapter.book.deletedAt !== null) {
-      throw new NotFoundException('Chapter not found');
+      throw DomainError.notFound('Chapter not found');
     }
 
     const isUnlocked = await this.isUnlockedFor(chapter, userId);
@@ -184,7 +194,7 @@ export class ChaptersService {
       const text = await this.storage.getText(contentUrl);
       preview = text.slice(0, PREVIEW_LENGTH);
     } catch (err) {
-      this.logger.warn(`Failed to read preview for ${chapterId}: ${(err as Error).message}`);
+      log.warn(`Failed to read preview for ${chapterId}: ${(err as Error).message}`);
       preview = '';
     }
     await this.cache.set(previewCacheKey(chapterId), preview, CHAPTER_PREVIEW_TTL_SECONDS);
@@ -195,7 +205,7 @@ export class ChaptersService {
     try {
       return await this.storage.getSignedUrl(contentUrl, SIGNED_URL_TTL_SECONDS);
     } catch (err) {
-      this.logger.error(`Failed to sign content URL ${contentUrl}: ${(err as Error).message}`);
+      log.error(`Failed to sign content URL ${contentUrl}: ${(err as Error).message}`);
       // If signing fails (e.g. R2 unconfigured in tests), fall back to the raw key.
       return contentUrl;
     }

@@ -14,7 +14,7 @@ import APP_NAME from '@novelhub/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
-import { AuthError } from './modules/auth/auth.errors';
+import { DomainError } from './common/domain.errors';
 import { prismaMiddleware } from './worker/db/prisma';
 import type { AuthVariables } from './worker/middleware/auth';
 import { authRoutes } from './worker/routes/auth';
@@ -56,14 +56,14 @@ app.use('/auth/*', prismaMiddleware);
 app.route('/auth', authRoutes);
 
 // Mirrors apps/api/src/modules/auth/auth-error.filter.ts: AuthService throws
-// runtime-agnostic AuthError; we map back to the HTTP status here. Other
+// runtime-agnostic DomainError; we map back to the HTTP status here. Other
 // thrown errors fall through to Hono's default 500 unless they're already
 // HTTPException instances.
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     return err.getResponse();
   }
-  if (err instanceof AuthError) {
+  if (err instanceof DomainError) {
     return c.json({ message: err.message }, err.status);
   }
   // eslint-disable-next-line no-console

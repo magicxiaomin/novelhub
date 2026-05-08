@@ -11,6 +11,7 @@ import { json, type NextFunction, type Request, type Response } from 'express';
 import { join } from 'node:path';
 
 import { AppModule } from './app.module';
+import { DomainErrorFilter } from './common/domain-error.filter';
 import { SentryExceptionFilter } from './sentry/sentry-exception.filter';
 import { SentryUserInterceptor } from './sentry/sentry-user.interceptor';
 
@@ -62,7 +63,14 @@ async function bootstrap(): Promise<void> {
     }),
   );
   app.useGlobalInterceptors(new SentryUserInterceptor());
-  app.useGlobalFilters(new SentryExceptionFilter(app.getHttpAdapter()));
+  // Filter order: SentryExceptionFilter is `@Catch()` (catch-all) and is
+  // registered FIRST so it sits at the bottom of the chain; the more
+  // specific `@Catch(DomainError)` filter is registered LAST so Nest picks
+  // it first for `DomainError` instances. The DomainErrorFilter rethrows
+  // an HttpException, which Nest then routes back through the chain;
+  // SentryExceptionFilter handles the HTTP response (and gates Sentry
+  // capture on status >= 500, so 4xx domain errors stay out of Sentry).
+  app.useGlobalFilters(new SentryExceptionFilter(app.getHttpAdapter()), new DomainErrorFilter());
 
   const corsOrigin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   app.enableCors({ origin: corsOrigin, credentials: true });

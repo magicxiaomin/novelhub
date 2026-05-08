@@ -13,7 +13,7 @@ import { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 
-import { AuthError } from '../../modules/auth/auth.errors';
+import { DomainError } from '../../common/domain.errors';
 import { COOKIE_REFRESH } from '../../modules/auth/auth.constants';
 import { clearAuthCookies, setAuthCookies } from '../cookies';
 import type { PrismaVariables } from '../db/prisma';
@@ -83,11 +83,11 @@ export const authRoutes = new Hono<{
   });
 
 /**
- * Translates an `AuthError` thrown by `AuthService` into the matching
+ * Translates an `DomainError` thrown by `AuthService` into the matching
  * `HTTPException`. Wired via `app.onError` in worker.ts. Mirrors
  * `apps/api/src/modules/auth/auth-error.filter.ts`.
  */
-export function mapAuthError(err: unknown): HTTPException | null {
-  if (!(err instanceof AuthError)) return null;
+export function mapDomainError(err: unknown): HTTPException | null {
+  if (!(err instanceof DomainError)) return null;
   return new HTTPException(err.status, { message: err.message });
 }
