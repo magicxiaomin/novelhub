@@ -6,6 +6,7 @@
     "predev": "rm -f public/sw.js public/sw.js.map public/workbox-*.js public/workbox-*.js.map",
     "dev": "next dev -p 3000",
     "build": "pnpm --filter @novelhub/shared build && next build",
+    "start": "next start -p 3000",
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
