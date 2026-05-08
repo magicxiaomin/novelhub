@@ -1,0 +1,67 @@
+# Cloudflare Workers config — Task 2 (Phase 0/migration). Populated incrementally
+# by the Cloudflare migration tasks. Until Task 12 (deploy-api workflow), this
+# config is local-dev only — `wrangler dev` reads it.
+#
+# Bindings (R2, KV, Hyperdrive) are STUBBED with placeholder ids/names. The user
+# fills these in via the Cloudflare dashboard / `wrangler hyperdrive create` /
+# `wrangler kv namespace create` once they're ready to deploy. For local
+# `wrangler dev`, miniflare auto-mocks bindings — no real Cloudflare account
+# needed to start the dev server.
+
+name = "novelhub-api"
+main = "src/worker.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = ""  # filled in by user when wiring deploy
+
+# Production-equivalent build pipeline. Wrangler bundles src/worker.ts via
+# esbuild. We don't run `tsc --build` here — TypeScript types are checked
+# separately via `pnpm typecheck:worker` (see package.json).
+[build]
+command = ""
+
+# Local dev defaults — `wrangler dev` runs on http://localhost:8787 unless
+# overridden. The Nest stack uses 4000; keep them disjoint.
+[dev]
+port = 8787
+
+# ---- Bindings ---------------------------------------------------------------
+# R2 (cover + chapter content). Bucket name matches Phase 1 R2_BUCKET=novelhub-content.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "novelhub-content"
+preview_bucket_name = "novelhub-content-preview"
+
+# KV (support contact rate-limit + future rate-limit primitives). The id is
+# created via `wrangler kv namespace create novelhub-kv`; until then keep this
+# commented so `wrangler dev` doesn't error.
+# [[kv_namespaces]]
+# binding = "KV"
+# id = ""
+
+# Hyperdrive (Postgres connection pooler in front of Supabase Direct port 5432).
+# Created via `wrangler hyperdrive create novelhub-pg --connection-string='postgresql://USER:PASS@HOST:5432/DB'`.
+# Commented for now; Task 4 wires the real binding.
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = ""
+
+# ---- Environments -----------------------------------------------------------
+# Staging — pre-prod smoke before promoting to production. Same bindings, just
+# different bucket prefixes / kv namespaces. Routes filled in at Task 12.
+[env.staging]
+name = "novelhub-api-staging"
+# routes = [{ pattern = "api-staging.novelhub.com/*", custom_domain = true }]
+
+[env.production]
+name = "novelhub-api"
+# routes = [{ pattern = "api.novelhub.com/*", custom_domain = true }]
+
+# ---- Cron triggers ----------------------------------------------------------
+# Replace @nestjs/schedule + Vercel Cron at Task 8. Commented until then so
+# `wrangler dev --test-scheduled` doesn't try to invoke a no-op handler.
+# [triggers]
+# crons = [
+#   "0 */6 * * *",   # re-engagement
+#   "0 9 * * *",     # renewal-reminders
+# ]
