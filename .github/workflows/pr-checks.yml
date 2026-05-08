@@ -52,5 +52,8 @@ jobs:
       - name: Build web
         run: pnpm --filter @novelhub/web build
 
+      - name: Build web (Pages target)
+        run: pnpm --filter @novelhub/web pages:build
+
       - name: Typecheck
         run: pnpm typecheck
