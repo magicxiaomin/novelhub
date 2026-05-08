@@ -1,17 +1,15 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
 
 import { COIN_PACKAGES } from '@novelhub/shared';
 
-import { PRISMA } from '../auth/auth.constants';
+import { DomainError } from '../../common/domain.errors';
 import { CACHE_CLIENT, type CacheClient } from '../cache/cache.constants';
 import { BooksService } from '../books/books.service';
-import { STORAGE_CLIENT, type StorageClient } from '../storage/storage.constants';
+import { type StorageClient } from '../storage/storage.constants';
 
-import type { CreateBookDto, UpdateBookDto } from './dto/book.dto';
-import type { BulkChapterDto, BulkImportOptionsDto, UpdateChapterDto } from './dto/chapter.dto';
-import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './dto/query.dto';
+import type { CreateBookDto, UpdateBookDto } from './dto/book.types';
+import type { BulkChapterDto, BulkImportOptionsDto, UpdateChapterDto } from './dto/chapter.types';
+import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './dto/query.types';
 
 const DEFAULT_DELIMITER = '\n\n---\n\n';
 const MAX_CHAPTER_CONTENT_BYTES = 204800;
@@ -38,20 +36,57 @@ const addDays = (date: Date, days: number): Date => {
   return next;
 };
 
-@Injectable()
-export class AdminService {
-  private readonly logger = new Logger(AdminService.name);
+const log = {
+  error(msg: string, err?: unknown): void {
+    // eslint-disable-next-line no-console
+    console.error(`[AdminService] ${msg}`, err instanceof Error ? err.stack : err);
+  },
+};
 
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(STORAGE_CLIENT) private readonly storage: StorageClient,
-    @Inject(CACHE_CLIENT) private readonly cache: CacheClient,
-    private readonly books: BooksService,
-  ) {}
+export type AdminServiceDeps = {
+  prisma: PrismaClient;
+  storage: StorageClient;
+  cache: CacheClient;
+  books: BooksService;
+  // Public R2 host for derived coverUrl when an admin uploads a new cover
+  // and doesn't supply coverUrl explicitly (matches the previous
+  // R2_PUBLIC_HOST / NEXT_PUBLIC_R2_PUBLIC_HOST env-fallback).
+  publicR2Host: string | undefined;
+};
+
+// `id-generator` ports the Node `crypto.randomUUID()` call to a runtime-
+// agnostic factory dep so Worker can inject `crypto.randomUUID` (Web
+// Crypto, available globally) without forking this service.
+type IdGenerator = () => string;
+
+// Both Node 19+ and the Cloudflare Workers runtime expose
+// crypto.randomUUID() on the global. Cast through unknown so the lookup
+// works under either tsconfig (the Worker tsconfig omits @types/node, so
+// `globalThis.crypto` is not in the default lib definitions).
+const globalCrypto = (globalThis as unknown as { crypto: { randomUUID(): string } }).crypto;
+
+export class AdminService {
+  private readonly prisma: PrismaClient;
+  private readonly storage: StorageClient;
+  private readonly cache: CacheClient;
+  private readonly books: BooksService;
+  private readonly publicR2Host: string | undefined;
+  // Default to the global crypto.randomUUID; both Node 19+ and Workers
+  // expose it on the global `crypto` object, so no factory plumbing
+  // needed for the typical case.
+  private readonly newId: IdGenerator = (): string => globalCrypto.randomUUID();
+
+  constructor(deps: AdminServiceDeps) {
+    this.prisma = deps.prisma;
+    this.storage = deps.storage;
+    this.cache = deps.cache;
+    this.books = deps.books;
+    this.publicR2Host = deps.publicR2Host;
+  }
 
   async createBook(dto: CreateBookDto): Promise<{ id: string }> {
     if (dto.coverImageKey && !COVER_IMAGE_KEY_RE.test(dto.coverImageKey)) {
-      throw new BadRequestException('coverImageKey must be a covers/<uuid> path');
+      throw DomainError.badRequest('coverImageKey must be a covers/<uuid> path');
     }
     const data: Prisma.BookCreateInput = {
       title: dto.title,
@@ -145,7 +180,7 @@ export class AdminService {
         coinPerChapter: true,
       },
     });
-    if (!book) throw new NotFoundException('Book not found');
+    if (!book) throw DomainError.notFound('Book not found');
     return book;
   }
 
@@ -154,19 +189,16 @@ export class AdminService {
       where: { id, deletedAt: null },
       select: { id: true },
     });
-    if (!book) throw new NotFoundException('Book not found');
+    if (!book) throw DomainError.notFound('Book not found');
     const data: Prisma.BookUpdateInput = { ...dto };
     if (data.coverImageKey && !COVER_IMAGE_KEY_RE.test(String(data.coverImageKey))) {
-      throw new BadRequestException('coverImageKey must be a covers/<uuid> path');
+      throw DomainError.badRequest('coverImageKey must be a covers/<uuid> path');
     }
     // When the admin uploads a new cover (coverImageKey set, coverUrl not
     // explicitly overridden), derive coverUrl from the R2 public host so
     // listings render the new image without a manual second update.
-    if (data.coverImageKey && !data.coverUrl) {
-      const publicHost = process.env.R2_PUBLIC_HOST ?? process.env.NEXT_PUBLIC_R2_PUBLIC_HOST;
-      if (publicHost) {
-        data.coverUrl = `https://${publicHost}/${data.coverImageKey as string}`;
-      }
+    if (data.coverImageKey && !data.coverUrl && this.publicR2Host) {
+      data.coverUrl = `https://${this.publicR2Host}/${data.coverImageKey as string}`;
     }
     await this.prisma.book.update({ where: { id }, data });
     await this.books.invalidateListCaches();
@@ -178,7 +210,7 @@ export class AdminService {
       where: { id, deletedAt: null },
       select: { id: true },
     });
-    if (!book) throw new NotFoundException('Book not found');
+    if (!book) throw DomainError.notFound('Book not found');
     await this.prisma.book.update({
       where: { id },
       data: { deletedAt: new Date() },
@@ -189,7 +221,7 @@ export class AdminService {
 
   async bulkImportChapters(
     bookId: string,
-    fileBuffer: Buffer,
+    fileBytes: Uint8Array,
     options: BulkImportOptionsDto,
   ): Promise<{ created: number }> {
     const book = await this.prisma.book.findFirst({
@@ -200,12 +232,12 @@ export class AdminService {
         totalChapters: true,
       },
     });
-    if (!book) throw new NotFoundException('Book not found');
+    if (!book) throw DomainError.notFound('Book not found');
 
     const delimiter = options.delimiter ?? DEFAULT_DELIMITER;
-    const text = fileBuffer.toString('utf-8');
+    const text = new TextDecoder('utf-8').decode(fileBytes);
     if (text.trim().length === 0) {
-      throw new BadRequestException('Uploaded file is empty');
+      throw DomainError.badRequest('Uploaded file is empty');
     }
 
     const sections = text
@@ -213,7 +245,7 @@ export class AdminService {
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     if (sections.length === 0) {
-      throw new BadRequestException('No chapters parsed; check the delimiter and file format');
+      throw DomainError.badRequest('No chapters parsed; check the delimiter and file format');
     }
 
     let baseOrder = book.totalChapters;
@@ -275,23 +307,23 @@ export class AdminService {
     chapters: BulkChapterDto[],
   ): Promise<{ created: number }> {
     if (chapters.length === 0) {
-      throw new BadRequestException('At least one chapter is required');
+      throw DomainError.badRequest('At least one chapter is required');
     }
     const tooLarge = chapters.find(
-      (chapter) => Buffer.byteLength(chapter.content, 'utf-8') > MAX_CHAPTER_CONTENT_BYTES,
+      (chapter) => byteLength(chapter.content) > MAX_CHAPTER_CONTENT_BYTES,
     );
     if (tooLarge) {
-      throw new BadRequestException(`Chapter content exceeds 200 KB: ${tooLarge.title}`);
+      throw DomainError.badRequest(`Chapter content exceeds 200 KB: ${tooLarge.title}`);
     }
     const book = await this.prisma.book.findFirst({
       where: { id: bookId, deletedAt: null },
       select: { id: true, freeChapterCount: true },
     });
-    if (!book) throw new NotFoundException('Book not found');
+    if (!book) throw DomainError.notFound('Book not found');
 
     const uploads = await Promise.all(
       chapters.map(async (chapter) => {
-        const key = `chapters/${bookId}/${randomUUID()}.txt`;
+        const key = `chapters/${bookId}/${this.newId()}.txt`;
         await this.storage.uploadText(key, chapter.content);
         return { key, chapter };
       }),
@@ -328,11 +360,11 @@ export class AdminService {
         return rows;
       });
     } catch (err) {
-      this.logger.error(
+      log.error(
         `bulkCreateChapters transaction failed after R2 upload; orphan keys: ${uploads
           .map((upload) => upload.key)
           .join(', ')}`,
-        err instanceof Error ? err.stack : undefined,
+        err,
       );
       throw err;
     }
@@ -407,7 +439,7 @@ export class AdminService {
       where: { id, deletedAt: null },
       select: { id: true, bookId: true, order: true, title: true, isFree: true, contentUrl: true },
     });
-    if (!chapter) throw new NotFoundException('Chapter not found');
+    if (!chapter) throw DomainError.notFound('Chapter not found');
     const content = chapter.contentUrl ? await this.storage.getText(chapter.contentUrl) : '';
     // Don't leak the R2 storage key to the admin client.
     return {
@@ -425,7 +457,7 @@ export class AdminService {
       where: { id, deletedAt: null },
       select: { id: true, bookId: true, contentUrl: true },
     });
-    if (!chapter) throw new NotFoundException('Chapter not found');
+    if (!chapter) throw DomainError.notFound('Chapter not found');
 
     const data: Prisma.ChapterUpdateInput = {};
     if (typeof dto.title === 'string') data.title = dto.title;
@@ -450,7 +482,7 @@ export class AdminService {
       where: { id, deletedAt: null },
       select: { id: true, bookId: true },
     });
-    if (!chapter) throw new NotFoundException('Chapter not found');
+    if (!chapter) throw DomainError.notFound('Chapter not found');
     await this.prisma.chapter.update({
       where: { id },
       data: { deletedAt: new Date() },
@@ -618,7 +650,7 @@ export class AdminService {
         createdAt: true,
       },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw DomainError.notFound('User not found');
     const [orders, unlocks] = await Promise.all([
       this.prisma.order.aggregate({
         where: { userId: id, status: 'completed' },
@@ -703,10 +735,16 @@ export class AdminService {
 
   async coverUploadUrl(contentType = 'image/jpeg'): Promise<{ uploadUrl: string; key: string }> {
     if (!ALLOWED_COVER_MIME.includes(contentType as (typeof ALLOWED_COVER_MIME)[number])) {
-      throw new BadRequestException('Unsupported cover image type');
+      throw DomainError.badRequest('Unsupported cover image type');
     }
-    const key = `covers/${randomUUID()}`;
+    const key = `covers/${this.newId()}`;
     const uploadUrl = await this.storage.getSignedUploadUrl(key, contentType);
     return { uploadUrl, key };
   }
 }
+
+// Re-export so the spec + module can keep importing CACHE_CLIENT from a
+// single place if needed (kept for symmetry with other services).
+export { CACHE_CLIENT };
+
+const byteLength = (s: string): number => new TextEncoder().encode(s).length;

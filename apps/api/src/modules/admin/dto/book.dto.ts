@@ -11,9 +11,11 @@ import {
   MinLength,
 } from 'class-validator';
 
+import type { CreateBookDto as CreateBookType } from './book.types';
+
 const BOOK_STATUSES = ['ONGOING', 'COMPLETED'] as const;
 
-export class CreateBookDto {
+export class CreateBookDto implements CreateBookType {
   @ApiProperty()
   @IsString()
   @MinLength(1)
