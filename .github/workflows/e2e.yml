@@ -72,11 +72,21 @@ jobs:
       - name: Build web
         run: pnpm --filter @novelhub/web build
 
+      - name: Stage web standalone runtime
+        run: |
+          # Next standalone for monorepo emits server.js at apps/web/.next/standalone/apps/web/server.js;
+          # the static + public dirs aren't copied automatically.
+          cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+          cp -r apps/web/public apps/web/.next/standalone/apps/web/public
+
       - name: Start API (background)
         run: nohup pnpm --filter @novelhub/api start > /tmp/api.log 2>&1 &
 
       - name: Start web (background)
-        run: nohup pnpm --filter @novelhub/web start > /tmp/web.log 2>&1 &
+        env:
+          PORT: '3000'
+          HOSTNAME: '0.0.0.0'
+        run: nohup node apps/web/.next/standalone/apps/web/server.js > /tmp/web.log 2>&1 &
 
       - name: Wait for services
         run: |
