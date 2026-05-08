@@ -24,6 +24,7 @@
     "@nestjs/schedule": "^4.1.2",
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/throttler": "^6.4.0",
+    "@hono/zod-validator": "^0.4.2",
     "@novelhub/db": "workspace:*",
     "@novelhub/shared": "workspace:*",
     "@prisma/adapter-pg": "^6.6.0",
@@ -43,7 +44,8 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^4.1.2",
     "rxjs": "^7.8.2",
-    "stripe": "^17.7.0"
+    "stripe": "^17.7.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240725.0",

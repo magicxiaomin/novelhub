@@ -2,14 +2,13 @@
  * Hono auth routes — mirror the surface of
  * apps/api/src/modules/auth/auth.controller.ts on `:8787`.
  *
- * Task 3.1 ships register/login/refresh/logout/me/forgot/reset. Two routes
- * are deferred:
+ * Task 3.1 shipped register/login/refresh/logout/me/forgot/reset; Task 3.2
+ * formalises the body validation as Zod schemas via @hono/zod-validator.
+ * Two routes are still deferred:
  *   - `POST /auth/google` (needs FB-CAPI consent path + GOOGLE_CLIENT_ID).
  *   - `DELETE /auth/account` (consumes the Stripe client).
- *
- * Body validation is intentionally light here — Zod schemas land in
- * Task 3.2 via `@hono/zod-validator`.
  */
+import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
@@ -20,14 +19,14 @@ import { clearAuthCookies, setAuthCookies } from '../cookies';
 import type { PrismaVariables } from '../db/prisma';
 import { requireAuth, type AuthVariables } from '../middleware/auth';
 import { makeAuthService, type WorkerEnv } from '../services/auth-factory';
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from './auth.schemas';
 
 type Bindings = WorkerEnv;
-
-// Light-touch validators replaced by Zod in Task 3.2.
-const isEmail = (s: unknown): s is string =>
-  typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
-const isPassword = (s: unknown): s is string =>
-  typeof s === 'string' && s.length >= 8 && s.length <= 200;
 
 const isProd = (env: WorkerEnv): boolean => env.NODE_ENV === 'production';
 
@@ -35,23 +34,17 @@ export const authRoutes = new Hono<{
   Bindings: Bindings;
   Variables: PrismaVariables & Partial<AuthVariables>;
 }>()
-  .post('/register', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    if (!isEmail(body.email) || !isPassword(body.password)) {
-      throw new HTTPException(400, { message: 'Invalid email or password' });
-    }
+  .post('/register', zValidator('json', registerSchema), async (c) => {
+    const { email, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
-    const result = await auth.register(body.email, body.password);
+    const result = await auth.register(email, password);
     setAuthCookies(c, result.tokens, isProd(c.env));
     return c.json({ user: result.user }, 201);
   })
-  .post('/login', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    if (!isEmail(body.email) || !isPassword(body.password)) {
-      throw new HTTPException(400, { message: 'Invalid email or password' });
-    }
+  .post('/login', zValidator('json', loginSchema), async (c) => {
+    const { email, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
-    const result = await auth.login(body.email, body.password);
+    const result = await auth.login(email, password);
     setAuthCookies(c, result.tokens, isProd(c.env));
     return c.json({ user: result.user }, 200);
   })
@@ -76,25 +69,16 @@ export const authRoutes = new Hono<{
     const fresh = await auth.getCurrentUser(user.id);
     return c.json({ user: fresh }, 200);
   })
-  .post('/forgot-password', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    if (!isEmail(body.email)) {
-      throw new HTTPException(400, { message: 'Invalid email' });
-    }
+  .post('/forgot-password', zValidator('json', forgotPasswordSchema), async (c) => {
+    const { email } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
-    await auth.forgotPassword(body.email);
+    await auth.forgotPassword(email);
     return c.body(null, 204);
   })
-  .post('/reset-password', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    if (typeof body.token !== 'string' || !body.token) {
-      throw new HTTPException(400, { message: 'Reset link is invalid or expired' });
-    }
-    if (!isPassword(body.password)) {
-      throw new HTTPException(400, { message: 'Password must be 8+ characters' });
-    }
+  .post('/reset-password', zValidator('json', resetPasswordSchema), async (c) => {
+    const { token, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
-    await auth.resetPassword(body.token, body.password);
+    await auth.resetPassword(token, password);
     return c.body(null, 204);
   });
 
