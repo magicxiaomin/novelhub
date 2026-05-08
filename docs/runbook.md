@@ -4,6 +4,8 @@ This runbook covers the **Phase 1 low-cost launch**: smallest viable infrastruct
 
 **Phase 1 deploys both apps on Vercel. No Railway, no separate container host.** The NestJS API runs as a Vercel Serverless Function via the adapter at `apps/api/api/[...path].ts`; cron jobs trigger via Vercel Cron Jobs hitting `apps/api/api/cron/*.ts`. Total Phase 1 fixed cost: **$0** (everything on free tiers).
 
+> **Cutover in progress (2026-05-08).** The Cloudflare migration plan is shipped end-to-end as code (Tasks 1–14 merged); the production cutover is still pending Stripe Dashboard + DNS access, both of which only the project owner can do. The step-by-step is in [§ Cloudflare cutover playbook](#cloudflare-cutover-playbook--phase-2-launch) below. Once that completes, Task 16 will rewrite this Phase 1 section out and promote the Cloudflare path to the only documented flow.
+
 ## Architecture Summary
 
 | Service                       | Role                                                                            | Phase 1 plan                                                |
@@ -19,6 +21,103 @@ This runbook covers the **Phase 1 low-cost launch**: smallest viable infrastruct
 | GitHub Actions                | `migrate-on-deploy.yml` runs `prisma migrate deploy` before each Vercel rollout | Free                                                        |
 
 Cron jobs (re-engagement every 6h, renewal-reminder daily 9am) are scheduled by **Vercel Cron** in `apps/api/vercel.json`. Each cron tick is an HTTP request to `/api/cron/*`, authenticated by a shared `CRON_SECRET` bearer. The in-process `@nestjs/schedule` decorators are gated by `CRON_DRIVER=vercel` (set in production env) so they don't double-fire.
+
+## Cloudflare cutover playbook — Phase 2 launch
+
+Once the project owner has access to the Stripe Dashboard and the domain registrar, walk this top-to-bottom. Each stage is independent: stop after any stage and the previous stages remain valid; resume any time. The full migration plan + per-task PR list lives in [`docs/cloudflare-migration-phase0.md`](./cloudflare-migration-phase0.md).
+
+### Stage 1 — Cloudflare account setup
+
+1. **Workers projects.** Cloudflare Dashboard → Workers & Pages → Create. Names must match `apps/api/wrangler.toml`:
+   - `novelhub-api` (matches `[env.production].name`)
+   - `novelhub-api-staging` (matches `[env.staging].name`)
+2. **Pages project.** Workers & Pages → Create → Pages → name it `novelhub-web`. Settings → Functions → Compatibility flags → enable `nodejs_compat` (required by `@sentry/nextjs`'s edge bundle).
+3. **Hyperdrive binding** (Postgres pooler at the edge). From a local terminal:
+   ```sh
+   wrangler hyperdrive create novelhub-pg \
+     --connection-string='postgresql://USER:PASS@HOST:5432/DB'
+   ```
+   Use the Supabase **Direct** URL (port 5432), not the pooler. Note the printed `id`.
+4. **KV namespace** (support rate-limit):
+   ```sh
+   wrangler kv namespace create novelhub-kv
+   ```
+   Note the `id`.
+5. **Wire the bindings.** Edit `apps/api/wrangler.toml`: uncomment the `[[hyperdrive]]` and `[[kv_namespaces]]` blocks and paste the IDs from steps 3–4. Open a small PR (`feat(api): wire Hyperdrive + KV bindings`).
+6. **API token.** dash.cloudflare.com → My Profile → API Tokens → Create Token. Permissions: `Workers Scripts:Edit`, `Workers KV Storage:Edit`, `Workers R2 Storage:Edit`. Save the token — it's only shown once.
+
+### Stage 2 — GitHub Actions secrets
+
+GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+
+| Secret                           | Value                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `PRODUCTION_DATABASE_URL_DIRECT` | Same value as the existing `PRODUCTION_DATABASE_URL` (Supabase Direct URL, port 5432). Migrations skip without it. |
+| `CLOUDFLARE_API_TOKEN`           | From Stage 1 step 6.                                                                                               |
+| `CLOUDFLARE_ACCOUNT_ID`          | dash.cloudflare.com home → right sidebar.                                                                          |
+
+### Stage 3 — Worker secrets
+
+Pushed via `wrangler secret put` from a local terminal so deploy-time tokens stay off the GitHub runner. Repeat for `--env staging` then `--env production`:
+
+```sh
+cd apps/api
+for SECRET in DATABASE_URL JWT_SECRET JWT_REFRESH_SECRET JWT_RESET_SECRET \
+              STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_WEEKLY \
+              STRIPE_PRICE_MONTHLY SENTRY_DSN FB_CAPI_ACCESS_TOKEN \
+              NEXT_PUBLIC_FB_PIXEL_ID RESEND_API_KEY EMAIL_FROM \
+              R2_ACCOUNT_ID R2_ACCESS_KEY R2_SECRET_KEY R2_BUCKET \
+              GOOGLE_CLIENT_ID ONESIGNAL_API_KEY ONESIGNAL_APP_ID \
+              NEXT_PUBLIC_APP_URL; do
+  wrangler secret put $SECRET --env <env>
+done
+```
+
+For `DATABASE_URL` on the Worker: paste the **Hyperdrive** connection string (`wrangler hyperdrive list`), not the Supabase URL. The Worker connects to Postgres through Hyperdrive's edge pooler.
+
+### Stage 4 — First deploy + staging smoke
+
+1. GitHub Actions tab → "Deploy API (Cloudflare Workers)" → Run workflow → environment=`staging-only`.
+2. Watch logs; staging deploys to `https://novelhub-api-staging.<account>.workers.dev`.
+3. Smoke:
+   ```sh
+   API=https://novelhub-api-staging.<account>.workers.dev \
+   ADMIN_EMAIL=admin@... ADMIN_PASSWORD=... \
+     bash scripts/smoke.sh
+   ```
+   Expect 15/15 PASS.
+4. If clean, re-run with environment=`both` (or push any commit to main; `migrate-on-deploy.yml` → `deploy-api.yml` chains automatically).
+
+### Stage 5 — Stripe webhook cutover (Task 13)
+
+1. Stripe Dashboard → Developers → Webhooks → existing endpoint → Edit destination URL to `https://api.novelhub.com/payments/webhook`. Use the workers.dev URL temporarily if pre-DNS.
+2. "Reveal signing secret" → copy the new `whsec_...`.
+3. Push to the Worker:
+   ```sh
+   cd apps/api
+   wrangler secret put STRIPE_WEBHOOK_SECRET --env production
+   # paste the new whsec
+   ```
+4. Stripe Dashboard → "Send test webhook" → `checkout.session.completed`. Confirm 200 in `wrangler tail --env production`.
+
+### Stage 6 — DNS cutover (Task 15)
+
+1. Edit `apps/api/wrangler.toml`: uncomment the `routes` lines for both `[env.staging]` and `[env.production]`. Push and let `deploy-api.yml` redeploy.
+2. Cloudflare Dashboard → your domain → DNS → add `CNAME api → novelhub-api.<account>.workers.dev` (proxied, orange cloud).
+3. Pages project → Custom domains → add `app.novelhub.com`.
+4. Wait ~2 min for DNS propagation, then:
+   ```sh
+   API=https://api.novelhub.com \
+   ADMIN_EMAIL=admin@... ADMIN_PASSWORD=... \
+     bash scripts/smoke.sh
+   ```
+   Expect 15/15 PASS.
+
+### Stage 7 — Vercel/VPS teardown (Task 16) and runbook rewrite (Task 19)
+
+Once Stage 6's smoke passes against the real domain, the Phase 1 stack is dead weight. Tell Claude to land Task 16: delete `apps/api/api/`, `apps/api/vercel.json`, `apps/api/Dockerfile`, `.github/workflows/staging-deploy.yml`, `apps/api/src/main.ts`, `apps/api/src/instrument.ts`, every Nest `*.module.ts` / `*.controller.ts` / `*.guard.ts` / `*.interceptor.ts` / `*.filter.ts`, and rewrite this runbook so Phase 1 sections become history.
+
+Pause Vercel Pro billing (if active) once the cutover holds for 24h.
 
 ## First Launch Checklist
 
