@@ -1,5 +1,3 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-
 import type { BooksService } from '../books/books.service';
 import type { CacheClient } from '../cache/cache.constants';
 import type { StorageClient } from '../storage/storage.constants';
@@ -109,12 +107,13 @@ const buildService = () => {
   const books = {
     invalidateListCaches: jest.fn(async () => undefined),
   } satisfies Partial<BooksService>;
-  const service = new AdminService(
-    prisma as never,
-    storage as StorageClient,
-    cache as CacheClient,
-    books as unknown as BooksService,
-  );
+  const service = new AdminService({
+    prisma: prisma as never,
+    storage: storage as StorageClient,
+    cache: cache as CacheClient,
+    books: books as unknown as BooksService,
+    publicR2Host: undefined,
+  });
   return { service, prisma, tx, storage, cache, books };
 };
 
@@ -232,7 +231,9 @@ describe('AdminService', () => {
 
   it('getBook throws when the book is missing', async () => {
     const { service } = buildService();
-    await expect(service.getBook('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getBook('missing')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('bulkCreateChapters uploads content before the DB transaction and creates sequential rows', async () => {
@@ -275,7 +276,7 @@ describe('AdminService', () => {
     const { service, storage } = buildService();
     await expect(
       service.bulkCreateChapters('book-1', [{ title: 'Large', content: 'x'.repeat(204801) }]),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toEqual(expect.objectContaining({ name: 'DomainError', status: 400 }));
     expect(storage.uploadText).not.toHaveBeenCalled();
   });
 
@@ -283,7 +284,7 @@ describe('AdminService', () => {
     const { service, storage } = buildService();
     await expect(
       service.bulkCreateChapters('missing', [{ title: 'One', content: 'body' }]),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toEqual(expect.objectContaining({ name: 'DomainError', status: 404 }));
     expect(storage.uploadText).not.toHaveBeenCalled();
   });
 
@@ -331,7 +332,9 @@ describe('AdminService', () => {
 
   it('getChapter throws when the chapter is missing', async () => {
     const { service } = buildService();
-    await expect(service.getChapter('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getChapter('missing')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('listUsers searches by email prefix and returns pagination shape', async () => {
@@ -372,7 +375,9 @@ describe('AdminService', () => {
 
   it('getUser throws when the user is missing', async () => {
     const { service } = buildService();
-    await expect(service.getUser('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getUser('missing')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('banUser sets bannedAt', async () => {
@@ -439,10 +444,12 @@ describe('AdminService', () => {
 
   it('coverUploadUrl rejects SVG and other unsupported image types', async () => {
     const { service, storage } = buildService();
-    await expect(service.coverUploadUrl('image/svg+xml')).rejects.toBeInstanceOf(
-      BadRequestException,
+    await expect(service.coverUploadUrl('image/svg+xml')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 400 }),
     );
-    await expect(service.coverUploadUrl('image/gif')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.coverUploadUrl('image/gif')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 400 }),
+    );
     expect(storage.getSignedUploadUrl).not.toHaveBeenCalled();
   });
 
@@ -485,7 +492,7 @@ describe('AdminService', () => {
     });
     await expect(
       service.bulkImportChapters('book-1', Buffer.from('', 'utf-8'), {}),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toEqual(expect.objectContaining({ name: 'DomainError', status: 400 }));
   });
 
   it('bulkImportChapters in replace mode soft-deletes existing chapters', async () => {

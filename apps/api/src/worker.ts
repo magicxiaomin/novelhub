@@ -18,6 +18,7 @@ import { DomainError } from './common/domain.errors';
 import { prismaMiddleware } from './worker/db/prisma';
 import type { AuthVariables } from './worker/middleware/auth';
 import { withCronLock } from './modules/notifications/cron/leader-election';
+import { adminRoutes } from './worker/routes/admin';
 import { authRoutes } from './worker/routes/auth';
 import { booksRoutes } from './worker/routes/books';
 import { chaptersRoutes } from './worker/routes/chapters';
@@ -28,6 +29,7 @@ import { readingProgressRoutes } from './worker/routes/reading-progress';
 import { unlocksRoutes } from './worker/routes/unlocks';
 import { webhookRoutes } from './worker/routes/webhook';
 import { makePrisma } from './worker/db/prisma';
+import type { AdminWorkerEnv } from './worker/services/admin-factory';
 import {
   makeNotificationsService,
   type NotificationsWorkerEnv,
@@ -46,7 +48,9 @@ type HealthResponse = {
 // lifetime; this matches the Nest STARTED_AT semantic for /health.uptime.
 const STARTED_AT = Date.now();
 
-const app = new Hono<{ Bindings: PaymentsWorkerEnv; Variables: Partial<AuthVariables> }>();
+type AppEnv = PaymentsWorkerEnv & NotificationsWorkerEnv & AdminWorkerEnv;
+
+const app = new Hono<{ Bindings: AppEnv; Variables: Partial<AuthVariables> }>();
 
 // Mirrors apps/api/src/app.controller.ts — same envelope shape so the
 // frontend health probe / UptimeRobot keyword match keeps working when DNS
@@ -74,6 +78,7 @@ app.use('/unlocks/*', prismaMiddleware);
 app.use('/reading-progress/*', prismaMiddleware);
 app.use('/checkin/*', prismaMiddleware);
 app.use('/payments/*', prismaMiddleware);
+app.use('/admin/*', prismaMiddleware);
 app.route('/auth', authRoutes);
 app.route('/books', booksRoutes);
 app.route('/chapters', chaptersRoutes);
@@ -81,6 +86,7 @@ app.route('/coins', coinsRoutes);
 app.route('/unlocks', unlocksRoutes);
 app.route('/reading-progress', readingProgressRoutes);
 app.route('/checkin', checkinRoutes);
+app.route('/admin', adminRoutes);
 // Webhook is mounted under /payments so Stripe Dashboard URLs stay valid.
 // Keep it after the other /payments routes so the path-prefix middleware
 // still hits it; Hono picks the matching route by path, not order, but the
@@ -153,7 +159,7 @@ const CRON_RENEWAL_REMINDER = '0 9 * * *';
 const RE_ENGAGEMENT_LOCK_KEY = 12001;
 const RENEWAL_REMINDER_LOCK_KEY = 12002;
 
-type WorkerEnvForScheduled = PaymentsWorkerEnv & NotificationsWorkerEnv;
+type WorkerEnvForScheduled = AppEnv;
 
 /**
  * Scheduled handler — Cloudflare invokes this on each `[triggers].crons`
