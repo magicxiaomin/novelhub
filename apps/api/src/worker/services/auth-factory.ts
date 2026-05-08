@@ -18,6 +18,12 @@ import { JoseJwtClient } from '../../modules/auth/jose-jwt.client';
 import { EmailClient } from './email-client';
 import { FbCapiClient } from './fb-capi-client';
 
+// Minimal R2 binding shape (avoid @cloudflare/workers-types runtime dep).
+interface R2BucketBinding {
+  get(key: string): Promise<{ text(): Promise<string> } | null>;
+  put(key: string, body: string | ArrayBuffer | ReadableStream): Promise<unknown>;
+}
+
 export type WorkerEnv = {
   DATABASE_URL?: string;
   JWT_SECRET?: string;
@@ -28,6 +34,14 @@ export type WorkerEnv = {
   EMAIL_FROM?: string;
   NEXT_PUBLIC_APP_URL?: string;
   NODE_ENV?: string;
+  // R2 (Task 4.2 — chapter content + signed URLs)
+  R2_ACCOUNT_ID?: string;
+  R2_ACCESS_KEY?: string;
+  R2_SECRET_KEY?: string;
+  R2_BUCKET?: string;
+  // R2 binding declared in wrangler.toml; preferred for `getText` /
+  // `uploadText` to skip the HTTP round-trip.
+  BUCKET?: R2BucketBinding;
 };
 
 export function makeAuthService(env: WorkerEnv, prisma: PrismaClient): AuthService {

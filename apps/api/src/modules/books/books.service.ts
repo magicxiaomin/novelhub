@@ -10,7 +10,7 @@ import type {
   ChapterSummary,
   Paginated,
 } from './books.types';
-import type { ListBooksDto, ListChaptersDto, SearchBooksDto } from './dto/list-books.dto';
+import type { ListBooksDto, ListChaptersDto, SearchBooksDto } from './dto/list-books.types';
 
 export type BooksServiceDeps = {
   prisma: PrismaClient;

@@ -18,6 +18,8 @@ import { DomainError } from './common/domain.errors';
 import { prismaMiddleware } from './worker/db/prisma';
 import type { AuthVariables } from './worker/middleware/auth';
 import { authRoutes } from './worker/routes/auth';
+import { booksRoutes } from './worker/routes/books';
+import { chaptersRoutes } from './worker/routes/chapters';
 import type { WorkerEnv } from './worker/services/auth-factory';
 
 type HealthResponse = {
@@ -49,11 +51,15 @@ app.get('/health', (c) => {
   return c.json(body);
 });
 
-// Open one Prisma client per /auth/* request and tear it down after the
-// handler resolves. Keeps connection lifetimes bounded so the pg.Pool
-// can't leak across miniflare isolate reuse.
+// Open one Prisma client per request and tear it down after the handler
+// resolves. Keeps connection lifetimes bounded so the pg.Pool can't leak
+// across miniflare isolate reuse.
 app.use('/auth/*', prismaMiddleware);
+app.use('/books/*', prismaMiddleware);
+app.use('/chapters/*', prismaMiddleware);
 app.route('/auth', authRoutes);
+app.route('/books', booksRoutes);
+app.route('/chapters', chaptersRoutes);
 
 // Mirrors apps/api/src/modules/auth/auth-error.filter.ts: AuthService throws
 // runtime-agnostic DomainError; we map back to the HTTP status here. Other
@@ -64,11 +70,21 @@ app.onError((err, c) => {
     return err.getResponse();
   }
   if (err instanceof DomainError) {
-    return c.json({ message: err.message }, err.status);
+    // Mirror the Nest DomainErrorFilter envelope so the frontend sees the
+    // same body shape on both stacks. `context` is merged as top-level
+    // keys for the 402 paywall response.
+    return c.json(
+      {
+        statusCode: err.status,
+        message: err.message,
+        ...(err.context ?? {}),
+      },
+      err.status,
+    );
   }
   // eslint-disable-next-line no-console
   console.error('[worker] unhandled error', err);
-  return c.json({ message: 'Internal Server Error' }, 500);
+  return c.json({ statusCode: 500, message: 'Internal Server Error' }, 500);
 });
 
 // Scheduled handler stub. Task 8 dispatches by event.cron string. Until then
