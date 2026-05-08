@@ -1,23 +1,33 @@
 name: Migrate Production DB
 
-# Phase 1: Vercel does not natively support a "pre-deploy" command, so the
-# migration step lives in GitHub Actions. This workflow runs `prisma migrate
-# deploy` against the production Supabase Postgres on every push to `main`,
-# and does so BEFORE Vercel's deploy hook fires (Vercel deploys take ~3 min;
-# migrations take seconds, so finishing first is reliably ordered).
+# Phase 1 (Vercel): the migration step lived here because Vercel doesn't
+# support a "pre-deploy" command — push to main, this workflow runs
+# `prisma migrate deploy` against Supabase Postgres BEFORE Vercel's deploy
+# hook fires. Vercel deploys take ~3 min; migrations take seconds, so
+# finishing first was reliably ordered.
 #
-# If migration fails: this workflow exits non-zero. Vercel still deploys (we
-# can't gate Vercel from here), but the next API request will surface the
-# missing column / constraint via Prisma's P3009 / P2022 errors and Sentry.
-# Roll forward by fixing the migration.
+# Phase 2 (Cloudflare migration, Task 11): the same workflow keeps running
+# pre-deploy. The reason it MUST point at the Direct (port 5432) connection
+# is now twofold:
+#   1. Prisma `migrate deploy` needs session-mode SQL — pgbouncer
+#      transaction mode (Supabase pooler) breaks DDL.
+#   2. The Worker connects to Postgres via Hyperdrive (Cloudflare's pooler),
+#      so a single `PRODUCTION_DATABASE_URL` secret would be ambiguous: the
+#      Worker secret points at the Hyperdrive-fronted URL, the migration job
+#      needs the raw Supabase Direct URL. To prevent the two from getting
+#      crossed, this workflow uses an explicitly-named
+#      `PRODUCTION_DATABASE_URL_DIRECT` secret.
+#
+# If migration fails: this workflow exits non-zero. The Cloudflare deploy
+# (deploy-api.yml — Task 12) will gate on this workflow's success via
+# `workflow_run`, so a failed migration prevents a broken deploy.
 #
 # Required secrets:
-#   PRODUCTION_DATABASE_URL  - Supabase Postgres connection string for
-#                              migration runs. Must point at the Direct
-#                              connection (port 5432), NOT the pooler
-#                              (Prisma migrate deploy needs a session-mode
-#                              connection that pgbouncer transaction-mode
-#                              breaks).
+#   PRODUCTION_DATABASE_URL_DIRECT  - Supabase Postgres connection string,
+#                                     Direct connection on port 5432.
+#                                     Format: postgresql://USER:PASS@HOST:5432/DB
+#                                     Do NOT use the Supabase pooler URL or
+#                                     a Hyperdrive HTTP URL here.
 
 on:
   push:
@@ -36,13 +46,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Skip if PRODUCTION_DATABASE_URL not configured
+      - name: Skip if PRODUCTION_DATABASE_URL_DIRECT not configured
         id: gate
         env:
-          DB_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DB_URL: ${{ secrets.PRODUCTION_DATABASE_URL_DIRECT }}
         run: |
           if [ -z "${DB_URL:-}" ]; then
-            echo "PRODUCTION_DATABASE_URL not set; production not yet provisioned. Skipping."
+            echo "PRODUCTION_DATABASE_URL_DIRECT not set; production not yet provisioned. Skipping."
             echo "configured=false" >> "$GITHUB_OUTPUT"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
@@ -69,5 +79,5 @@ jobs:
       - name: Run prisma migrate deploy
         if: steps.gate.outputs.configured == 'true'
         env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_DIRECT }}
         run: pnpm --filter @novelhub/db prisma:migrate-deploy
