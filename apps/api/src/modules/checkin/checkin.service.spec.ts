@@ -1,12 +1,8 @@
-import { ConflictException } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
-
-import { PRISMA } from '../auth/auth.constants';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
 import { CoinsService } from '../coins/coins.service';
 
 import { REWARD_BY_DAY } from './checkin.constants';
-import { CheckinService } from './checkin.service';
+import { CheckinService, type CheckinServiceDeps } from './checkin.service';
 
 type FakeUser = { id: string; coinBalance: number; deletedAt: Date | null };
 type FakeCheckin = {
@@ -112,7 +108,7 @@ describe('CheckinService', () => {
     transactions: FakeCoinTransaction[];
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-05-06T12:34:56.000Z'));
     state = {
       users: new Map([['user-1', { id: 'user-1', coinBalance: 10, deletedAt: null }]]),
@@ -131,14 +127,8 @@ describe('CheckinService', () => {
       return { balance: user.coinBalance, transactionId: 'coin-transaction-1' };
     });
     coinsService = { adjustBalance } as unknown as CoinsService;
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        CheckinService,
-        { provide: PRISMA, useValue: prisma },
-        { provide: CoinsService, useValue: coinsService },
-      ],
-    }).compile();
-    service = module.get(CheckinService);
+    const deps = { prisma, coins: coinsService } as unknown as CheckinServiceDeps;
+    service = new CheckinService(deps);
   });
 
   afterEach(() => {
@@ -227,7 +217,7 @@ describe('CheckinService', () => {
     );
   });
 
-  it('throws ConflictException when already claimed today', async () => {
+  it('throws DomainError(409) when already claimed today', async () => {
     state.checkins.push({
       userId: 'user-1',
       checkinDate: utcDate('2026-05-06'),
@@ -235,11 +225,13 @@ describe('CheckinService', () => {
       coinsAwarded: REWARD_BY_DAY[1],
     });
 
-    await expect(service.claim('user-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.claim('user-1')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 409 }),
+    );
     expect(adjustBalance).not.toHaveBeenCalled();
   });
 
-  it('maps a concurrent unique-constraint claim race to ConflictException', async () => {
+  it('maps a concurrent unique-constraint claim race to DomainError(409)', async () => {
     prisma.dailyCheckin.findFirst = async (): Promise<FakeCheckin | null> => null;
     prisma.dailyCheckin.create = async (): Promise<FakeCheckin> => {
       const err = new Error('Unique constraint failed');
@@ -247,7 +239,9 @@ describe('CheckinService', () => {
       throw err;
     };
 
-    await expect(service.claim('user-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.claim('user-1')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 409 }),
+    );
     expect(adjustBalance).not.toHaveBeenCalled();
   });
 
@@ -308,14 +302,8 @@ describe('CheckinService', () => {
         return { balance: user.coinBalance, transactionId: 'coin-transaction-1' };
       });
       coinsService = { adjustBalance } as unknown as CoinsService;
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          CheckinService,
-          { provide: PRISMA, useValue: prisma },
-          { provide: CoinsService, useValue: coinsService },
-        ],
-      }).compile();
-      service = module.get(CheckinService);
+      const deps = { prisma, coins: coinsService } as unknown as CheckinServiceDeps;
+      service = new CheckinService(deps);
 
       if (streakCount > 1) {
         state.checkins.push({

@@ -1,6 +1,7 @@
 import { BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ORDER_TYPE } from '@novelhub/shared';
+import type { PrismaClient } from '@prisma/client';
 
 import { PRISMA } from '../auth/auth.constants';
 import { CoinsService } from '../coins/coins.service';
@@ -243,7 +244,11 @@ describe('WebhookService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebhookService,
-        CoinsService,
+        {
+          provide: CoinsService,
+          useFactory: (p: PrismaClient): CoinsService => new CoinsService({ prisma: p }),
+          inject: [PRISMA],
+        },
         { provide: PRISMA, useValue: prisma },
         { provide: STRIPE_CLIENT, useValue: stripe },
         { provide: PURCHASE_EVENT_PUBLISHER, useValue: publisher.publisher },

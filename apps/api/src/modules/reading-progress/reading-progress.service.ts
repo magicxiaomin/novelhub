@@ -1,7 +1,7 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 
-import { PRISMA, SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
+import { DomainError } from '../../common/domain.errors';
+import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 
 import type { SaveProgressDto } from './dto/save-progress.dto';
 
@@ -23,9 +23,16 @@ export type ProgressListItem = {
   updatedAt: Date;
 };
 
-@Injectable()
+export type ReadingProgressServiceDeps = {
+  prisma: PrismaClient;
+};
+
 export class ReadingProgressService {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  private readonly prisma: PrismaClient;
+
+  constructor(deps: ReadingProgressServiceDeps) {
+    this.prisma = deps.prisma;
+  }
 
   async save(userId: string, dto: SaveProgressDto): Promise<ProgressResponse> {
     // Refuse to track progress for chapters the user can't actually read.
@@ -37,7 +44,7 @@ export class ReadingProgressService {
       select: { id: true, bookId: true, isFree: true },
     });
     if (!chapter || !(await this.userCanRead(userId, chapter))) {
-      throw new NotFoundException(`Chapter ${dto.chapterId} not found`);
+      throw DomainError.notFound(`Chapter ${dto.chapterId} not found`);
     }
 
     const scrollPosition = clampScrollPercent(dto.scrollPercent);

@@ -6,6 +6,7 @@ import { DomainError } from './domain.errors';
 const STATUS_TEXT: Record<number, string> = {
   [HttpStatus.BAD_REQUEST]: 'Bad Request',
   [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
+  [HttpStatus.PAYMENT_REQUIRED]: 'Payment Required',
   [HttpStatus.FORBIDDEN]: 'Forbidden',
   [HttpStatus.NOT_FOUND]: 'Not Found',
   [HttpStatus.CONFLICT]: 'Conflict',
@@ -33,6 +34,7 @@ export class DomainErrorFilter implements ExceptionFilter {
       statusCode: exception.status,
       message: exception.message,
       error: STATUS_TEXT[exception.status] ?? 'Error',
+      ...(exception.context ?? {}),
     });
   }
 }

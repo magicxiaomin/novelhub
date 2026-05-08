@@ -1,9 +1,8 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
-import { PRISMA } from '../auth/auth.constants';
+import { DomainError } from '../../common/domain.errors';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
-import { CoinsService } from '../coins/coins.service';
+import type { CoinsService } from '../coins/coins.service';
 
 import { REWARD_BY_DAY } from './checkin.constants';
 
@@ -27,12 +26,19 @@ type RecentCheckin = {
   coinsAwarded: number;
 };
 
-@Injectable()
+export type CheckinServiceDeps = {
+  prisma: PrismaClient;
+  coins: CoinsService;
+};
+
 export class CheckinService {
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly coins: CoinsService,
-  ) {}
+  private readonly prisma: PrismaClient;
+  private readonly coins: CoinsService;
+
+  constructor(deps: CheckinServiceDeps) {
+    this.prisma = deps.prisma;
+    this.coins = deps.coins;
+  }
 
   async getStatus(userId: string): Promise<CheckinStatus> {
     const { today, yesterday, todayKey, yesterdayKey } = this.getUtcDayWindow();
@@ -75,7 +81,7 @@ export class CheckinService {
         const latestKey = latest ? toIsoDate(latest.checkinDate) : null;
 
         if (latestKey === todayKey) {
-          throw new ConflictException('Already checked in today');
+          throw DomainError.conflict('Already checked in today');
         }
 
         const streakCount = latestKey === yesterdayKey && latest ? latest.streakCount + 1 : 1;
@@ -102,7 +108,7 @@ export class CheckinService {
       });
     } catch (err) {
       if (hasPrismaCode(err, 'P2002')) {
-        throw new ConflictException('Already checked in today');
+        throw DomainError.conflict('Already checked in today');
       }
       throw err;
     }

@@ -1,8 +1,7 @@
-import { Test, type TestingModule } from '@nestjs/testing';
-
-import { PRISMA } from '../auth/auth.constants';
-
-import { ReadingProgressService } from './reading-progress.service';
+import {
+  ReadingProgressService,
+  type ReadingProgressServiceDeps,
+} from './reading-progress.service';
 
 type FakeProgress = {
   id: string;
@@ -125,17 +124,17 @@ const buildPrismaStub = (state: StubState) => {
 };
 
 describe('ReadingProgressService', () => {
-  const buildService = async (
+  const buildService = (
     state: StubState,
-  ): Promise<{ service: ReadingProgressService; state: StubState }> => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [ReadingProgressService, { provide: PRISMA, useValue: buildPrismaStub(state) }],
-    }).compile();
-    return { service: module.get(ReadingProgressService), state };
+  ): { service: ReadingProgressService; state: StubState } => {
+    const deps = {
+      prisma: buildPrismaStub(state),
+    } as unknown as ReadingProgressServiceDeps;
+    return { service: new ReadingProgressService(deps), state };
   };
 
   it('upserts progress for the current user and clamps scrollPercent', async () => {
-    const { service, state } = await buildService({
+    const { service, state } = buildService({
       progress: [],
       chapters: [{ id: 'chapter-1', bookId: 'book-1', isFree: true }],
     });
@@ -160,7 +159,7 @@ describe('ReadingProgressService', () => {
   });
 
   it('rejects save() when the chapter is locked and the user has no unlock or subscription', async () => {
-    const { service } = await buildService({
+    const { service } = buildService({
       progress: [],
       chapters: [{ id: 'chapter-locked', bookId: 'book-1', isFree: false }],
     });
@@ -171,7 +170,7 @@ describe('ReadingProgressService', () => {
   });
 
   it('accepts save() for a locked chapter when the user owns an unlock', async () => {
-    const { service, state } = await buildService({
+    const { service, state } = buildService({
       progress: [],
       chapters: [{ id: 'chapter-locked', bookId: 'book-1', isFree: false }],
       unlocks: [{ userId: 'user-1', chapterId: 'chapter-locked' }],
@@ -182,7 +181,7 @@ describe('ReadingProgressService', () => {
   });
 
   it('accepts save() for a locked chapter when the user has an active subscription', async () => {
-    const { service, state } = await buildService({
+    const { service, state } = buildService({
       progress: [],
       chapters: [{ id: 'chapter-locked', bookId: 'book-1', isFree: false }],
       subscriptions: [
@@ -199,7 +198,7 @@ describe('ReadingProgressService', () => {
   });
 
   it('rejects save() for a chapter that does not exist (matches the no-access response)', async () => {
-    const { service } = await buildService({
+    const { service } = buildService({
       progress: [],
       chapters: [],
     });
@@ -228,7 +227,7 @@ describe('ReadingProgressService', () => {
         book: { title: `Book ${n}`, coverUrl: `https://cdn.example.test/${n}.jpg` },
       };
     });
-    const { service } = await buildService({ progress, chapters: [] });
+    const { service } = buildService({ progress, chapters: [] });
 
     const recent = await service.listRecent('user-1');
 

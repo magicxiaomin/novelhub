@@ -1,10 +1,5 @@
-import { NotFoundException } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
-
-import { PRISMA } from '../auth/auth.constants';
-
 import { COIN_TXN_TYPE } from './coins.constants';
-import { CoinsService } from './coins.service';
+import { CoinsService, type CoinsServiceDeps } from './coins.service';
 import { InsufficientBalanceError } from './insufficient-balance.exception';
 
 type FakeUser = { id: string; coinBalance: number; deletedAt: Date | null };
@@ -96,12 +91,9 @@ describe('CoinsService', () => {
   let service: CoinsService;
   let stub: ReturnType<typeof buildPrismaStub>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     stub = buildPrismaStub();
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [CoinsService, { provide: PRISMA, useValue: stub.prisma }],
-    }).compile();
-    service = module.get(CoinsService);
+    service = new CoinsService({ prisma: stub.prisma } as unknown as CoinsServiceDeps);
   });
 
   it('grants coins and writes a txn row with balanceAfter', async () => {
@@ -136,15 +128,15 @@ describe('CoinsService', () => {
     expect(stub.users.get('u1')?.coinBalance).toBe(3);
   });
 
-  it('throws NotFoundException for unknown / soft-deleted user', async () => {
+  it('throws DomainError(404) for unknown / soft-deleted user', async () => {
     await expect(
       service.adjustBalance('ghost', 10, COIN_TXN_TYPE.ADMIN_ADJUSTMENT),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toEqual(expect.objectContaining({ name: 'DomainError', status: 404 }));
 
     stub.users.set('dead', { id: 'dead', coinBalance: 0, deletedAt: new Date() });
-    await expect(
-      service.adjustBalance('dead', 10, COIN_TXN_TYPE.ADMIN_ADJUSTMENT),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.adjustBalance('dead', 10, COIN_TXN_TYPE.ADMIN_ADJUSTMENT)).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('amount=0 is a no-op (no txn row)', async () => {

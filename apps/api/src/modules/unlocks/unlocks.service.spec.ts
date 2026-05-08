@@ -1,12 +1,8 @@
-import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
-
-import { PRISMA } from '../auth/auth.constants';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
 import { CoinsService } from '../coins/coins.service';
 
 import { UNLOCK_METHOD } from './unlocks.constants';
-import { UnlocksService } from './unlocks.service';
+import { UnlocksService, type UnlocksServiceDeps } from './unlocks.service';
 
 type FakeChapter = {
   id: string;
@@ -175,18 +171,17 @@ const buildState = (
 };
 
 describe('UnlocksService', () => {
-  const buildService = async (
+  const buildService = (
     state: ReturnType<typeof buildState>,
-  ): Promise<{ service: UnlocksService; state: typeof state }> => {
+  ): { service: UnlocksService; state: typeof state } => {
     const prismaStub = buildPrismaStub(state);
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [UnlocksService, CoinsService, { provide: PRISMA, useValue: prismaStub }],
-    }).compile();
-    return { service: module.get(UnlocksService), state };
+    const coins = new CoinsService({ prisma: prismaStub } as never);
+    const deps = { prisma: prismaStub, coins } as unknown as UnlocksServiceDeps;
+    return { service: new UnlocksService(deps), state };
   };
 
   it('happy path: spends coinPerChapter and writes COINS unlock', async () => {
-    const { service, state } = await buildService(buildState());
+    const { service, state } = buildService(buildState());
     const r = await service.unlockChapter('user-1', 'chapter-1');
     expect(r.method).toBe(UNLOCK_METHOD.COINS);
     expect(state.unlocks).toHaveLength(1);
@@ -200,7 +195,7 @@ describe('UnlocksService', () => {
   });
 
   it('idempotent: returns existing unlock without charging coins again', async () => {
-    const { service, state } = await buildService(buildState());
+    const { service, state } = buildService(buildState());
     await service.unlockChapter('user-1', 'chapter-1');
     expect(state.users[0]?.coinBalance).toBe(45);
     const r = await service.unlockChapter('user-1', 'chapter-1');
@@ -210,7 +205,7 @@ describe('UnlocksService', () => {
   });
 
   it('subscriber: writes SUBSCRIPTION unlock without coin charge', async () => {
-    const { service, state } = await buildService(
+    const { service, state } = buildService(
       buildState({
         hasSubscription: true,
         users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }],
@@ -224,7 +219,7 @@ describe('UnlocksService', () => {
   });
 
   it('free chapter: 400 BadRequest', async () => {
-    const { service } = await buildService(
+    const { service } = buildService(
       buildState({
         chapter: {
           id: 'chapter-1',
@@ -235,31 +230,31 @@ describe('UnlocksService', () => {
         },
       }),
     );
-    await expect(service.unlockChapter('user-1', 'chapter-1')).rejects.toBeInstanceOf(
-      BadRequestException,
+    await expect(service.unlockChapter('user-1', 'chapter-1')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 400 }),
     );
   });
 
   it('insufficient balance: 402 PaymentRequired with paywall envelope', async () => {
-    const { service } = await buildService(
+    const { service } = buildService(
       buildState({ users: [{ id: 'user-1', coinBalance: 3, deletedAt: null }] }),
     );
     const promise = service.unlockChapter('user-1', 'chapter-1');
-    await expect(promise).rejects.toBeInstanceOf(HttpException);
-    try {
-      await promise;
-    } catch (err) {
-      const httpErr = err as HttpException;
-      expect(httpErr.getStatus()).toBe(402);
-      const body = httpErr.getResponse() as Record<string, unknown>;
-      expect(body.coinCost).toBe(5);
-      expect(body.currentBalance).toBe(3);
-      expect(body.chapterId).toBe('chapter-1');
-    }
+    await expect(promise).rejects.toEqual(
+      expect.objectContaining({
+        name: 'DomainError',
+        status: 402,
+        context: expect.objectContaining({
+          chapterId: 'chapter-1',
+          coinCost: 5,
+          currentBalance: 3,
+        }),
+      }),
+    );
   });
 
   it('insufficient balance: does not debit coins or write txn', async () => {
-    const { service, state } = await buildService(
+    const { service, state } = buildService(
       buildState({ users: [{ id: 'user-1', coinBalance: 3, deletedAt: null }] }),
     );
     await expect(service.unlockChapter('user-1', 'chapter-1')).rejects.toThrow();
@@ -269,30 +264,30 @@ describe('UnlocksService', () => {
   });
 
   it('unknown chapter: 404', async () => {
-    const { service } = await buildService(buildState());
-    await expect(service.unlockChapter('user-1', 'missing')).rejects.toBeInstanceOf(
-      NotFoundException,
+    const { service } = buildService(buildState());
+    await expect(service.unlockChapter('user-1', 'missing')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
     );
   });
 
   it('chapter on soft-deleted book: 404', async () => {
     const state = buildState();
     state.chapters[0]!.book.deletedAt = new Date();
-    const { service } = await buildService(state);
-    await expect(service.unlockChapter('user-1', 'chapter-1')).rejects.toBeInstanceOf(
-      NotFoundException,
+    const { service } = buildService(state);
+    await expect(service.unlockChapter('user-1', 'chapter-1')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
     );
   });
 
   it('concurrent unlocks: exactly one COINS spend, others reuse the unlock', async () => {
-    const { service, state } = await buildService(
+    const { service, state } = buildService(
       buildState({ users: [{ id: 'user-1', coinBalance: 5, deletedAt: null }] }),
     );
     const attempts = Array.from({ length: 10 }, () =>
       service
         .unlockChapter('user-1', 'chapter-1')
         .then((u) => ({ ok: true as const, method: u.method }))
-        .catch((e) => ({ ok: false as const, status: (e as HttpException).getStatus?.() })),
+        .catch((e) => ({ ok: false as const, status: (e as { status?: number }).status })),
     );
     const results = await Promise.all(attempts);
     const successes = results.filter((r) => r.ok);

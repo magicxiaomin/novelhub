@@ -1,26 +1,26 @@
-import {
-  BadRequestException,
-  HttpException,
-  HttpStatus,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 
-import { PRISMA, SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
+import { DomainError } from '../../common/domain.errors';
+import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
-import { CoinsService } from '../coins/coins.service';
+import type { CoinsService } from '../coins/coins.service';
 import { InsufficientBalanceError } from '../coins/insufficient-balance.exception';
 
 import { UNLOCK_METHOD, type UnlockListItem, type UnlockResponse } from './unlocks.constants';
 
-@Injectable()
+export type UnlocksServiceDeps = {
+  prisma: PrismaClient;
+  coins: CoinsService;
+};
+
 export class UnlocksService {
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly coins: CoinsService,
-  ) {}
+  private readonly prisma: PrismaClient;
+  private readonly coins: CoinsService;
+
+  constructor(deps: UnlocksServiceDeps) {
+    this.prisma = deps.prisma;
+    this.coins = deps.coins;
+  }
 
   /**
    * Unlock a chapter for the user.
@@ -32,7 +32,8 @@ export class UnlocksService {
    *   writes a method=COINS unlock. The spend + unlock happen inside one
    *   `$transaction` so a partial failure can never leave coins debited
    *   without an unlock or vice versa.
-   * - Insufficient balance: throws `HttpException(402)` with the paywall envelope.
+   * - Insufficient balance: throws `DomainError(402)` with the paywall context
+   *   ({ chapterId, coinCost, currentBalance }) the filter merges into the body.
    */
   async unlockChapter(userId: string, chapterId: string): Promise<UnlockResponse> {
     const existing = await this.prisma.chapterUnlock.findUnique({
@@ -60,10 +61,10 @@ export class UnlocksService {
       },
     });
     if (!chapter || chapter.book.deletedAt !== null) {
-      throw new NotFoundException('Chapter not found');
+      throw DomainError.notFound('Chapter not found');
     }
     if (chapter.isFree) {
-      throw new BadRequestException('Chapter is already free; no unlock needed');
+      throw DomainError.badRequest('Chapter is already free; no unlock needed');
     }
 
     if (await this.hasActiveSubscription(userId)) {
@@ -99,17 +100,11 @@ export class UnlocksService {
       };
     } catch (err) {
       if (err instanceof InsufficientBalanceError) {
-        throw new HttpException(
-          {
-            statusCode: HttpStatus.PAYMENT_REQUIRED,
-            error: 'Payment Required',
-            message: 'Insufficient coin balance',
-            chapterId,
-            coinCost: err.required,
-            currentBalance: err.current,
-          },
-          HttpStatus.PAYMENT_REQUIRED,
-        );
+        throw DomainError.paymentRequired('Insufficient coin balance', {
+          chapterId,
+          coinCost: err.required,
+          currentBalance: err.current,
+        });
       }
       // Concurrent unique-constraint hit: someone else just unlocked this
       // chapter for the same user. Treat as idempotent success.
