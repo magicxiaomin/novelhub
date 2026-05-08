@@ -1,0 +1,31 @@
+{
+  "startedAt": "2026-05-08T02:47:43.413Z",
+  "checks": [
+    {
+      "name": "select1",
+      "pass": true,
+      "ms": 149,
+      "detail": "returned 1"
+    },
+    {
+      "name": "book-findMany",
+      "pass": true,
+      "ms": 29,
+      "detail": "found 3 books"
+    },
+    {
+      "name": "serializable-tx",
+      "pass": true,
+      "ms": 31,
+      "detail": "tx with isolationLevel Serializable committed"
+    },
+    {
+      "name": "advisory-lock",
+      "pass": true,
+      "ms": 16,
+      "detail": "pg_try_advisory_xact_lock(99999) acquired"
+    }
+  ],
+  "endedAt": "2026-05-08T02:47:43.646Z",
+  "allPass": true
+}
