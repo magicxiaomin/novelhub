@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { DomainError } from '../../common/domain.errors';
 import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 
-import type { SaveProgressDto } from './dto/save-progress.dto';
+import type { SaveProgressDto } from './dto/save-progress.types';
 
 export type ProgressResponse = {
   id: string;

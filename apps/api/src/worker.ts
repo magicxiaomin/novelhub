@@ -20,6 +20,10 @@ import type { AuthVariables } from './worker/middleware/auth';
 import { authRoutes } from './worker/routes/auth';
 import { booksRoutes } from './worker/routes/books';
 import { chaptersRoutes } from './worker/routes/chapters';
+import { checkinRoutes } from './worker/routes/checkin';
+import { coinsRoutes } from './worker/routes/coins';
+import { readingProgressRoutes } from './worker/routes/reading-progress';
+import { unlocksRoutes } from './worker/routes/unlocks';
 import type { WorkerEnv } from './worker/services/auth-factory';
 
 type HealthResponse = {
@@ -57,34 +61,67 @@ app.get('/health', (c) => {
 app.use('/auth/*', prismaMiddleware);
 app.use('/books/*', prismaMiddleware);
 app.use('/chapters/*', prismaMiddleware);
+app.use('/coins/*', prismaMiddleware);
+app.use('/unlocks/*', prismaMiddleware);
+app.use('/reading-progress/*', prismaMiddleware);
+app.use('/checkin/*', prismaMiddleware);
 app.route('/auth', authRoutes);
 app.route('/books', booksRoutes);
 app.route('/chapters', chaptersRoutes);
+app.route('/coins', coinsRoutes);
+app.route('/unlocks', unlocksRoutes);
+app.route('/reading-progress', readingProgressRoutes);
+app.route('/checkin', checkinRoutes);
 
-// Mirrors apps/api/src/modules/auth/auth-error.filter.ts: AuthService throws
-// runtime-agnostic DomainError; we map back to the HTTP status here. Other
-// thrown errors fall through to Hono's default 500 unless they're already
-// HTTPException instances.
+// HTTP status text — mirrors apps/api/src/common/domain-error.filter.ts so
+// both stacks emit the same `{statusCode, message, error, ...context}` body
+// shape. Frontend error rendering keeps working identically against either
+// origin during the cutover.
+const STATUS_TEXT: Record<number, string> = {
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  402: 'Payment Required',
+  403: 'Forbidden',
+  404: 'Not Found',
+  409: 'Conflict',
+  500: 'Internal Server Error',
+};
+
+// Mirrors apps/api/src/common/domain-error.filter.ts. Three cases:
+//   - DomainError: thrown by services on the runtime-agnostic path
+//   - HTTPException: thrown by Hono internals (zValidator failures, the
+//     auth middleware's 401, etc.). We unwrap the message + status and
+//     render the same JSON envelope rather than Hono's default text body.
+//   - Anything else: log + 500. Sentry is not yet wired into the Worker
+//     (Task 18); until then, console errors land in `wrangler tail`.
 app.onError((err, c) => {
-  if (err instanceof HTTPException) {
-    return err.getResponse();
-  }
   if (err instanceof DomainError) {
-    // Mirror the Nest DomainErrorFilter envelope so the frontend sees the
-    // same body shape on both stacks. `context` is merged as top-level
-    // keys for the 402 paywall response.
     return c.json(
       {
         statusCode: err.status,
         message: err.message,
+        error: STATUS_TEXT[err.status] ?? 'Error',
         ...(err.context ?? {}),
+      },
+      err.status,
+    );
+  }
+  if (err instanceof HTTPException) {
+    return c.json(
+      {
+        statusCode: err.status,
+        message: err.message,
+        error: STATUS_TEXT[err.status] ?? 'Error',
       },
       err.status,
     );
   }
   // eslint-disable-next-line no-console
   console.error('[worker] unhandled error', err);
-  return c.json({ statusCode: 500, message: 'Internal Server Error' }, 500);
+  return c.json(
+    { statusCode: 500, message: 'Internal Server Error', error: 'Internal Server Error' },
+    500,
+  );
 });
 
 // Scheduled handler stub. Task 8 dispatches by event.cron string. Until then

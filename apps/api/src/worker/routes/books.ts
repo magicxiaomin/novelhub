@@ -16,6 +16,7 @@ import { z } from 'zod';
 
 import type { PrismaVariables } from '../db/prisma';
 import type { AuthVariables } from '../middleware/auth';
+import { validationHook } from '../middleware/validator';
 import type { WorkerEnv } from '../services/auth-factory';
 import { makeBooksService } from '../services/catalog-factory';
 import {
@@ -31,7 +32,7 @@ type Variables = PrismaVariables & Partial<AuthVariables>;
 const idParamSchema = z.object({ id: uuidParam });
 
 export const booksRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>()
-  .get('/', zValidator('query', listBooksQuerySchema), async (c) => {
+  .get('/', zValidator('query', listBooksQuerySchema, validationHook), async (c) => {
     const query = c.req.valid('query');
     const books = makeBooksService(c.env, c.get('prisma'));
     const result = await books.list(query);
@@ -52,13 +53,13 @@ export const booksRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }
     const result = await books.categories();
     return c.json(result, 200);
   })
-  .get('/search', zValidator('query', searchBooksQuerySchema), async (c) => {
+  .get('/search', zValidator('query', searchBooksQuerySchema, validationHook), async (c) => {
     const query = c.req.valid('query');
     const books = makeBooksService(c.env, c.get('prisma'));
     const result = await books.search(query);
     return c.json(result, 200);
   })
-  .get('/:id', zValidator('param', idParamSchema), async (c) => {
+  .get('/:id', zValidator('param', idParamSchema, validationHook), async (c) => {
     const { id } = c.req.valid('param');
     const books = makeBooksService(c.env, c.get('prisma'));
     const result = await books.getById(id);
@@ -66,8 +67,8 @@ export const booksRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }
   })
   .get(
     '/:id/chapters',
-    zValidator('param', idParamSchema),
-    zValidator('query', listChaptersQuerySchema),
+    zValidator('param', idParamSchema, validationHook),
+    zValidator('query', listChaptersQuerySchema, validationHook),
     async (c) => {
       const { id } = c.req.valid('param');
       const query = c.req.valid('query');

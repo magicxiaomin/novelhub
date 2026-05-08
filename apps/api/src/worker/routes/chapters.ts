@@ -13,6 +13,7 @@ import { z } from 'zod';
 
 import type { PrismaVariables } from '../db/prisma';
 import { optionalAuth, type AuthVariables } from '../middleware/auth';
+import { validationHook } from '../middleware/validator';
 import type { WorkerEnv } from '../services/auth-factory';
 import { makeChaptersService } from '../services/catalog-factory';
 import { uuidParam } from './catalog.schemas';
@@ -24,7 +25,7 @@ const idParamSchema = z.object({ id: uuidParam });
 
 export const chaptersRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>().get(
   '/:id',
-  zValidator('param', idParamSchema),
+  zValidator('param', idParamSchema, validationHook),
   optionalAuth,
   async (c) => {
     const { id } = c.req.valid('param');
