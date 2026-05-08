@@ -11,8 +11,9 @@ test('anonymous reading progress failures are swallowed without console errors',
   });
 
   await page.goto('/read/11111111-1111-4111-8111-111111111111/1');
+  // Chapter title appears in both the reader top-bar and the article body.
   await expect(
-    page.getByRole('heading', { name: 'A Truth Universally Acknowledged' }),
+    page.getByRole('article').getByRole('heading', { name: 'A Truth Universally Acknowledged' }),
   ).toBeVisible();
   await expect(page.getByText(/It is a truth universally acknowledged/i)).toBeVisible();
 
