@@ -63,6 +63,9 @@ jobs:
           pnpm --filter @novelhub/db prisma:migrate-deploy
           pnpm --filter @novelhub/db prisma:seed
 
+      - name: Build shared
+        run: pnpm --filter @novelhub/shared build
+
       - name: Build API
         run: pnpm --filter @novelhub/api build
 
@@ -70,20 +73,24 @@ jobs:
         run: pnpm --filter @novelhub/web build
 
       - name: Start API (background)
-        run: pnpm --filter @novelhub/api start &
+        run: nohup pnpm --filter @novelhub/api start > /tmp/api.log 2>&1 &
 
       - name: Start web (background)
-        run: pnpm --filter @novelhub/web start &
+        run: nohup pnpm --filter @novelhub/web start > /tmp/web.log 2>&1 &
 
       - name: Wait for services
         run: |
-          for i in {1..60}; do
-            if curl -sf http://localhost:4000/health && curl -sf http://localhost:3000; then
+          for i in {1..90}; do
+            if curl -sf http://localhost:4000/health && curl -sf http://localhost:3000 -o /dev/null; then
               exit 0
             fi
             sleep 2
           done
           echo "Services did not become ready in time" >&2
+          echo "--- api.log ---"
+          tail -100 /tmp/api.log || true
+          echo "--- web.log ---"
+          tail -100 /tmp/web.log || true
           exit 1
 
       - name: Install Playwright browsers
