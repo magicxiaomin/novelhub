@@ -9,6 +9,7 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -16,6 +17,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { type AuthUser, COOKIE_REFRESH } from './auth.constants';
+import { AuthErrorFilter } from './auth-error.filter';
 import { AuthService } from './auth.service';
 import { clearAuthCookies, setAuthCookies } from './cookies';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -33,6 +35,7 @@ type GoogleAuthResponse = AuthResponse & { isNewUser: boolean; created: boolean 
 
 @ApiTags('auth')
 @Controller('auth')
+@UseFilters(AuthErrorFilter)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
