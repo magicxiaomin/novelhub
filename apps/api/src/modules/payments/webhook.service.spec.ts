@@ -1,14 +1,9 @@
-import { BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
 import { ORDER_TYPE } from '@novelhub/shared';
-import type { PrismaClient } from '@prisma/client';
 
-import { PRISMA } from '../auth/auth.constants';
 import { CoinsService } from '../coins/coins.service';
 
-import { PURCHASE_EVENT_PUBLISHER, type PurchaseCompletedEvent } from './purchase-event.publisher';
-import { STRIPE_CLIENT } from './stripe.constants';
-import { WebhookService } from './webhook.service';
+import { type PurchaseCompletedEvent } from './purchase-event.publisher';
+import { WebhookService, type WebhookServiceDeps } from './webhook.service';
 
 type FakeOrder = {
   id: string;
@@ -210,7 +205,9 @@ const buildPrismaStub = (state: {
 const buildStripeStub = (buildEvent: (raw: Buffer, sig: string, secret: string) => unknown) => ({
   get: () => ({
     webhooks: {
-      constructEvent: (raw: Buffer, sig: string, secret: string) => buildEvent(raw, sig, secret),
+      // Mirror the Stripe SDK 17 signature: payload, header, secret, tolerance, cryptoProvider, receivedAt
+      constructEventAsync: async (raw: Buffer, sig: string, secret: string): Promise<unknown> =>
+        buildEvent(raw, sig, secret),
     },
   }),
 });
@@ -228,34 +225,27 @@ const buildPublisherStub = () => {
 };
 
 describe('WebhookService', () => {
-  const buildService = async (
+  const buildService = (
     state: ReturnType<typeof buildState>,
     eventBuilder: () => unknown,
-  ): Promise<{
+  ): {
     service: WebhookService;
     state: typeof state;
     publishedEvents: PurchaseCompletedEvent[];
-  }> => {
+  } => {
     const prisma = buildPrismaStub(state);
     const stripe = buildStripeStub(() => eventBuilder());
     const publisher = buildPublisherStub();
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        WebhookService,
-        {
-          provide: CoinsService,
-          useFactory: (p: PrismaClient): CoinsService => new CoinsService({ prisma: p }),
-          inject: [PRISMA],
-        },
-        { provide: PRISMA, useValue: prisma },
-        { provide: STRIPE_CLIENT, useValue: stripe },
-        { provide: PURCHASE_EVENT_PUBLISHER, useValue: publisher.publisher },
-      ],
-    }).compile();
+    const coins = new CoinsService({ prisma } as never);
+    const deps = {
+      prisma,
+      stripe,
+      coins,
+      purchasePublisher: publisher.publisher,
+      webhookSecret: 'whsec_test',
+    } as unknown as WebhookServiceDeps;
     return {
-      service: module.get(WebhookService),
+      service: new WebhookService(deps),
       state,
       publishedEvents: publisher.events,
     };
@@ -271,20 +261,20 @@ describe('WebhookService', () => {
   });
 
   it('rejects requests without a signature header', async () => {
-    const { service } = await buildService(buildState(), () => {
+    const { service } = buildService(buildState(), () => {
       throw new Error('should not be called');
     });
-    await expect(service.handleEvent(Buffer.from('{}'), undefined)).rejects.toBeInstanceOf(
-      BadRequestException,
+    await expect(service.handleEvent(Buffer.from('{}'), undefined)).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 400 }),
     );
   });
 
   it('rejects when constructEvent throws (bad signature)', async () => {
-    const { service } = await buildService(buildState(), () => {
+    const { service } = buildService(buildState(), () => {
       throw new Error('Webhook signature verification failed');
     });
-    await expect(service.handleEvent(Buffer.from('{}'), 'whsec_garbage')).rejects.toBeInstanceOf(
-      BadRequestException,
+    await expect(service.handleEvent(Buffer.from('{}'), 'whsec_garbage')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 400 }),
     );
   });
 
@@ -321,7 +311,7 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service, publishedEvents } = await buildService(state, () => event);
+    const { service, publishedEvents } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
 
     expect(state.users[0]?.coinBalance).toBe(120);
@@ -370,7 +360,7 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service, publishedEvents } = await buildService(state, () => event);
+    const { service, publishedEvents } = buildService(state, () => event);
     const first = await service.handleEvent(Buffer.from('{}'), 'sig');
     const second = await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(first.duplicate).toBeUndefined();
@@ -399,7 +389,7 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service, publishedEvents } = await buildService(state, () => event);
+    const { service, publishedEvents } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(state.orders).toHaveLength(1);
     expect(state.orders[0]?.status).toBe('completed');
@@ -445,7 +435,7 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service, publishedEvents } = await buildService(state, () => event);
+    const { service, publishedEvents } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
 
     expect(state.orders[0]?.status).toBe('completed');
@@ -480,7 +470,7 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service } = await buildService(state, () => event);
+    const { service } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(state.subs).toHaveLength(1);
     expect(state.subs[0]).toMatchObject({
@@ -510,7 +500,7 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service } = await buildService(state, () => event);
+    const { service } = buildService(state, () => event);
     await expect(service.handleEvent(Buffer.from('{}'), 'sig')).resolves.toMatchObject({
       received: true,
     });
@@ -543,7 +533,7 @@ describe('WebhookService', () => {
         },
       },
     };
-    const { service } = await buildService(state, () => event);
+    const { service } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(state.subs[0]?.status).toBe('canceled');
   });
@@ -566,7 +556,7 @@ describe('WebhookService', () => {
       type: 'invoice.payment_failed',
       data: { object: { subscription: 'sub_test_1' } },
     };
-    const { service } = await buildService(state, () => event);
+    const { service } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(state.subs[0]?.status).toBe('past_due');
   });
@@ -592,7 +582,7 @@ describe('WebhookService', () => {
       type: 'charge.refunded',
       data: { object: { id: 'ch_1', payment_intent: 'pi_test_1' } },
     };
-    const { service } = await buildService(state, () => event);
+    const { service } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
     expect(state.users[0]?.coinBalance).toBe(0);
     expect(state.orders[0]?.status).toBe('refunded');
@@ -619,7 +609,7 @@ describe('WebhookService', () => {
       type: 'charge.refunded',
       data: { object: { id: 'ch_1', payment_intent: 'pi_test_1' } },
     };
-    const { service } = await buildService(state, () => event);
+    const { service } = buildService(state, () => event);
     await service.handleEvent(Buffer.from('{}'), 'sig');
     await service.handleEvent(Buffer.from('{}'), 'sig');
     // Balance stays at 0 (only debited once)
@@ -633,7 +623,7 @@ describe('WebhookService', () => {
       type: 'charge.refunded',
       data: { object: { id: 'ch_x', payment_intent: 'pi_unknown' } },
     };
-    const { service } = await buildService(state, () => event);
+    const { service } = buildService(state, () => event);
     await expect(service.handleEvent(Buffer.from('{}'), 'sig')).resolves.toMatchObject({
       received: true,
     });
@@ -641,10 +631,20 @@ describe('WebhookService', () => {
 
   it('rejects with 500 (NOT 400) when STRIPE_WEBHOOK_SECRET is unset — server-side misconfig must trigger Stripe retry', async () => {
     const state = buildState();
-    const { service } = await buildService(state, () => ({}));
-    delete process.env.STRIPE_WEBHOOK_SECRET;
-    await expect(service.handleEvent(Buffer.from('{}'), 'sig')).rejects.toBeInstanceOf(
-      InternalServerErrorException,
+    const prisma = buildPrismaStub(state);
+    const stripe = buildStripeStub(() => ({}));
+    const publisher = buildPublisherStub();
+    const coins = new CoinsService({ prisma } as never);
+    const deps = {
+      prisma,
+      stripe,
+      coins,
+      purchasePublisher: publisher.publisher,
+      webhookSecret: undefined,
+    } as unknown as WebhookServiceDeps;
+    const service = new WebhookService(deps);
+    await expect(service.handleEvent(Buffer.from('{}'), 'sig')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 500 }),
     );
   });
 });

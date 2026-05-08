@@ -1,10 +1,3 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   COIN_PACKAGES,
@@ -15,13 +8,13 @@ import {
 } from '@novelhub/shared';
 import type Stripe from 'stripe';
 
-import { PRISMA } from '../auth/auth.constants';
+import { DomainError } from '../../common/domain.errors';
 import { COIN_TXN_TYPE } from '../coins/coins.constants';
-import { CoinsService } from '../coins/coins.service';
+import type { CoinsService } from '../coins/coins.service';
 
-import { PURCHASE_EVENT_PUBLISHER, type PurchaseEventPublisher } from './purchase-event.publisher';
+import type { PurchaseEventPublisher } from './purchase-event.publisher';
 import { type StripeClient } from './stripe.client';
-import { type CheckoutSessionMetadata, METADATA_KEY, STRIPE_CLIENT } from './stripe.constants';
+import { type CheckoutSessionMetadata, METADATA_KEY } from './stripe.constants';
 
 /**
  * JUSTIFICATION: Stripe SDK v17's `Stripe.Subscription` type omits
@@ -36,16 +29,49 @@ type SubscriptionWithPeriods = Stripe.Subscription & {
   current_period_end?: number | null;
 };
 
-@Injectable()
-export class WebhookService {
-  private readonly logger = new Logger(WebhookService.name);
+export type WebhookServiceDeps = {
+  prisma: PrismaClient;
+  stripe: StripeClient;
+  coins: CoinsService;
+  purchasePublisher: PurchaseEventPublisher;
+  webhookSecret: string | undefined;
+  // Optional crypto provider — Workers must pass `Stripe.createSubtleCryptoProvider()`
+  // because `constructEventAsync` defaults to a Node `crypto` provider that's
+  // unavailable on the Workers runtime. Nest leaves this undefined.
+  cryptoProvider?: Stripe.CryptoProvider;
+};
 
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
-    private readonly coins: CoinsService,
-    @Inject(PURCHASE_EVENT_PUBLISHER) private readonly purchasePublisher: PurchaseEventPublisher,
-  ) {}
+const log = {
+  log(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.log(`[WebhookService] ${msg}`);
+  },
+  warn(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.warn(`[WebhookService] ${msg}`);
+  },
+  debug(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.debug(`[WebhookService] ${msg}`);
+  },
+};
+
+export class WebhookService {
+  private readonly prisma: PrismaClient;
+  private readonly stripe: StripeClient;
+  private readonly coins: CoinsService;
+  private readonly purchasePublisher: PurchaseEventPublisher;
+  private readonly webhookSecret: string | undefined;
+  private readonly cryptoProvider: Stripe.CryptoProvider | undefined;
+
+  constructor(deps: WebhookServiceDeps) {
+    this.prisma = deps.prisma;
+    this.stripe = deps.stripe;
+    this.coins = deps.coins;
+    this.purchasePublisher = deps.purchasePublisher;
+    this.webhookSecret = deps.webhookSecret;
+    this.cryptoProvider = deps.cryptoProvider;
+  }
 
   /**
    * Verify the webhook signature, gate on event.id idempotency, and dispatch
@@ -64,27 +90,40 @@ export class WebhookService {
    * 4. Refund logic gates on `status='completed'` before reversing.
    */
   async handleEvent(
-    rawBody: Buffer,
+    rawBody: Buffer | Uint8Array | string,
     signature: string | undefined,
   ): Promise<{ received: true; type: string; duplicate?: true }> {
-    const secret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!secret) {
+    if (!this.webhookSecret) {
       // Server-side misconfig is 5xx so Stripe retries; 4xx would mark the
       // event delivered and silently swallow it.
-      throw new InternalServerErrorException('Webhook secret not configured');
+      throw DomainError.internal('Webhook secret not configured');
     }
     if (!signature) {
-      throw new BadRequestException('Missing stripe-signature header');
+      throw DomainError.badRequest('Missing stripe-signature header');
     }
 
     let event: Stripe.Event;
     try {
-      event = this.stripe.get().webhooks.constructEvent(rawBody, signature, secret);
+      // constructEventAsync uses Web Crypto when `cryptoProvider` is the
+      // Subtle one (Workers); falls back to Node crypto otherwise (Nest).
+      // The body input accepts string | Buffer; Uint8Array is a Buffer
+      // subclass so it works without conversion.
+      const payload =
+        rawBody instanceof Uint8Array && !Buffer.isBuffer(rawBody) ? Buffer.from(rawBody) : rawBody;
+      event = await this.stripe
+        .get()
+        .webhooks.constructEventAsync(
+          payload,
+          signature,
+          this.webhookSecret,
+          undefined,
+          this.cryptoProvider,
+        );
     } catch (err) {
-      throw new BadRequestException(`Invalid Stripe signature: ${(err as Error).message}`);
+      throw DomainError.badRequest(`Invalid Stripe signature: ${(err as Error).message}`);
     }
 
-    this.logger.log(`Stripe event ${event.type} (${event.id})`);
+    log.log(`Stripe event ${event.type} (${event.id})`);
 
     // event.id idempotency gate — INSERT first, run handlers only if we won
     // the race. A duplicate event hits the unique constraint and is dropped
@@ -95,7 +134,7 @@ export class WebhookService {
       });
     } catch (err) {
       if (this.isUniqueViolation(err)) {
-        this.logger.log(`Skipping duplicate Stripe event ${event.id}`);
+        log.log(`Skipping duplicate Stripe event ${event.id}`);
         return { received: true, type: event.type, duplicate: true };
       }
       throw err;
@@ -116,9 +155,7 @@ export class WebhookService {
         // Renewal / first invoice — subscription.updated handles the state.
         // Nothing to do server-side beyond logging for now; Ticket 11 CAPI
         // hooks into the coin-purchase path via PurchaseEventPublisher.
-        this.logger.log(
-          `invoice.payment_succeeded for ${(event.data.object as Stripe.Invoice).id}`,
-        );
+        log.log(`invoice.payment_succeeded for ${(event.data.object as Stripe.Invoice).id}`);
         break;
       case 'invoice.payment_failed':
         await this.onInvoicePaymentFailed(event.data.object as Stripe.Invoice);
@@ -127,7 +164,7 @@ export class WebhookService {
         await this.onChargeRefunded(event.data.object as Stripe.Charge);
         break;
       default:
-        this.logger.debug(`Unhandled Stripe event type: ${event.type}`);
+        log.debug(`Unhandled Stripe event type: ${event.type}`);
     }
 
     return { received: true, type: event.type };
@@ -145,9 +182,7 @@ export class WebhookService {
     const userId = metadata[METADATA_KEY.USER_ID];
     const orderType = metadata[METADATA_KEY.ORDER_TYPE];
     if (!userId || !orderType) {
-      this.logger.warn(
-        `checkout.session.completed missing metadata for session ${session.id}; skipping`,
-      );
+      log.warn(`checkout.session.completed missing metadata for session ${session.id}; skipping`);
       return;
     }
 
@@ -204,7 +239,7 @@ export class WebhookService {
   ): Promise<void> {
     const packageId = metadata[METADATA_KEY.PACKAGE_ID];
     if (!packageId) {
-      this.logger.warn(`Coin checkout session ${session.id} missing packageId metadata`);
+      log.warn(`Coin checkout session ${session.id} missing packageId metadata`);
       return;
     }
 
@@ -240,7 +275,7 @@ export class WebhookService {
           select: { id: true, status: true, coinsGranted: true },
         });
         if (existing) {
-          this.logger.log(
+          log.log(
             `Skipping coin grant for session ${session.id} — order already ${existing.status}`,
           );
           return null;
@@ -250,7 +285,7 @@ export class WebhookService {
         // never wrote a pre-Order with coinsGranted.
         const pkg = COIN_PACKAGES[packageId as CoinPackageId];
         if (!pkg) {
-          this.logger.warn(`Recovery for session ${session.id}: unknown packageId ${packageId}`);
+          log.warn(`Recovery for session ${session.id}: unknown packageId ${packageId}`);
           return null;
         }
         const recovered = await tx.order.create({
@@ -283,9 +318,7 @@ export class WebhookService {
         select: { id: true, coinsGranted: true, amount: true, currency: true },
       });
       if (!updated || !updated.coinsGranted || updated.coinsGranted <= 0) {
-        this.logger.warn(
-          `Order for session ${session.id} has no coinsGranted — skipping balance adjust`,
-        );
+        log.warn(`Order for session ${session.id} has no coinsGranted — skipping balance adjust`);
         return null;
       }
       await this.coins.adjustBalance(
@@ -335,9 +368,7 @@ export class WebhookService {
   private async onSubscriptionUpsert(sub: Stripe.Subscription): Promise<void> {
     const userId = (sub.metadata ?? {})[METADATA_KEY.USER_ID];
     if (!userId) {
-      this.logger.warn(
-        `subscription event ${sub.id} missing userId metadata; cannot bind to a user`,
-      );
+      log.warn(`subscription event ${sub.id} missing userId metadata; cannot bind to a user`);
       return;
     }
     const priceId = sub.items.data[0]?.price?.id ?? '';
@@ -348,9 +379,7 @@ export class WebhookService {
       // Period bounds are required columns and have no sensible default —
       // writing `now()` would mark a real subscription expired the moment
       // the row lands. Skip and log so operators can investigate.
-      this.logger.warn(
-        `subscription event ${sub.id} missing current_period_start/end; skipping upsert`,
-      );
+      log.warn(`subscription event ${sub.id} missing current_period_start/end; skipping upsert`);
       return;
     }
 
@@ -421,9 +450,7 @@ export class WebhookService {
     const paymentIntent =
       typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
     if (!paymentIntent) {
-      this.logger.warn(
-        `charge.refunded for ${charge.id} has no payment_intent; cannot map to order`,
-      );
+      log.warn(`charge.refunded for ${charge.id} has no payment_intent; cannot map to order`);
       return;
     }
     const order = await this.prisma.order.findUnique({
@@ -437,11 +464,11 @@ export class WebhookService {
       },
     });
     if (!order) {
-      this.logger.warn(`No order matching payment_intent ${paymentIntent}; skipping refund`);
+      log.warn(`No order matching payment_intent ${paymentIntent}; skipping refund`);
       return;
     }
     if (order.status !== ORDER_STATUS.COMPLETED) {
-      this.logger.log(`Order ${order.id} is ${order.status}, not COMPLETED — skipping refund`);
+      log.log(`Order ${order.id} is ${order.status}, not COMPLETED — skipping refund`);
       return;
     }
 

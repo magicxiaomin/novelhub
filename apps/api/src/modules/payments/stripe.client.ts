@@ -1,34 +1,38 @@
-import { Logger, type Provider } from '@nestjs/common';
 import Stripe from 'stripe';
-
-import { STRIPE_CLIENT } from './stripe.constants';
 
 const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2025-02-24.acacia';
 
-class LazyStripe {
-  private readonly logger = new Logger(LazyStripe.name);
+const log = {
+  log(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.log(`[StripeClient] ${msg}`);
+  },
+};
+
+/**
+ * Lazy Stripe client wrapper. Constructed with an optional secret key so the
+ * Nest factory (Phase 0) can read from `process.env.STRIPE_SECRET_KEY` and
+ * the Worker factory can read from the per-request env bag — neither stack
+ * has to plumb an injected key through the service constructors.
+ *
+ * `get()` throws if no key was provided when the wrapper was built. The Nest
+ * boot path tolerates a missing key (CI / local dev without billing) by
+ * deferring this throw until the first method that actually calls Stripe.
+ */
+export class LazyStripe {
   private cached: Stripe | null = null;
+
+  constructor(private readonly secretKey: string | undefined) {}
 
   get(): Stripe {
     if (this.cached) return this.cached;
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) {
+    if (!this.secretKey) {
       throw new Error('Stripe is not configured (set STRIPE_SECRET_KEY in env).');
     }
-    this.cached = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
-    this.logger.log('Stripe client initialized');
+    this.cached = new Stripe(this.secretKey, { apiVersion: STRIPE_API_VERSION });
+    log.log('Stripe client initialized');
     return this.cached;
   }
 }
-
-/**
- * Provides a thin lazy wrapper around the Stripe SDK so the app can boot
- * without `STRIPE_SECRET_KEY` (CI / local dev) while still failing cleanly
- * on the first endpoint that actually needs Stripe.
- */
-export const StripeClientProvider: Provider = {
-  provide: STRIPE_CLIENT,
-  useFactory: (): LazyStripe => new LazyStripe(),
-};
 
 export type StripeClient = LazyStripe;

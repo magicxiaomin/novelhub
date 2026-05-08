@@ -1,11 +1,3 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   buildCoinPackageProductName,
@@ -18,21 +10,23 @@ import {
   type SubscriptionPlanId,
 } from '@novelhub/shared';
 
-import { PRISMA, SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
+import { DomainError } from '../../common/domain.errors';
+import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 import type { FbUserData } from '../fb-capi/fb-capi.types';
 
 import { type StripeClient } from './stripe.client';
-import { METADATA_KEY, STRIPE_CLIENT } from './stripe.constants';
+import { METADATA_KEY } from './stripe.constants';
 
-const getAppUrl = (): string => process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+export type SubscriptionPriceIds = {
+  weekly: string | undefined;
+  monthly: string | undefined;
+};
 
-const getSubscriptionPriceId = (plan: SubscriptionPlanId): string => {
-  const envKey = plan === 'weekly' ? 'STRIPE_PRICE_WEEKLY' : 'STRIPE_PRICE_MONTHLY';
-  const value = process.env[envKey];
-  if (!value) {
-    throw new BadRequestException(`Subscription plan ${plan} is not configured (${envKey} unset)`);
-  }
-  return value;
+export type PaymentsServiceDeps = {
+  prisma: PrismaClient;
+  stripe: StripeClient;
+  appUrl: string;
+  subscriptionPriceIds: SubscriptionPriceIds;
 };
 
 export type SubscriptionSummary = {
@@ -48,14 +42,25 @@ export type CheckoutFbMetadata = {
   fbUserData: Omit<FbUserData, 'email'> | null;
 };
 
-@Injectable()
-export class PaymentsService {
-  private readonly logger = new Logger(PaymentsService.name);
+const log = {
+  warn(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.warn(`[PaymentsService] ${msg}`);
+  },
+};
 
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(STRIPE_CLIENT) private readonly stripe: StripeClient,
-  ) {}
+export class PaymentsService {
+  private readonly prisma: PrismaClient;
+  private readonly stripe: StripeClient;
+  private readonly appUrl: string;
+  private readonly subscriptionPriceIds: SubscriptionPriceIds;
+
+  constructor(deps: PaymentsServiceDeps) {
+    this.prisma = deps.prisma;
+    this.stripe = deps.stripe;
+    this.appUrl = deps.appUrl;
+    this.subscriptionPriceIds = deps.subscriptionPriceIds;
+  }
 
   async createCoinCheckout(
     userId: string,
@@ -64,12 +69,11 @@ export class PaymentsService {
   ): Promise<{ url: string; sessionId: string }> {
     const pkg = COIN_PACKAGES[packageId];
     if (!pkg) {
-      throw new BadRequestException(`Unknown coin package: ${packageId}`);
+      throw DomainError.badRequest(`Unknown coin package: ${packageId}`);
     }
     const user = await this.requireUser(userId);
 
     const stripe = this.stripe.get();
-    const appUrl = getAppUrl();
     const amountCents = Math.round(pkg.priceUsd * 100);
 
     const session = await stripe.checkout.sessions.create({
@@ -85,8 +89,8 @@ export class PaymentsService {
           quantity: 1,
         },
       ],
-      success_url: `${appUrl}${PAYMENT_PATHS.SUCCESS}`,
-      cancel_url: `${appUrl}${PAYMENT_PATHS.CANCEL}`,
+      success_url: `${this.appUrl}${PAYMENT_PATHS.SUCCESS}`,
+      cancel_url: `${this.appUrl}${PAYMENT_PATHS.CANCEL}`,
       metadata: {
         [METADATA_KEY.USER_ID]: userId,
         [METADATA_KEY.ORDER_TYPE]: ORDER_TYPE.COIN_PURCHASE,
@@ -104,7 +108,7 @@ export class PaymentsService {
     });
 
     if (!session.url) {
-      throw new BadRequestException('Stripe did not return a checkout URL');
+      throw DomainError.badRequest('Stripe did not return a checkout URL');
     }
     return { url: session.url, sessionId: session.id };
   }
@@ -116,20 +120,19 @@ export class PaymentsService {
   ): Promise<{ url: string; sessionId: string }> {
     const planMeta = SUBSCRIPTION_PLANS[plan];
     if (!planMeta) {
-      throw new BadRequestException(`Unknown subscription plan: ${plan}`);
+      throw DomainError.badRequest(`Unknown subscription plan: ${plan}`);
     }
     const user = await this.requireUser(userId);
-    const priceId = getSubscriptionPriceId(plan);
+    const priceId = this.requireSubscriptionPriceId(plan);
 
     const stripe = this.stripe.get();
-    const appUrl = getAppUrl();
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       ...this.customerIdentity(user),
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}${PAYMENT_PATHS.SUCCESS}`,
-      cancel_url: `${appUrl}${PAYMENT_PATHS.CANCEL}`,
+      success_url: `${this.appUrl}${PAYMENT_PATHS.SUCCESS}`,
+      cancel_url: `${this.appUrl}${PAYMENT_PATHS.CANCEL}`,
       metadata: {
         [METADATA_KEY.USER_ID]: userId,
         [METADATA_KEY.ORDER_TYPE]: ORDER_TYPE.SUBSCRIPTION,
@@ -153,7 +156,7 @@ export class PaymentsService {
     });
 
     if (!session.url) {
-      throw new BadRequestException('Stripe did not return a checkout URL');
+      throw DomainError.badRequest('Stripe did not return a checkout URL');
     }
     return { url: session.url, sessionId: session.id };
   }
@@ -173,12 +176,12 @@ export class PaymentsService {
       customerId = sub?.stripeCustomerId ?? null;
     }
     if (!customerId) {
-      throw new NotFoundException('No Stripe customer for this user; subscribe first');
+      throw DomainError.notFound('No Stripe customer for this user; subscribe first');
     }
     const stripe = this.stripe.get();
     const portal = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${getAppUrl()}${PAYMENT_PATHS.PORTAL_RETURN}`,
+      return_url: `${this.appUrl}${PAYMENT_PATHS.PORTAL_RETURN}`,
     });
     return { url: portal.url };
   }
@@ -206,13 +209,13 @@ export class PaymentsService {
       (Object.values(SUBSCRIPTION_PLANS).find((candidate) => {
         const priceId =
           candidate.id === 'weekly'
-            ? process.env.STRIPE_PRICE_WEEKLY
-            : process.env.STRIPE_PRICE_MONTHLY;
+            ? this.subscriptionPriceIds.weekly
+            : this.subscriptionPriceIds.monthly;
         return priceId === sub.stripePriceId;
       })?.id as SubscriptionPlanId | undefined) ?? 'weekly';
 
-    if (plan === 'weekly' && sub.stripePriceId !== process.env.STRIPE_PRICE_WEEKLY) {
-      this.logger.warn(`Unknown subscription price id ${sub.stripePriceId}; defaulting to weekly`);
+    if (plan === 'weekly' && sub.stripePriceId !== this.subscriptionPriceIds.weekly) {
+      log.warn(`Unknown subscription price id ${sub.stripePriceId}; defaulting to weekly`);
     }
 
     return {
@@ -248,7 +251,7 @@ export class PaymentsService {
       },
     });
     if (!order || order.userId !== userId) {
-      throw new NotFoundException('Order not found');
+      throw DomainError.notFound('Order not found');
     }
     return {
       status: order.status,
@@ -278,6 +281,16 @@ export class PaymentsService {
     return { customer_email: user.email };
   }
 
+  private requireSubscriptionPriceId(plan: SubscriptionPlanId): string {
+    const value =
+      plan === 'weekly' ? this.subscriptionPriceIds.weekly : this.subscriptionPriceIds.monthly;
+    if (!value) {
+      const envKey = plan === 'weekly' ? 'STRIPE_PRICE_WEEKLY' : 'STRIPE_PRICE_MONTHLY';
+      throw DomainError.badRequest(`Subscription plan ${plan} is not configured (${envKey} unset)`);
+    }
+    return value;
+  }
+
   private async requireUser(
     userId: string,
   ): Promise<{ id: string; email: string; stripeCustomerId: string | null }> {
@@ -286,7 +299,7 @@ export class PaymentsService {
       select: { id: true, email: true, stripeCustomerId: true, deletedAt: true, bannedAt: true },
     });
     if (!user || user.deletedAt || user.bannedAt) {
-      throw new UnauthorizedException();
+      throw DomainError.unauthorized();
     }
     return { id: user.id, email: user.email, stripeCustomerId: user.stripeCustomerId };
   }
@@ -315,7 +328,7 @@ export class PaymentsService {
     } catch (err) {
       // If pre-create fails (e.g. transient DB error), the webhook will
       // create the row on completion. Best-effort, log only.
-      this.logger.warn(
+      log.warn(
         `Failed to pre-create pending order for session ${input.sessionId}: ${(err as Error).message}`,
       );
     }

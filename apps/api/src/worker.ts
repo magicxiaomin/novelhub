@@ -22,9 +22,11 @@ import { booksRoutes } from './worker/routes/books';
 import { chaptersRoutes } from './worker/routes/chapters';
 import { checkinRoutes } from './worker/routes/checkin';
 import { coinsRoutes } from './worker/routes/coins';
+import { paymentsRoutes } from './worker/routes/payments';
 import { readingProgressRoutes } from './worker/routes/reading-progress';
 import { unlocksRoutes } from './worker/routes/unlocks';
-import type { WorkerEnv } from './worker/services/auth-factory';
+import { webhookRoutes } from './worker/routes/webhook';
+import type { PaymentsWorkerEnv } from './worker/services/payments-factory';
 
 type HealthResponse = {
   app: typeof APP_NAME;
@@ -38,7 +40,7 @@ type HealthResponse = {
 // lifetime; this matches the Nest STARTED_AT semantic for /health.uptime.
 const STARTED_AT = Date.now();
 
-const app = new Hono<{ Bindings: WorkerEnv; Variables: Partial<AuthVariables> }>();
+const app = new Hono<{ Bindings: PaymentsWorkerEnv; Variables: Partial<AuthVariables> }>();
 
 // Mirrors apps/api/src/app.controller.ts — same envelope shape so the
 // frontend health probe / UptimeRobot keyword match keeps working when DNS
@@ -65,6 +67,7 @@ app.use('/coins/*', prismaMiddleware);
 app.use('/unlocks/*', prismaMiddleware);
 app.use('/reading-progress/*', prismaMiddleware);
 app.use('/checkin/*', prismaMiddleware);
+app.use('/payments/*', prismaMiddleware);
 app.route('/auth', authRoutes);
 app.route('/books', booksRoutes);
 app.route('/chapters', chaptersRoutes);
@@ -72,6 +75,13 @@ app.route('/coins', coinsRoutes);
 app.route('/unlocks', unlocksRoutes);
 app.route('/reading-progress', readingProgressRoutes);
 app.route('/checkin', checkinRoutes);
+// Webhook is mounted under /payments so Stripe Dashboard URLs stay valid.
+// Keep it after the other /payments routes so the path-prefix middleware
+// still hits it; Hono picks the matching route by path, not order, but the
+// auth-gating diff between paymentsRoutes (requires auth) and webhookRoutes
+// (no auth) is enforced by each subapp's own middleware chain.
+app.route('/payments', webhookRoutes);
+app.route('/payments', paymentsRoutes);
 
 // HTTP status text — mirrors apps/api/src/common/domain-error.filter.ts so
 // both stacks emit the same `{statusCode, message, error, ...context}` body
@@ -126,7 +136,7 @@ app.onError((err, c) => {
 
 // Scheduled handler stub. Task 8 dispatches by event.cron string. Until then
 // every cron tick is a no-op so a pre-prod cron deploy can't break anything.
-async function scheduled(event: ScheduledEvent, env: WorkerEnv, ctx: ExecutionContext) {
+async function scheduled(event: ScheduledEvent, env: PaymentsWorkerEnv, ctx: ExecutionContext) {
   void event;
   void env;
   void ctx;
