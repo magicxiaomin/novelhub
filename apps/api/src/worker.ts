@@ -29,6 +29,7 @@ import { readingProgressRoutes } from './worker/routes/reading-progress';
 import { unlocksRoutes } from './worker/routes/unlocks';
 import { webhookRoutes } from './worker/routes/webhook';
 import { makePrisma } from './worker/db/prisma';
+import { Sentry, buildSentryOptions, captureWorkerException } from './worker/sentry';
 import type { AdminWorkerEnv } from './worker/services/admin-factory';
 import {
   makeNotificationsService,
@@ -114,10 +115,14 @@ const STATUS_TEXT: Record<number, string> = {
 //   - HTTPException: thrown by Hono internals (zValidator failures, the
 //     auth middleware's 401, etc.). We unwrap the message + status and
 //     render the same JSON envelope rather than Hono's default text body.
-//   - Anything else: log + 500. Sentry is not yet wired into the Worker
-//     (Task 18); until then, console errors land in `wrangler tail`.
+//   - Anything else: log + 500 + capture in Sentry (Task 10).
+//
+// Sentry capture is gated on the same 5xx rule as SentryExceptionFilter:
+// 4xx user errors stay out, 5xx + unknown go in. `captureWorkerException`
+// short-circuits when SENTRY_DSN is unset.
 app.onError((err, c) => {
   if (err instanceof DomainError) {
+    captureWorkerException(err, c.env);
     return c.json(
       {
         statusCode: err.status,
@@ -129,6 +134,7 @@ app.onError((err, c) => {
     );
   }
   if (err instanceof HTTPException) {
+    if (err.status >= 500) captureWorkerException(err, c.env);
     return c.json(
       {
         statusCode: err.status,
@@ -140,6 +146,7 @@ app.onError((err, c) => {
   }
   // eslint-disable-next-line no-console
   console.error('[worker] unhandled error', err);
+  captureWorkerException(err, c.env);
   return c.json(
     { statusCode: 500, message: 'Internal Server Error', error: 'Internal Server Error' },
     500,
@@ -171,7 +178,7 @@ type WorkerEnvForScheduled = AppEnv;
  * response so a cron run that takes >1s isn't truncated.
  */
 async function scheduled(
-  event: ScheduledEvent,
+  event: ScheduledController,
   env: WorkerEnvForScheduled,
   ctx: ExecutionContext,
 ): Promise<void> {
@@ -204,7 +211,11 @@ async function scheduled(
   ctx.waitUntil(work);
 }
 
-export default {
+// Wrap the handler with Sentry's per-request hub so unhandled throws
+// auto-capture and `getIsolationScope().setUser` from auth middleware
+// pins the right user context per request. The options factory reads
+// `env.SENTRY_DSN`; when it's unset, withSentry stays a no-op.
+export default Sentry.withSentry<AppEnv>((env) => buildSentryOptions(env), {
   fetch: app.fetch,
   scheduled,
-};
+});

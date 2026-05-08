@@ -1,6 +1,5 @@
-import { Test, type TestingModule } from '@nestjs/testing';
+import type { PrismaClient } from '@prisma/client';
 
-import { PRISMA } from '../../auth/auth.constants';
 import { FbCapiService } from '../fb-capi.service';
 import type { FbUserData } from '../fb-capi.types';
 
@@ -38,7 +37,7 @@ describe('FbPurchaseEventPublisher', () => {
   let prisma: ReturnType<typeof makePrismaStub>;
   let fbCapi: { sendEvent: jest.Mock<Promise<void>, Parameters<FbCapiService['sendEvent']>> };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     prisma = makePrismaStub();
     fbCapi = {
       sendEvent: jest.fn<
@@ -47,15 +46,10 @@ describe('FbPurchaseEventPublisher', () => {
       >(async () => undefined),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        FbPurchaseEventPublisher,
-        { provide: PRISMA, useValue: prisma },
-        { provide: FbCapiService, useValue: fbCapi },
-      ],
-    }).compile();
-
-    publisher = module.get(FbPurchaseEventPublisher);
+    publisher = new FbPurchaseEventPublisher({
+      prisma: prisma as unknown as PrismaClient,
+      fbCapi,
+    });
   });
 
   it('publishes COIN_PURCHASE as Purchase with decimal value', async () => {

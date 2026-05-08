@@ -1,10 +1,11 @@
 /**
  * Builds an `AuthService` instance for the Cloudflare Worker runtime.
  * Mirrors the `useFactory` provider in apps/api/src/modules/auth/auth.module.ts
- * but uses Workers-compatible service replacements (EmailClient, FbCapiClient,
- * createWorkerPrisma) and a stub Stripe client (the only Stripe-dependent
- * AuthService method is `deleteAccount`, which is not yet wired into the
- * Hono routes — Task 3.1 ships register/login/refresh/logout/me/forgot/reset).
+ * but uses Workers-compatible service replacements (EmailClient, the real
+ * factory-shape FbCapiService, createWorkerPrisma) and a stub Stripe client
+ * (the only Stripe-dependent AuthService method is `deleteAccount`, which is
+ * not yet wired into the Hono routes — Task 3.1 ships register/login/refresh/
+ * logout/me/forgot/reset).
  */
 import type { PrismaClient } from '@prisma/client';
 
@@ -16,7 +17,7 @@ import {
 import { createGoogleIdVerifier } from '../../modules/auth/google-id-verifier';
 import { JoseJwtClient } from '../../modules/auth/jose-jwt.client';
 import { EmailClient } from './email-client';
-import { FbCapiClient } from './fb-capi-client';
+import { makeFbCapiService } from './fb-capi-factory';
 
 // Minimal R2 binding shape (avoid @cloudflare/workers-types runtime dep).
 interface R2BucketBinding {
@@ -42,6 +43,14 @@ export type WorkerEnv = {
   // R2 binding declared in wrangler.toml; preferred for `getText` /
   // `uploadText` to skip the HTTP round-trip.
   BUCKET?: R2BucketBinding;
+  // FB CAPI (Task 10 — async-hash + Sentry Cloudflare). Optional —
+  // FbCapiService no-ops when these are unset.
+  NEXT_PUBLIC_FB_PIXEL_ID?: string;
+  FB_CAPI_ACCESS_TOKEN?: string;
+  FB_TEST_EVENT_CODE?: string;
+  // Sentry (Task 10). Read off env so `withSentry` can build per-request
+  // options; middleware reads it via `setSentryUser` / `captureWorkerException`.
+  SENTRY_DSN?: string;
 };
 
 export function makeAuthService(env: WorkerEnv, prisma: PrismaClient): AuthService {
@@ -66,7 +75,7 @@ export function makeAuthService(env: WorkerEnv, prisma: PrismaClient): AuthServi
     email: new EmailClient(env.RESEND_API_KEY, env.EMAIL_FROM),
     googleVerifier: createGoogleIdVerifier(),
     stripe: stripeStub,
-    fbCapi: new FbCapiClient(),
+    fbCapi: makeFbCapiService(env, prisma),
   };
 
   return new AuthService(deps);

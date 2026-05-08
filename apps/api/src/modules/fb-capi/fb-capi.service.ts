@@ -1,21 +1,75 @@
-import { createHash } from 'node:crypto';
-
-import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
-import type { Request } from 'express';
-
-import { PRISMA } from '../auth/auth.constants';
 
 import { parseConsent } from '@novelhub/shared';
 
 import { CONSENT_COOKIE, FB_GRAPH_API_VERSION } from './fb-capi.constants';
 import type { FbCustomData, FbEventPayload, FbUserData } from './fb-capi.types';
 
-@Injectable()
-export class FbCapiService {
-  private readonly logger = new Logger(FbCapiService.name);
+export type FbCapiServiceDeps = {
+  prisma: PrismaClient;
+  pixelId: string | undefined;
+  accessToken: string | undefined;
+  // Optional sandbox-mode test event code; suppressed in production. Maps
+  // to FB_TEST_EVENT_CODE on the Nest stack and the same env var on Workers.
+  testEventCode: string | undefined;
+  isProduction: boolean;
+};
 
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+// Structural request type. The Nest controller hands us an Express
+// `Request` with `cookies` populated by `cookie-parser`; the Worker hands
+// us a per-request bag we build from `c.req.header('cookie')` + `c.env`.
+// Either way we only need cookies + ip + user-agent.
+export type FbCapiRequest = {
+  cookies?: Record<string, string>;
+  ip?: string;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+const log = {
+  warn(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.warn(`[FbCapiService] ${msg}`);
+  },
+  error(msg: string, err?: unknown): void {
+    // eslint-disable-next-line no-console
+    console.error(`[FbCapiService] ${msg}`, err);
+  },
+};
+
+// Web Crypto SHA-256 → lowercase hex. Both Node 19+ and Workers expose
+// `crypto.subtle` on the global. The structural type avoids depending on
+// `SubtleCrypto` (which the Worker tsconfig has but Node tsconfig does
+// not, since we don't pull lib.dom into the Nest build).
+type WebCryptoDigest = {
+  digest(algorithm: string, data: ArrayBuffer | ArrayBufferView): Promise<ArrayBuffer>;
+};
+const subtle = (globalThis as unknown as { crypto: { subtle: WebCryptoDigest } }).crypto.subtle;
+
+const sha256Hex = async (input: string): Promise<string> => {
+  const bytes = new TextEncoder().encode(input);
+  const digest = await subtle.digest('SHA-256', bytes);
+  const view = new Uint8Array(digest);
+  let out = '';
+  for (let i = 0; i < view.length; i += 1) {
+    out += view[i]!.toString(16).padStart(2, '0');
+  }
+  return out;
+};
+
+export class FbCapiService {
+  private readonly prisma: PrismaClient;
+  private readonly pixelId: string | undefined;
+  private readonly accessToken: string | undefined;
+  private readonly testEventCode: string | undefined;
+  private readonly isProduction: boolean;
+
+  constructor(deps: FbCapiServiceDeps) {
+    this.prisma = deps.prisma;
+    this.pixelId = deps.pixelId;
+    this.accessToken = deps.accessToken;
+    this.testEventCode = deps.testEventCode;
+    this.isProduction = deps.isProduction;
+  }
 
   async sendEvent(
     eventName: string,
@@ -24,15 +78,13 @@ export class FbCapiService {
     customData?: FbCustomData,
     userId?: string,
   ): Promise<void> {
-    const pixelId = process.env.NEXT_PUBLIC_FB_PIXEL_ID;
-    const token = process.env.FB_CAPI_ACCESS_TOKEN;
-    if (!pixelId || !token) {
-      this.logger.warn('FB CAPI is not configured; skipping event');
+    if (!this.pixelId || !this.accessToken) {
+      log.warn('FB CAPI is not configured; skipping event');
       return;
     }
 
     try {
-      const payload = this.buildPayload(eventName, eventId, userData, customData);
+      const payload = await this.buildPayload(eventName, eventId, userData, customData);
       try {
         await this.prisma.fbEvent.create({
           data: {
@@ -50,9 +102,9 @@ export class FbCapiService {
         throw err;
       }
 
-      const requestBody = { ...payload, access_token: token };
+      const requestBody = { ...payload, access_token: this.accessToken };
       const url = `https://graph.facebook.com/${FB_GRAPH_API_VERSION}/${encodeURIComponent(
-        pixelId,
+        this.pixelId,
       )}/events`;
 
       let responseCode: number | null = null;
@@ -67,7 +119,7 @@ export class FbCapiService {
         const fullText = await response.text();
         responseBody = fullText.slice(0, 4096);
       } catch (err) {
-        this.logger.error('FB CAPI network error', err as Error);
+        log.error('FB CAPI network error', err);
       }
 
       await this.prisma.fbEvent.update({
@@ -79,16 +131,16 @@ export class FbCapiService {
         },
       });
     } catch (err) {
-      this.logger.error('FB CAPI sendEvent failed', err as Error);
+      log.error('FB CAPI sendEvent failed', err);
     }
   }
 
-  shouldSendForRequest(req: Request): boolean {
+  shouldSendForRequest(req: FbCapiRequest): boolean {
     return parseConsent(this.readCookie(req, CONSENT_COOKIE))?.marketing === true;
   }
 
-  extractFbUserData(req: Request, email?: string): FbUserData {
-    const userAgent = req.headers['user-agent'];
+  extractFbUserData(req: FbCapiRequest, email?: string): FbUserData {
+    const userAgent = req.headers?.['user-agent'];
     return {
       email,
       fbp: this.readCookie(req, '_fbp'),
@@ -98,15 +150,15 @@ export class FbCapiService {
     };
   }
 
-  private buildPayload(
+  private async buildPayload(
     eventName: string,
     eventId: string,
     userData: FbUserData,
     customData?: FbCustomData,
-  ): FbEventPayload {
+  ): Promise<FbEventPayload> {
     const fbUserData: FbEventPayload['data'][number]['user_data'] = {};
     if (userData.email) {
-      fbUserData.em = [this.hashEmail(userData.email)];
+      fbUserData.em = [await sha256Hex(userData.email.trim().toLowerCase())];
     }
     if (userData.fbp) fbUserData.fbp = userData.fbp;
     if (userData.fbc) fbUserData.fbc = userData.fbc;
@@ -131,18 +183,14 @@ export class FbCapiService {
     }
 
     const payload: FbEventPayload = { data: [event] };
-    if (process.env.FB_TEST_EVENT_CODE && process.env.NODE_ENV !== 'production') {
-      payload.test_event_code = process.env.FB_TEST_EVENT_CODE;
+    if (this.testEventCode && !this.isProduction) {
+      payload.test_event_code = this.testEventCode;
     }
     return payload;
   }
 
-  private hashEmail(email: string): string {
-    return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
-  }
-
-  private readCookie(req: Request, name: string): string | undefined {
-    return (req as Request & { cookies?: Record<string, string> }).cookies?.[name];
+  private readCookie(req: FbCapiRequest, name: string): string | undefined {
+    return req.cookies?.[name];
   }
 
   private isUniqueViolation(err: unknown): boolean {

@@ -1,11 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { Logger } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
-
-import { PRISMA } from '../auth/auth.constants';
-
-import { FbCapiService } from './fb-capi.service';
+import { FbCapiService, type FbCapiServiceDeps } from './fb-capi.service';
 
 type StoredFbEvent = {
   eventName: string;
@@ -51,41 +46,47 @@ const makePrismaStub = () => {
 };
 
 describe('FbCapiService', () => {
-  const ORIGINAL_ENV = { ...process.env };
   let service: FbCapiService;
   let prismaStub: ReturnType<typeof makePrismaStub>;
   let fetchMock: jest.MockedFunction<typeof fetch>;
 
-  beforeEach(async () => {
+  const buildService = (
+    overrides: Partial<{
+      pixelId: string | undefined;
+      accessToken: string | undefined;
+      testEventCode: string | undefined;
+      isProduction: boolean;
+    }> = {},
+  ): FbCapiService => {
+    const deps = {
+      prisma: prismaStub.prisma,
+      pixelId: 'pixel-123',
+      accessToken: 'token-123',
+      testEventCode: undefined,
+      isProduction: false,
+      ...overrides,
+    } as unknown as FbCapiServiceDeps;
+    return new FbCapiService(deps);
+  };
+
+  beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-05-07T12:00:00.000Z'));
-    process.env = {
-      ...ORIGINAL_ENV,
-      NEXT_PUBLIC_FB_PIXEL_ID: 'pixel-123',
-      FB_CAPI_ACCESS_TOKEN: 'token-123',
-      FB_TEST_EVENT_CODE: undefined,
-      NODE_ENV: 'test',
-    };
     prismaStub = makePrismaStub();
     fetchMock = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(
       async () => new Response('{"events_received":1}', { status: 200 }),
     );
     global.fetch = fetchMock;
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [FbCapiService, { provide: PRISMA, useValue: prismaStub.prisma }],
-    }).compile();
-
-    service = module.get(FbCapiService);
+    service = buildService();
   });
 
   afterEach(() => {
-    process.env = { ...ORIGINAL_ENV };
     jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
   it('short-circuits when the access token is unset', async () => {
-    delete process.env.FB_CAPI_ACCESS_TOKEN;
+    service = buildService({ accessToken: undefined });
 
     await service.sendEvent('Purchase', 'event-1', { email: 'a@example.com' });
 
@@ -152,7 +153,7 @@ describe('FbCapiService', () => {
   });
 
   it('includes test_event_code in non-production when configured', async () => {
-    process.env.FB_TEST_EVENT_CODE = 'TEST123';
+    service = buildService({ testEventCode: 'TEST123' });
 
     await service.sendEvent('Purchase', 'event-1', { email: 'a@example.com' });
 
@@ -163,8 +164,7 @@ describe('FbCapiService', () => {
   });
 
   it('excludes test_event_code in production', async () => {
-    process.env.FB_TEST_EVENT_CODE = 'TEST123';
-    process.env.NODE_ENV = 'production';
+    service = buildService({ testEventCode: 'TEST123', isProduction: true });
 
     await service.sendEvent('Purchase', 'event-1', { email: 'a@example.com' });
 
@@ -207,7 +207,7 @@ describe('FbCapiService', () => {
   });
 
   it('does not throw on network error and logs it', async () => {
-    const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     fetchMock.mockRejectedValueOnce(new Error('network down'));
 
     await expect(

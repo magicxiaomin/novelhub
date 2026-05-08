@@ -1,13 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 
-import { PRISMA } from '../../auth/auth.constants';
 import {
   type PurchaseCompletedEvent,
   type PurchaseEventPublisher,
 } from '../../payments/purchase-event.publisher';
-import { FbCapiService } from '../fb-capi.service';
-import type { FbUserData } from '../fb-capi.types';
+import type { FbCustomData, FbUserData } from '../fb-capi.types';
 
 type OrderFbMetadata = {
   fbConsent?: boolean;
@@ -15,14 +12,32 @@ type OrderFbMetadata = {
   fbUserDataScrubbedAt?: string;
 };
 
-@Injectable()
-export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
-  private readonly logger = new Logger(FbPurchaseEventPublisher.name);
+// Structural shape of the FbCapiService surface we depend on. Letting the
+// publisher take a plain interface (not the concrete class) keeps it
+// runtime-agnostic — both Nest DI and the Worker factory can satisfy it.
+export type FbPurchaseCapiClient = {
+  sendEvent(
+    eventName: string,
+    eventId: string,
+    userData: FbUserData,
+    customData?: FbCustomData,
+    userId?: string,
+  ): Promise<void>;
+};
 
-  constructor(
-    @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly fbCapi: FbCapiService,
-  ) {}
+export type FbPurchaseEventPublisherDeps = {
+  prisma: PrismaClient;
+  fbCapi: FbPurchaseCapiClient;
+};
+
+export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
+  private readonly prisma: PrismaClient;
+  private readonly fbCapi: FbPurchaseCapiClient;
+
+  constructor(deps: FbPurchaseEventPublisherDeps) {
+    this.prisma = deps.prisma;
+    this.fbCapi = deps.fbCapi;
+  }
 
   async publish(event: PurchaseCompletedEvent): Promise<void> {
     try {
@@ -38,7 +53,8 @@ export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
         select: { email: true },
       });
       if (!user) {
-        this.logger.warn(`Skipping FB CAPI event for missing user ${event.userId}`);
+        // eslint-disable-next-line no-console
+        console.warn(`[FbPurchaseEventPublisher] missing user ${event.userId}`);
         return;
       }
 
@@ -66,7 +82,8 @@ export class FbPurchaseEventPublisher implements PurchaseEventPublisher {
         },
       });
     } catch (err) {
-      this.logger.error('FB purchase publisher failed', err as Error);
+      // eslint-disable-next-line no-console
+      console.error('[FbPurchaseEventPublisher] publish failed', err);
     }
   }
 }

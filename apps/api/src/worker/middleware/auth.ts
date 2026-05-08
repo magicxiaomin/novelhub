@@ -19,6 +19,7 @@ import { HTTPException } from 'hono/http-exception';
 import { COOKIE_ACCESS, type JwtPayload } from '../../modules/auth/auth.constants';
 import { JoseJwtClient } from '../../modules/auth/jose-jwt.client';
 import type { PrismaVariables } from '../db/prisma';
+import { setSentryUser } from '../sentry';
 import type { WorkerEnv } from '../services/auth-factory';
 
 export type AuthedUser = {
@@ -77,6 +78,7 @@ export const requireAuth: MiddlewareHandler<{
     throw new HTTPException(401, { message: 'Unauthorized' });
   }
   c.set('user', user);
+  setSentryUser(c.env, user.id);
   await next();
 };
 
@@ -87,7 +89,10 @@ export const optionalAuth: MiddlewareHandler<{
   const prisma = c.get('prisma');
   if (prisma) {
     const user = await resolveUser(c.env, readToken(c), prisma);
-    if (user) c.set('user', user);
+    if (user) {
+      c.set('user', user);
+      setSentryUser(c.env, user.id);
+    }
   }
   await next();
 };
@@ -104,5 +109,6 @@ export const requireAdmin: MiddlewareHandler<{
     throw new HTTPException(403, { message: 'Forbidden' });
   }
   c.set('user', user);
+  setSentryUser(c.env, user.id);
   await next();
 };
