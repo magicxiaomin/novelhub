@@ -1,7 +1,6 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma, PrismaClient } from '@prisma/client';
 
-import { PRISMA } from '../auth/auth.constants';
+import { DomainError } from '../../common/domain.errors';
 
 import { type CoinTransactionRow } from './coins.constants';
 import { InsufficientBalanceError } from './insufficient-balance.exception';
@@ -13,9 +12,16 @@ const DEFAULT_PAGE_SIZE = 20;
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
-@Injectable()
+export type CoinsServiceDeps = {
+  prisma: PrismaClient;
+};
+
 export class CoinsService {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  private readonly prisma: PrismaClient;
+
+  constructor(deps: CoinsServiceDeps) {
+    this.prisma = deps.prisma;
+  }
 
   /**
    * Atomically adjust a user's coin balance and write the matching
@@ -48,7 +54,7 @@ export class CoinsService {
         where: { id: userId },
         select: { coinBalance: true, deletedAt: true },
       });
-      if (!user || user.deletedAt) throw new NotFoundException('User not found');
+      if (!user || user.deletedAt) throw DomainError.notFound('User not found');
       return { balance: user.coinBalance, transactionId: '' };
     }
 
@@ -67,7 +73,7 @@ export class CoinsService {
           where: { id: userId },
           select: { coinBalance: true, deletedAt: true },
         });
-        if (!user || user.deletedAt) throw new NotFoundException('User not found');
+        if (!user || user.deletedAt) throw DomainError.notFound('User not found');
         throw new InsufficientBalanceError(cost, user.coinBalance);
       }
     } else {
@@ -76,7 +82,7 @@ export class CoinsService {
         data: { coinBalance: { increment: amount } },
       });
       if (result.count === 0) {
-        throw new NotFoundException('User not found');
+        throw DomainError.notFound('User not found');
       }
     }
 
@@ -84,7 +90,7 @@ export class CoinsService {
       where: { id: userId },
       select: { coinBalance: true },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw DomainError.notFound('User not found');
 
     const txn = await client.coinTransaction.create({
       data: {
@@ -104,7 +110,7 @@ export class CoinsService {
       where: { id: userId },
       select: { coinBalance: true, deletedAt: true },
     });
-    if (!user || user.deletedAt) throw new NotFoundException('User not found');
+    if (!user || user.deletedAt) throw DomainError.notFound('User not found');
     return { coinBalance: user.coinBalance };
   }
 

@@ -8,14 +8,20 @@
  *
  * Was named `AuthError` in PRs #70/#71 when only the auth module needed it;
  * generalised here for Task 4 (catalog services) which throw notFound /
- * forbidden in addition to the original auth statuses.
+ * forbidden / paymentRequired in addition to the original auth statuses.
+ *
+ * `context` is an optional bag of extra fields the filter merges into the
+ * top-level JSON body — used by the paywall (402) response so the client
+ * can show the unlock prompt with `chapterId`, `coinCost`, `currentBalance`
+ * without a follow-up request.
  */
-export type DomainErrorStatus = 400 | 401 | 403 | 404 | 409 | 500;
+export type DomainErrorStatus = 400 | 401 | 402 | 403 | 404 | 409 | 500;
 
 export class DomainError extends Error {
   constructor(
     public readonly status: DomainErrorStatus,
     message: string,
+    public readonly context?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'DomainError';
@@ -27,6 +33,10 @@ export class DomainError extends Error {
 
   static unauthorized(msg = 'Unauthorized'): DomainError {
     return new DomainError(401, msg);
+  }
+
+  static paymentRequired(msg: string, context?: Record<string, unknown>): DomainError {
+    return new DomainError(402, msg, context);
   }
 
   static forbidden(msg = 'Forbidden'): DomainError {
