@@ -9,12 +9,11 @@ import { createGoogleIdVerifier, type GoogleIdVerifier } from './google-id-verif
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JoseJwtClient } from './jose-jwt.client';
 import { OptionalAuthGuard } from './guards/optional-auth.guard';
-import { StripeClientProvider } from '../payments/stripe.client';
+import { LazyStripe, type StripeClient } from '../payments/stripe.client';
 import { PrismaProvider } from './providers/prisma.provider';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GOOGLE_OAUTH_CLIENT, PRISMA } from './auth.constants';
 import { FbCapiService } from '../fb-capi/fb-capi.service';
-import { type StripeClient } from '../payments/stripe.client';
 import { STRIPE_CLIENT } from '../payments/stripe.constants';
 
 const getJwtSecret = (): string => process.env.JWT_SECRET ?? 'dev-secret-change-me';
@@ -63,7 +62,10 @@ const getResetSecret = (): string => process.env.JWT_RESET_SECRET ?? `${getJwtSe
     JwtAuthGuard,
     OptionalAuthGuard,
     PrismaProvider,
-    StripeClientProvider,
+    {
+      provide: STRIPE_CLIENT,
+      useFactory: (): LazyStripe => new LazyStripe(process.env.STRIPE_SECRET_KEY),
+    },
   ],
   exports: [AuthService, JwtAuthGuard, OptionalAuthGuard, PrismaProvider],
 })

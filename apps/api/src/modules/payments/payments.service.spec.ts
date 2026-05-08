@@ -1,10 +1,4 @@
-import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { Test, type TestingModule } from '@nestjs/testing';
-
-import { PRISMA } from '../auth/auth.constants';
-
-import { PaymentsService } from './payments.service';
-import { STRIPE_CLIENT } from './stripe.constants';
+import { PaymentsService, type PaymentsServiceDeps } from './payments.service';
 
 const buildPrismaStub = () => {
   const users = new Map<
@@ -101,23 +95,19 @@ describe('PaymentsService', () => {
   let service: PaymentsService;
   let prisma: ReturnType<typeof buildPrismaStub>;
   let stripe: ReturnType<typeof buildStripeStub>;
+  let priceIds: { weekly: string | undefined; monthly: string | undefined };
 
-  beforeEach(async () => {
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
-    process.env.STRIPE_PRICE_WEEKLY = 'price_weekly_test';
-    process.env.STRIPE_PRICE_MONTHLY = 'price_monthly_test';
-
+  beforeEach(() => {
     prisma = buildPrismaStub();
     stripe = buildStripeStub();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PaymentsService,
-        { provide: PRISMA, useValue: prisma.prisma },
-        { provide: STRIPE_CLIENT, useValue: stripe },
-      ],
-    }).compile();
-    service = module.get(PaymentsService);
+    priceIds = { weekly: 'price_weekly_test', monthly: 'price_monthly_test' };
+    const deps = {
+      prisma: prisma.prisma,
+      stripe,
+      appUrl: 'http://localhost:3000',
+      subscriptionPriceIds: priceIds,
+    } as unknown as PaymentsServiceDeps;
+    service = new PaymentsService(deps);
   });
 
   it('createCoinCheckout: returns Stripe URL with correct metadata and writes pending Order', async () => {
@@ -170,8 +160,8 @@ describe('PaymentsService', () => {
   });
 
   it('createCoinCheckout: 401 for unknown user', async () => {
-    await expect(service.createCoinCheckout('ghost', 'pack_50')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    await expect(service.createCoinCheckout('ghost', 'pack_50')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 401 }),
     );
   });
 
@@ -182,8 +172,8 @@ describe('PaymentsService', () => {
       stripeCustomerId: null,
       deletedAt: new Date(),
     });
-    await expect(service.createCoinCheckout('user-1', 'pack_50')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    await expect(service.createCoinCheckout('user-1', 'pack_50')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 401 }),
     );
   });
 
@@ -203,16 +193,23 @@ describe('PaymentsService', () => {
     expect(sessionArg.line_items[0]?.price).toBe('price_monthly_test');
   });
 
-  it('createSubscriptionCheckout: throws when env price id is missing', async () => {
+  it('createSubscriptionCheckout: throws when configured price id is missing', async () => {
     prisma.users.set('user-1', {
       id: 'user-1',
       email: 'luna@example.com',
       stripeCustomerId: null,
       deletedAt: null,
     });
-    delete process.env.STRIPE_PRICE_WEEKLY;
-    await expect(service.createSubscriptionCheckout('user-1', 'weekly')).rejects.toBeInstanceOf(
-      BadRequestException,
+    priceIds.weekly = undefined;
+    const deps = {
+      prisma: prisma.prisma,
+      stripe,
+      appUrl: 'http://localhost:3000',
+      subscriptionPriceIds: priceIds,
+    } as unknown as PaymentsServiceDeps;
+    const noWeeklyService = new PaymentsService(deps);
+    await expect(noWeeklyService.createSubscriptionCheckout('user-1', 'weekly')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 400 }),
     );
   });
 
@@ -223,7 +220,9 @@ describe('PaymentsService', () => {
       stripeCustomerId: null,
       deletedAt: null,
     });
-    await expect(service.createPortalSession('user-1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.createPortalSession('user-1')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
+    );
   });
 
   it('createPortalSession: returns URL for users with a Stripe customer', async () => {
@@ -325,8 +324,8 @@ describe('PaymentsService', () => {
       completedAt: new Date(),
       metadata: {},
     });
-    await expect(service.getOrderStatus('user-1', 'cs_alien')).rejects.toBeInstanceOf(
-      NotFoundException,
+    await expect(service.getOrderStatus('user-1', 'cs_alien')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 404 }),
     );
   });
 });
