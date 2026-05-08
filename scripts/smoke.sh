@@ -5,8 +5,15 @@
 # returns a single non-zero exit code if any step fails but always runs to
 # the end so you see the whole picture.
 #
+# Stack-agnostic: works against the Phase 1 Nest API on :4000 and the
+# Phase 2 Cloudflare Worker on :8787 / api.<domain>. Both expose the same
+# `/health`, `/auth/*`, `/books/*`, `/chapters/*`, `/payments/*`, and
+# `/admin/*` envelopes. The Worker intentionally omits /docs (Swagger UI),
+# which is dev-only on Nest, so this script doesn't probe it.
+#
 # Usage:
-#   API=http://localhost:4000 ./scripts/smoke.sh
+#   API=http://localhost:4000 ./scripts/smoke.sh                  # Nest
+#   API=http://localhost:8787 ./scripts/smoke.sh                  # Worker (wrangler dev)
 #   API=https://api.example.com ADMIN_EMAIL=... ADMIN_PASSWORD=... ./scripts/smoke.sh
 
 set -uo pipefail
@@ -46,7 +53,7 @@ echo
 
 # === Anonymous endpoints ===
 gray "Anonymous"
-check "GET /docs (Swagger UI)"        200 "$API/docs"
+check "GET /health (DB ping)"         200 "$API/health"
 check "GET /books (catalog)"          200 "$API/books"
 check "GET /books/categories"         200 "$API/books/categories"
 check "GET /books/featured"           200 "$API/books/featured"
