@@ -71,6 +71,33 @@ if [ -n "$BOOK_ID" ]; then
   if [ -n "$CHAPTER_ID" ]; then
     gray "Resolved seed chapter $CHAPTER_ID for downstream checks"
     check "GET /chapters/:id (free chapter, anon)" 200 "$API/chapters/$CHAPTER_ID"
+
+    # Round-trip the signed contentUrl. In Phase 1 dev this hits the API
+    # /static fallback; in staging/production it hits R2 directly with a
+    # signed query, proving R2 binding + signing logic actually works
+    # end-to-end. The check only runs if /chapters/:id returned an
+    # unlocked envelope (locked chapters return null contentUrl).
+    CONTENT_URL=$(python3 -c 'import sys,json
+try:
+  d = json.load(open("/tmp/smoke.body"))
+  print(d.get("contentUrl") or "")
+except Exception:
+  print("")' 2>/dev/null)
+    if [ -n "$CONTENT_URL" ]; then
+      CONTENT_STATUS=$(curl -sS -o /tmp/smoke.body -w '%{http_code}' "$CONTENT_URL" 2>/dev/null)
+      : "${CONTENT_STATUS:=000}"
+      CONTENT_BYTES=$(wc -c < /tmp/smoke.body 2>/dev/null || echo 0)
+      if [ "$CONTENT_STATUS" = "200" ] && [ "$CONTENT_BYTES" -gt 100 ]; then
+        green "  PASS  GET signed contentUrl ($CONTENT_BYTES bytes)"
+        PASS=$((PASS + 1))
+      else
+        red "  FAIL  GET signed contentUrl (HTTP $CONTENT_STATUS, $CONTENT_BYTES bytes)"
+        gray "        url: ${CONTENT_URL:0:120}"
+        FAIL=$((FAIL + 1))
+      fi
+    else
+      gray "  SKIP  No contentUrl in /chapters/:id envelope (locked chapter?)"
+    fi
   else
     red "  SKIP  Could not resolve seeded chapter id; downstream chapter checks skipped"
   fi

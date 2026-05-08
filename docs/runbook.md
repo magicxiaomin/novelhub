@@ -55,12 +55,18 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 | `PRODUCTION_DATABASE_URL_DIRECT` | Same value as the existing `PRODUCTION_DATABASE_URL` (Supabase Direct URL, port 5432). Migrations skip without it. |
 | `CLOUDFLARE_API_TOKEN`           | From Stage 1 step 6.                                                                                               |
 | `CLOUDFLARE_ACCOUNT_ID`          | dash.cloudflare.com home → right sidebar.                                                                          |
+| `STAGING_ADMIN_EMAIL`            | Optional — used by post-deploy smoke against staging. Skipped when unset.                                          |
+| `STAGING_ADMIN_PASSWORD`         | Optional — paired with `STAGING_ADMIN_EMAIL`. Use a non-rotating staging-only credential.                          |
+| `PRODUCTION_ADMIN_EMAIL`         | Optional — used by post-deploy smoke against production. Skipped when unset.                                       |
+| `PRODUCTION_ADMIN_PASSWORD`      | Optional — paired with `PRODUCTION_ADMIN_EMAIL`.                                                                   |
 
 GitHub repo → Settings → Secrets and variables → Actions → Variables:
 
-| Variable                              | Value                                                                                                                                                                           |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRODUCTION_LIVE` (vars, NOT secrets) | `true` (set this AFTER stage 6 DNS cutover, AFTER you've confirmed the new stack is healthy. Until set, both workflows treat the production jobs as optional and skip cleanly.) |
+| Variable                              | Value                                                                                                                                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRODUCTION_LIVE` (vars, NOT secrets) | `true` (set this AFTER stage 6 DNS cutover, AFTER you've confirmed the new stack is healthy. Until set, both workflows treat the production jobs as optional and skip cleanly.)                           |
+| `STAGING_API_URL`                     | e.g. `https://novelhub-api-staging.<account>.workers.dev`. When set, `deploy-api.yml` runs `scripts/smoke.sh` against the deployed staging Worker (incl. R2 signed-URL round-trip) as a post-deploy gate. |
+| `PRODUCTION_API_URL`                  | e.g. `https://api.novelhub.com`. When set, same smoke runs against production after a successful production deploy.                                                                                       |
 
 ### Stage 3 — Worker secrets
 

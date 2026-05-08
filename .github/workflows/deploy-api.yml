@@ -115,6 +115,14 @@ jobs:
           workingDirectory: apps/api
           command: deploy --env staging
 
+      - name: Smoke staging Worker (incl. R2 signed URL round-trip)
+        if: steps.gate.outputs.deploy == 'true' && vars.STAGING_API_URL != ''
+        env:
+          API: ${{ vars.STAGING_API_URL }}
+          ADMIN_EMAIL: ${{ secrets.STAGING_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.STAGING_ADMIN_PASSWORD }}
+        run: bash scripts/smoke.sh
+
   production:
     runs-on: ubuntu-latest
     needs: [staging]
@@ -188,3 +196,11 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/api
           command: deploy --env production
+
+      - name: Smoke production Worker (incl. R2 signed URL round-trip)
+        if: steps.gate.outputs.deploy == 'true' && vars.PRODUCTION_API_URL != ''
+        env:
+          API: ${{ vars.PRODUCTION_API_URL }}
+          ADMIN_EMAIL: ${{ secrets.PRODUCTION_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.PRODUCTION_ADMIN_PASSWORD }}
+        run: bash scripts/smoke.sh
