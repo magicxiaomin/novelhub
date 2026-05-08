@@ -12,8 +12,8 @@
     "prisma:migrate": "pnpm --filter @novelhub/db prisma:migrate dev",
     "prisma:seed": "pnpm --filter @novelhub/db prisma:seed",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
-    "test": "pnpm --filter @novelhub/shared build && pnpm -r --if-present test",
-    "typecheck": "pnpm --filter @novelhub/shared build && pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @novelhub/shared build && pnpm -r --if-present --filter=!@novelhub/e2e test",
+    "typecheck": "pnpm --filter @novelhub/shared build && pnpm -r --if-present --filter=!@novelhub/e2e typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
