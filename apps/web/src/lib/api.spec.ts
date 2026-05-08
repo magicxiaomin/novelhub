@@ -41,6 +41,20 @@ describe('apiFetch', () => {
     expect(calls[0]).toBe('http://api.test/books?page=2&q=x');
   });
 
+  it('supports same-origin API proxy paths', async () => {
+    process.env.NEXT_PUBLIC_API_URL = '/api-proxy';
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:3000' } });
+    const calls: string[] = [];
+    globalThis.fetch = vi.fn(async (url) => {
+      calls.push(String(url));
+      return { ok: true, status: 200, text: async () => JSON.stringify({}) };
+    }) as unknown as typeof fetch;
+
+    await apiFetch('/books/featured', { query: { limit: 10 } });
+
+    expect(calls[0]).toBe('/api-proxy/books/featured?limit=10');
+  });
+
   it('throws ApiError with status + message on non-2xx', async () => {
     globalThis.fetch = mockFetch(404, { message: 'Not found' }, false);
     await expect(apiFetch('/books/missing')).rejects.toMatchObject({

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "rm -f public/sw.js public/sw.js.map public/workbox-*.js public/workbox-*.js.map",
     "dev": "next dev -p 3000",
     "build": "pnpm --filter @novelhub/shared build && next build",
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",

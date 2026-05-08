@@ -13,10 +13,31 @@ import { cookies } from 'next/headers';
 
 import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from './types';
 
-const apiBase = (): string => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const publicApiBase = (): string => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const internalApiBase = (): string => process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
+
+const apiBase = (): string => {
+  const base = publicApiBase();
+  return base.startsWith('/') ? internalApiBase() : base;
+};
+
+export const buildServerApiUrl = (
+  path: string,
+  query?: Record<string, string | number | boolean | undefined>,
+): string => {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = new URL(`${apiBase().replace(/\/+$/, '')}${normalizedPath}`);
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      if (v === undefined) continue;
+      url.searchParams.set(k, String(v));
+    }
+  }
+  return url.toString();
+};
 
 export async function fetchBookServer(id: string): Promise<BookDetail | null> {
-  const res = await fetch(`${apiBase()}/books/${encodeURIComponent(id)}`, {
+  const res = await fetch(buildServerApiUrl(`/books/${encodeURIComponent(id)}`), {
     // Avoid Next's default fetch caching — book detail can change as
     // chapters land. ISR could be added later if traffic warrants.
     cache: 'no-store',
@@ -36,8 +57,11 @@ export async function fetchBookChaptersServer(
   limit = 200,
 ): Promise<Paginated<ChapterSummary> | null> {
   const res = await fetch(
-    `${apiBase()}/books/${encodeURIComponent(id)}/chapters?page=${page}&limit=${limit}`,
-    { cache: 'no-store', headers: { cookie: cookieHeader() } },
+    buildServerApiUrl(`/books/${encodeURIComponent(id)}/chapters`, { page, limit }),
+    {
+      cache: 'no-store',
+      headers: { cookie: cookieHeader() },
+    },
   );
   if (res.status === 404 || res.status === 401) return null;
   if (!res.ok) {
@@ -47,7 +71,7 @@ export async function fetchBookChaptersServer(
 }
 
 export async function fetchChapterServer(id: string): Promise<ChapterResponse | null> {
-  const res = await fetch(`${apiBase()}/chapters/${encodeURIComponent(id)}`, {
+  const res = await fetch(buildServerApiUrl(`/chapters/${encodeURIComponent(id)}`), {
     cache: 'no-store',
     headers: { cookie: cookieHeader() },
   });
