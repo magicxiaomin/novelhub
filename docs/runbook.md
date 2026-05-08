@@ -1,153 +1,210 @@
-# Production Runbook
+# Production Runbook — Phase 1 Launch
+
+This runbook covers the **Phase 1 low-cost launch**: smallest viable infrastructure that supports a Meta-driven paid acquisition test with live Stripe, real error tracking, and basic uptime monitoring. Phase 2 expansions (Upstash Redis, OneSignal Push, Discord/Slack alerting, full staging) are listed at the end and intentionally deferred until traffic justifies the cost.
 
 ## Architecture Summary
 
-NovelHub runs a Next.js PWA frontend on Vercel and a NestJS API on Railway. The API owns database writes, auth cookies, Stripe, OneSignal, Resend, Facebook CAPI, Redis caching, and Cloudflare R2 signed chapter access; the web app talks to it through cookie-authenticated requests and serves public reading, checkout, PWA, legal, account, and admin experiences.
+| Service                       | Role                                                                   | Phase 1 plan                                               |
+| ----------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Vercel                        | Hosts `apps/web` (Next.js PWA)                                         | Hobby ($0) → Pro ($20/mo) when traffic justifies           |
+| Railway                       | Hosts `apps/api` (NestJS, single replica)                              | Hobby ($5/mo)                                              |
+| Supabase                      | Postgres + automated backups                                           | Free → Pro ($25/mo) when PITR or 7-day retention is needed |
+| Cloudflare R2                 | Object storage: covers (public) + chapter content (private, presigned) | Free tier (10 GB, $0 egress)                               |
+| Stripe (Live Mode)            | Subscriptions + coin packages                                          | Pay-as-you-go                                              |
+| Meta Business Manager + Pixel | Pixel + Conversions API                                                | Free                                                       |
+| Sentry                        | Error tracking (web + api projects)                                    | Free tier (5k errors/mo)                                   |
+| UptimeRobot                   | Uptime + content monitors                                              | Free (50 monitors, 5 min)                                  |
+
+Cron jobs (re-engagement, renewal reminders) run inside the Railway API process and use Postgres advisory locks for leader election; they do **not** require Redis.
+
+## First Launch Checklist
+
+Walk through these in order. Each section ends with a verification step.
+
+### 1. Supabase
+
+1. Create project on free tier; pick a region close to your Railway region.
+2. Once provisioned, go to **Settings → Database → Connection String → URI**, pick **"Transaction"** pooler mode (port `6543`), and copy the URI.
+3. Append `?pgbouncer=true&connection_limit=1` so Prisma plays nicely with PgBouncer.
+4. Save as `DATABASE_URL` in Railway (next step).
+5. **Verify**: after Railway is up, the API logs print `Nest application successfully started` and `GET /health` returns `db: ok`.
+
+### 2. Cloudflare R2
+
+1. Create a bucket — e.g. `novelhub-content`.
+2. **Settings → Public access**: leave bucket private. Do **not** flip "Public Bucket".
+3. **Settings → Custom Domains**: bind a Cloudflare-routed domain like `cdn.novelhub.example`. (Cloudflare proxies through your domain instead of `*.r2.cloudflarestorage.com`.)
+4. Make `covers/*` public-readable: easiest path is the Cloudflare Workers / Transform Rules approach to set `cache-control: public, max-age=86400` on the prefix. Chapter content under `books/<key>/...` stays private and is served via API-issued presigned URLs.
+5. Generate an R2 API token (Cloudflare Dashboard → R2 → Manage R2 API Tokens). Permissions: **Object Read & Write**, scoped to the bucket. Save the access key + secret to Railway as `R2_ACCESS_KEY` / `R2_SECRET_KEY`.
+6. **Verify**: upload one cover via the admin panel after launch; the URL `https://cdn.novelhub.example/covers/<uuid>` should render in `next/image` without a "hostname not configured" error (next.config.mjs reads `NEXT_PUBLIC_IMAGE_HOST`).
+
+### 3. Vercel (web)
+
+1. Connect the GitHub repo to a new Vercel project.
+2. **Project Settings → General**:
+   - Root Directory = `apps/web`
+   - Build Command = leave empty (auto: `pnpm --filter @novelhub/web build`)
+   - Install Command = `pnpm install`
+   - Output Directory = leave empty (auto-detected from `next` standalone build)
+3. **Project Settings → Environment Variables** — add the values listed in [Production Environment Variables](#production-environment-variables) below, scoping each to **Production** only (Preview deploys can stay with placeholder API URLs).
+4. **Project Settings → Domains** — add the production domain; set DNS A/CNAME records as instructed; Vercel auto-provisions SSL.
+5. **Deploy**: push to `main` or click "Redeploy". The first build should succeed in ~3 minutes.
+6. **Verify**: visit `https://novelhub.example/` — the home page renders with seeded books, the manifest at `/manifest.json` loads, and PWA install prompt appears on iOS / Android.
+
+### 4. Railway (api)
+
+1. Connect the GitHub repo to a new Railway project; choose **Deploy from Dockerfile** with path `apps/api/Dockerfile`.
+2. **Settings → Source Repo**:
+   - Watch Paths: `apps/api/**` and `packages/**`
+   - Production Branch: `main`
+3. **Settings → Deploy**:
+   - **Pre-Deploy Command** (critical — see [Deploy Flow](#deploy-flow)):
+     ```sh
+     pnpm --filter @novelhub/db prisma:migrate-deploy
+     ```
+   - **Healthcheck Path**: `/health`
+   - **Healthcheck Timeout**: 30s
+   - **Replicas**: 1 (Phase 1 — do not horizontal-scale; cron leader election + advisory locks are correct for that case but unnecessary at this volume)
+4. **Variables** — paste in the api env block from [Production Environment Variables](#production-environment-variables).
+5. **Settings → Domains** — generate a Railway-provided domain or bind a custom domain like `api.novelhub.example`. Update Vercel's `NEXT_PUBLIC_API_URL` to match.
+6. **Verify**: `curl https://api.novelhub.example/health` returns `{ "status": "ok", "db": "ok", … }`. `https://api.novelhub.example/docs` shows the Swagger UI.
+
+### 5. Stripe (Live Mode)
+
+1. **Stripe Dashboard → toggle "View test data" OFF** (you are now in live mode).
+2. Run `pnpm stripe:setup` locally with `STRIPE_SECRET_KEY=sk_live_...` exported. The script creates the four coin packages and two subscription plans and prints their price IDs. Copy them into Railway env: `STRIPE_PRICE_WEEKLY`, `STRIPE_PRICE_MONTHLY` (coin package IDs are baked into `packages/shared`).
+3. **Webhooks → Add endpoint**:
+   - URL: `https://api.novelhub.example/payments/webhook`
+   - Events to listen for:
+     - `checkout.session.completed`
+     - `customer.subscription.created`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+     - `invoice.paid`
+     - `invoice.payment_failed`
+     - `charge.refunded`
+4. After creating, copy the **Signing secret** (`whsec_...`) into Railway as `STRIPE_WEBHOOK_SECRET`.
+5. **Verify**: in Stripe Dashboard → Webhooks → click your endpoint → "Send test webhook" with `checkout.session.completed`. Railway logs should show the event handler executing; Stripe shows a `200` response.
+
+### 6. Meta Business Manager / Pixel
+
+1. **Business Settings → Brand Safety → Domains** — add `novelhub.example` and verify via DNS TXT or meta tag.
+2. **Events Manager → Data Sources → Add → Web** — create a Pixel; copy its ID into Vercel `NEXT_PUBLIC_FB_PIXEL_ID`.
+3. **Events Manager → your Pixel → Settings → Conversions API** — generate an access token. Copy to Railway `FB_CAPI_ACCESS_TOKEN`. Leave `FB_TEST_EVENT_CODE` **empty** in production.
+4. **Events Manager → your Pixel → Aggregated Event Measurement** — set the 8 priority events. Suggested priority (highest first): Purchase, Subscribe, AddToCart, InitiateCheckout, ViewContent, CompleteRegistration, Lead, PageView.
+5. **Verify**: install the Meta Pixel Helper Chrome extension. Load `https://novelhub.example/` — should fire `PageView`. Open a book detail page — should fire `ViewContent`. In Events Manager → Test Events, the same events appear with both **browser** and **server** sources, deduped by `event_id`.
+
+### 7. Sentry
+
+1. Create a Sentry org (if not already).
+2. Create two projects:
+   - `novelhub-web` (platform: Next.js)
+   - `novelhub-api` (platform: Node.js)
+3. Copy the DSNs into env (`NEXT_PUBLIC_SENTRY_DSN` for web, `SENTRY_DSN` for api).
+4. **Settings → Auth Tokens → Create New Token** — scope `project:releases` + `project:write`. Copy as `SENTRY_AUTH_TOKEN` to **both** Vercel and Railway env (build-time only). Set `SENTRY_ORG` to the org slug, `SENTRY_PROJECT_WEB`/`SENTRY_PROJECT_API` to the project slugs.
+5. **Verify**: trigger a hand-thrown error (the smoke script's "test error" path, or simply `throw new Error('sentry-smoke-test')` from a one-off endpoint). The error should appear in the matching Sentry project within 60s with PII fields scrubbed.
+
+### 8. UptimeRobot
+
+Create 4 free-tier monitors (5-min interval):
+
+| Monitor              | URL                                                        | Type                         | Expected         |
+| -------------------- | ---------------------------------------------------------- | ---------------------------- | ---------------- |
+| Web home             | `https://novelhub.example/`                                | HTTP(s)                      | 200              |
+| API health           | `https://api.novelhub.example/health`                      | HTTP(s), keyword `"db":"ok"` | 200 + body match |
+| Books endpoint       | `https://api.novelhub.example/books?limit=1`               | HTTP(s)                      | 200              |
+| Payment success page | `https://novelhub.example/payment/success?session_id=test` | HTTP(s)                      | 200              |
+
+Add an alert contact (email is fine for Phase 1; add Slack/Discord in Phase 2).
 
 ## Production Environment Variables
 
-Use `.env.example` as the source of truth. Production must define these values in the relevant platform secret stores:
+Source of truth: `.env.example`. Each variable's deployment scope is annotated there as `[V]` (Vercel), `[R]` (Railway), `[VR]` (both), or `[L]` (local only).
+
+**Pre-flight check**: before pushing the first deploy, grep your env:
 
 ```sh
-DATABASE_URL=
-REDIS_URL=
-JWT_SECRET=
-JWT_REFRESH_SECRET=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_PRICE_WEEKLY=
-STRIPE_PRICE_MONTHLY=
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY=
-R2_SECRET_KEY=
-R2_BUCKET=
-NEXT_PUBLIC_FB_PIXEL_ID=
-FB_CAPI_ACCESS_TOKEN=
-FB_TEST_EVENT_CODE=
-RESEND_API_KEY=
-EMAIL_FROM=
-SUPPORT_EMAIL=
-SUPPORT_FROM_EMAIL=
-NEXT_PUBLIC_SUPPORT_EMAIL=
-NEXT_PUBLIC_DMCA_EMAIL=
-R2_PUBLIC_HOST=
-NEXT_PUBLIC_ONESIGNAL_APP_ID=
-ONESIGNAL_REST_API_KEY=
-NEXT_PUBLIC_APP_URL=
-NEXT_PUBLIC_API_URL=
-NEXT_PUBLIC_IMAGE_HOST=
-NEXT_PUBLIC_R2_PUBLIC_HOST=
-NODE_ENV=
-SENTRY_DSN=
-NEXT_PUBLIC_SENTRY_DSN=
-SENTRY_AUTH_TOKEN=
-SENTRY_ORG=
-SENTRY_PROJECT_WEB=
-SENTRY_PROJECT_API=
+# These MUST match these patterns in production:
+[[ "$STRIPE_SECRET_KEY" == sk_live_* ]] || echo "WARN: not a live key"
+[[ -z "$NEXT_PUBLIC_DEV_ALLOW_API_CONTENT" ]] || echo "WARN: dev escape hatch is on in prod"
+[[ -z "$FB_TEST_EVENT_CODE" ]] || echo "WARN: FB events going to test stream"
+[[ "$NODE_ENV" == "production" ]] || echo "WARN: not production NODE_ENV"
 ```
-
-Do not commit real secret values. Set `NODE_ENV=production` in both production apps.
 
 ## Deploy Flow
 
-Vercel deploys `apps/web` from `main` using the Next.js standalone build. Railway deploys `apps/api` from `main` using `apps/api/Dockerfile`.
+Vercel deploys `apps/web` and Railway deploys `apps/api` from `main` via their native Git integrations. No GitHub Actions production deploy workflow is required.
 
-Production deploys intentionally use the native Git repository integrations in Vercel and Railway. When those projects are connected to this repository and configured to auto-deploy from `main`, no GitHub Actions production deploy workflow is required; the CI gates stay in GitHub Actions, and each platform owns its own production rollout.
+**Migrations run as a separate Pre-Deploy step, not in the API container ENTRYPOINT.** Running `prisma migrate deploy` at every container start makes every replica race for the Prisma advisory lock at horizontal scale-out, and a failed migration crash-loops every replica simultaneously. Phase 1 runs a single replica, but the discipline keeps Phase 2 free.
 
-**Migrations run as a separate pre-deploy step, not in the API container ENTRYPOINT.** Running `prisma migrate deploy` at every container start makes every replica race for the Prisma advisory lock on horizontal scale-out, and a failed migration crash-loops every replica simultaneously instead of failing once and surfacing cleanly.
-
-Configure the deploy platform to run, before rolling out the new image:
+Railway's **Pre-Deploy Command**:
 
 ```sh
-pnpm --filter @novelhub/db exec prisma migrate deploy --schema prisma/schema.prisma
+pnpm --filter @novelhub/db prisma:migrate-deploy
 ```
 
-- **Railway:** set this as the project's Pre-Deploy Command. Railway runs it once per deploy; the new replica only goes live when the migration step exits 0.
-- **Other platforms:** run it as a dedicated GitHub Actions deploy job, a `release` Procfile entry, or a one-shot k8s Job — whatever the platform's idiom for "exactly-once per release" is.
-
-If the migration step fails, the deploy halts before any new replica is rolled out. The previous image keeps serving until you fix the migration. `staging-deploy.yml` already exists for the separate staging VPS flow; that path runs migrations inside the deploy script for the same reason.
-
-Operational setup after merge remains manual: create and connect Vercel, Railway, Supabase, Upstash, Cloudflare, Stripe live-mode, Meta Business Manager, Sentry, UptimeRobot, and Discord or Slack alerting.
+If the migration step exits non-zero, Railway halts the rollout and the previous image keeps serving. Roll forward by fixing the migration; do not bypass.
 
 ## Rollback
 
-Use Vercel's deployment history to roll the web app back to the previous successful deployment.
+| Layer         | How                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Vercel (web)  | Deployments → previous green build → "Promote to Production"                                                                                     |
+| Railway (api) | Deployments → previous → "Redeploy"                                                                                                              |
+| Database      | Supabase → Project Settings → Database → Backups → Restore. **Stop the API first** (Railway → Settings → Pause) so writes don't race the restore |
 
-Use Railway's deployment history to roll the API back to the previous image.
-
-Database rollback is harder than image rollback. Destructive migrations must ship only with a reviewed manual reverse-migration plan, backup confirmation, and an agreed recovery window before they reach production.
+Database rollback is destructive. Destructive migrations must ship only with a reviewed manual reverse-migration plan and stakeholder sign-off — see Backup Strategy.
 
 ## Backup Strategy
 
-Supabase Pro projects ship with automatic daily Postgres backups out of the box. Document, verify, and operate them as follows:
+Supabase Pro projects ship with automatic daily Postgres backups. Phase 1 should upgrade to Pro the moment real users arrive.
 
-- **Storage.** Supabase stores backups in their managed infrastructure; they are not in this repository. The Supabase dashboard surfaces them under Project Settings → Database → Backups.
-- **Retention.** Daily backups are retained for 7 days on the Pro plan (review the active plan on Supabase to confirm). For longer retention enable Point-in-Time Recovery (PITR) which extends to 7–30 days depending on plan.
-- **RPO / RTO.** RPO is up to 24 hours without PITR (the gap between daily snapshots). RTO is "minutes to a few hours" for Supabase-managed restores. Document the active values once Supabase is provisioned.
-- **Who restores.** The on-call engineer triggers a restore from the Supabase dashboard, or via `supabase db restore` when it lands on the CLI. They must coordinate with stakeholders before a destructive restore because it replaces the entire database state.
-- **Partial vs. full restore.**
-  - _Full restore_ — Supabase replaces the entire database from the chosen snapshot. Schedule a write-freeze on the API (`fly scale 0` / Railway pause) before triggering, and verify migrations are at the expected version after restore.
-  - _Partial restore_ — Supabase does not natively support per-table restore. The supported workflow is: clone the snapshot to a one-shot recovery branch, dump the affected tables with `pg_dump --table`, then merge into the live database with conflict-resolution scripts. Document the affected rows in the postmortem.
-- **Verification cadence.** A weekly cron exports the latest backup to a recovery-only branch and runs `prisma migrate status` against it. Track the result in the on-call rotation channel — silent backup pipelines must be assumed broken.
-- **Out of scope here.** Cross-region replication and DR runbooks are not part of Ticket 14 (see ticket Out of Scope). Add them when traffic warrants the cost.
+- **Storage**: Supabase-managed; surfaced under Project Settings → Database → Backups.
+- **Retention**: 7 days on Pro. Enable PITR (Point-in-Time Recovery) for 7–30 days.
+- **RPO / RTO**: RPO ≤ 24h without PITR; RTO is "minutes to a few hours" for Supabase-managed restores.
+- **Restore procedure**: pause the Railway API → trigger restore in Supabase dashboard → run `prisma migrate status` against the restored DB to confirm migration version → unpause API.
+- **Verification cadence**: weekly — clone the latest backup to a recovery branch, run `prisma migrate status`, document the result.
+
+## Monitoring & Alerts
+
+| Channel                 | Source                                                                                             |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| Frontend errors         | Sentry `novelhub-web`                                                                              |
+| Backend errors          | Sentry `novelhub-api`                                                                              |
+| Uptime                  | UptimeRobot (4 monitors)                                                                           |
+| Stripe webhook failures | Stripe Dashboard → Webhooks → endpoint → "Recent deliveries" (alerts via email when sustained 5xx) |
+| Meta event quality      | Events Manager → Test Events + Match Quality                                                       |
+| DB                      | Supabase Dashboard → Reports                                                                       |
+
+Sentry's built-in email alert is enough for Phase 1; route both projects to the on-call email. Add Slack/Discord webhook in Phase 2.
 
 ## Common Issues
 
-Stripe webhook 400s: verify `STRIPE_WEBHOOK_SECRET`, confirm the endpoint is the live-mode webhook URL, and check that `/payments/webhook` still receives the raw request body.
+**Stripe webhook 400s** — verify `STRIPE_WEBHOOK_SECRET` matches the live webhook's signing secret (test-mode secrets do **not** validate live events), confirm the endpoint URL is correct, and check `apps/api/src/main.ts` still configures `rawBody: true` (the Nest app needs the raw request body to validate the signature).
 
-Login works locally but fails in production: confirm `NEXT_PUBLIC_APP_URL`, CORS origin, secure cookie settings, and the production domain.
+**Login works locally but fails in production** — confirm `NEXT_PUBLIC_APP_URL`, the API's CORS origin, secure cookie settings, and the production domain on the JWT cookie path.
 
-Chapter content 403s: confirm `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, and that chapter objects remain private while API-generated presigned URLs are valid for one hour.
+**Chapter content 403s** — confirm `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`. Chapter objects must remain private; API-generated presigned URLs are valid for 1 hour.
 
-Cover images do not render: confirm production cover objects are public-readable and `R2_PUBLIC_HOST`, `NEXT_PUBLIC_IMAGE_HOST`, and `NEXT_PUBLIC_R2_PUBLIC_HOST` match the Cloudflare hostname.
+**Cover images do not render** — confirm `R2_PUBLIC_HOST` (backend) and `NEXT_PUBLIC_R2_PUBLIC_HOST` / `NEXT_PUBLIC_IMAGE_HOST` (frontend) all point at the **same** Cloudflare custom domain.
 
-OneSignal pushes silent: confirm `NEXT_PUBLIC_ONESIGNAL_APP_ID`, `ONESIGNAL_REST_API_KEY`, real-device subscription state, and the service worker scope conflict tracked in #46.
+**Facebook events do not deduplicate** — confirm the frontend Pixel and backend CAPI share the same `event_id` per request. The web client generates `event_id` and passes it to both; if the server ignores or regenerates, dedup breaks. Re-check `apps/api/src/modules/fb-capi/`.
 
-Facebook events do not deduplicate: confirm frontend Pixel and backend CAPI share the same `event_id`, `NEXT_PUBLIC_FB_PIXEL_ID`, `FB_CAPI_ACCESS_TOKEN`, and Meta AEM priority settings.
+**Sentry is quiet** — confirm `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` are set, and `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT_*` are populated for source-map upload (build-time variables).
 
-Sentry is quiet: confirm Sentry projects exist, `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` are set, and `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT_WEB`, and `SENTRY_PROJECT_API` are configured if source-map upload is expected.
+**`/health` returns `db: fail`** — Railway's Pre-Deploy migration probably succeeded but the connection pool is misconfigured. Check `DATABASE_URL` includes `?pgbouncer=true&connection_limit=1` for Supabase.
 
-## Pre-Launch QA Checklist
+## Phase 2 — Deferred
 
-- [ ] Register new account, get welcome email
-- [ ] Login with email and Google
-- [ ] Browse home, all categories
-- [ ] Open book detail, view chapter list
-- [ ] Read first 3 free chapters as guest
-- [ ] Hit paywall on chapter 4
-- [ ] Sign up from paywall, redirected back
-- [ ] Buy coin package, verify coins added
-- [ ] Unlock chapter with coins
-- [ ] Subscribe weekly, verify unlimited access
-- [ ] Cancel subscription via portal, verify access until period end
-- [ ] Check FB Events Manager, all events firing with dedup
-- [ ] Test push notification subscribe and receive
-- [ ] Install PWA on iOS and Android
-- [ ] Lighthouse mobile: Performance > 85, PWA > 90, Accessibility > 90
-- [ ] All legal pages accessible
-- [ ] Cookie consent works
-- [ ] Admin panel functional
-- [ ] Site loads at production URL with valid SSL
-- [ ] Stripe live test purchase works, then refund it
-- [ ] FB Pixel verified active in Meta Business Manager
-- [ ] Sentry receives test errors from both apps
-- [ ] Supabase automatic backups are enabled
-- [ ] Initial production data upload contains 15 books with full chapter sets
+These are intentionally not part of Phase 1. Re-evaluate when the listed condition is met.
 
-## Operational Checklist
-
-- [ ] Create Vercel project and production env vars
-- [ ] Create Railway project and production env vars
-- [ ] Create Supabase production Postgres project
-- [ ] Create Upstash or Railway Redis instance
-- [ ] Create production R2 bucket; covers public-read, chapters private
-- [ ] Configure DNS, SSL, and Cloudflare page rules
-- [ ] Configure Stripe live-mode products and webhook
-- [ ] Verify domain in Meta Business Manager and configure AEM priority
-- [ ] Create Sentry projects, DSNs, and source-map upload token
-- [ ] Verify Lighthouse scores on the production URL
-- [ ] Test push notifications on real iOS and Android devices
-- [ ] Configure Discord or Slack webhook and UptimeRobot monitor
+| Item                                                  | Trigger to enable                              | How                                                                                                         |
+| ----------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Upstash Redis                                         | DAU > 1k or `/books` p95 > 500ms               | Provision Upstash → set `REDIS_URL` in Railway. Code auto-enables cache, no diff                            |
+| OneSignal Push                                        | First retention campaign / re-engagement push  | Set `NEXT_PUBLIC_ONESIGNAL_APP_ID` + `ONESIGNAL_REST_API_KEY`. Real-device verify the SW scope fix from #46 |
+| Discord/Slack alerts                                  | Second P1 incident                             | Sentry → Alerts → Webhook integration                                                                       |
+| Full staging environment                              | Team > 2 people                                | Configure `STAGING_*` secrets in GitHub; `staging-deploy.yml` and `staging-healthcheck.yml` already exist   |
+| GitHub Actions production deploy with manual approval | Team > 2 people / regulated change-control     | Disable Vercel/Railway auto-deploy; add `production-deploy.yml` with `environment: production` gate         |
+| Sentry Performance / Profiling                        | Real performance investigation                 | Bump `tracesSampleRate` from 0.1 → 1.0; enable profiling SDK                                                |
+| Cross-region read replicas                            | Multi-region traffic / GDPR data residency     | Supabase → Read Replicas                                                                                    |
+| Independent worker / queue                            | Cron count > 5 or single-task duration > 1 min | BullMQ + Upstash; extract from the NestJS monolith                                                          |
