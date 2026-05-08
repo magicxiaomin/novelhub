@@ -11,6 +11,7 @@
  * `prismaMiddleware`) so soft-deleted/banned accounts cannot leverage a
  * still-valid token.
  */
+import type { PrismaClient } from '@prisma/client';
 import type { Context, MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
@@ -38,17 +39,16 @@ const readToken = (c: Context): string | null => {
   return null;
 };
 
-// Loose context type — both `requireAuth` (where `user` is set after this
-// resolves) and `optionalAuth` (where `user` may stay unset) call into here.
-// Using `any` for Variables sidesteps the variance mismatch between
-// `Partial<AuthVariables>` and `AuthVariables`; the function only reads
-// `prisma`, which is structurally present on both.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// `resolveUser` takes only what it needs (env + raw request + prisma client),
+// not a typed Hono Context. This sidesteps Hono's invariant Variables
+// generic — both `requireAuth` (where Variables = AuthVariables) and
+// `optionalAuth` (where Variables = Partial<AuthVariables>) read prisma
+// off c.get('prisma') and pass it in plain.
 async function resolveUser(
-  c: Context<{ Bindings: WorkerEnv; Variables: any }>,
+  env: WorkerEnv,
+  token: string | null,
+  prisma: PrismaClient,
 ): Promise<AuthedUser | null> {
-  const env = c.env;
-  const token = readToken(c);
   if (!token) return null;
 
   const jwt = new JoseJwtClient(env.JWT_SECRET ?? 'dev-secret-change-me');
@@ -60,8 +60,6 @@ async function resolveUser(
   }
   if (payload.type !== 'access' || !payload.sub) return null;
 
-  const prisma = c.get('prisma');
-  if (!prisma) return null;
   const user = await prisma.user.findUnique({
     where: { id: payload.sub },
     select: { id: true, email: true, deletedAt: true, bannedAt: true, isAdmin: true },
@@ -74,7 +72,7 @@ export const requireAuth: MiddlewareHandler<{
   Bindings: WorkerEnv;
   Variables: AuthVariables;
 }> = async (c, next) => {
-  const user = await resolveUser(c);
+  const user = await resolveUser(c.env, readToken(c), c.get('prisma'));
   if (!user) {
     throw new HTTPException(401, { message: 'Unauthorized' });
   }
@@ -86,8 +84,11 @@ export const optionalAuth: MiddlewareHandler<{
   Bindings: WorkerEnv;
   Variables: Partial<AuthVariables>;
 }> = async (c, next) => {
-  const user = await resolveUser(c);
-  if (user) c.set('user', user);
+  const prisma = c.get('prisma');
+  if (prisma) {
+    const user = await resolveUser(c.env, readToken(c), prisma);
+    if (user) c.set('user', user);
+  }
   await next();
 };
 
@@ -95,7 +96,7 @@ export const requireAdmin: MiddlewareHandler<{
   Bindings: WorkerEnv;
   Variables: AuthVariables;
 }> = async (c, next) => {
-  const user = await resolveUser(c);
+  const user = await resolveUser(c.env, readToken(c), c.get('prisma'));
   if (!user) {
     throw new HTTPException(401, { message: 'Unauthorized' });
   }
