@@ -34,7 +34,10 @@ describe('OneSignalClient', () => {
   it('sendNotification: passes an AbortSignal so a hung request is bounded', async () => {
     const fetchMock = jest.fn().mockResolvedValue(buildOkResponse({ id: 'push-1' }));
     global.fetch = fetchMock as unknown as typeof fetch;
-    const client = new OneSignalClient();
+    const client = new OneSignalClient({
+      apiKey: process.env.ONESIGNAL_REST_API_KEY,
+      appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
+    });
 
     await client.sendNotification({ title: 't', body: 'b', segments: ['All'] });
 
@@ -45,7 +48,10 @@ describe('OneSignalClient', () => {
 
   it('sendNotification: returns sent=false when fetch aborts on timeout', async () => {
     global.fetch = jest.fn().mockRejectedValue(makeTimeoutError()) as unknown as typeof fetch;
-    const client = new OneSignalClient();
+    const client = new OneSignalClient({
+      apiKey: process.env.ONESIGNAL_REST_API_KEY,
+      appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
+    });
 
     await expect(
       client.sendNotification({ title: 't', body: 'b', segments: ['All'] }),
@@ -56,7 +62,10 @@ describe('OneSignalClient', () => {
 
   it('hasActivePushSubscription: returns false when fetch aborts on timeout', async () => {
     global.fetch = jest.fn().mockRejectedValue(makeTimeoutError()) as unknown as typeof fetch;
-    const client = new OneSignalClient();
+    const client = new OneSignalClient({
+      apiKey: process.env.ONESIGNAL_REST_API_KEY,
+      appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
+    });
 
     await expect(client.hasActivePushSubscription('user-1')).resolves.toBe(false);
   });
@@ -64,7 +73,10 @@ describe('OneSignalClient', () => {
   it('hasActivePushSubscription: passes an AbortSignal on the user lookup', async () => {
     const fetchMock = jest.fn().mockResolvedValue(buildOkResponse({ subscriptions: [] }));
     global.fetch = fetchMock as unknown as typeof fetch;
-    const client = new OneSignalClient();
+    const client = new OneSignalClient({
+      apiKey: process.env.ONESIGNAL_REST_API_KEY,
+      appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
+    });
 
     await client.hasActivePushSubscription('user-1');
 

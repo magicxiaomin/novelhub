@@ -1,9 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-
 // 5s ceiling on each OneSignal HTTP call. Their API normally responds in
 // <500ms; anything longer means an incident and we'd rather fail fast than
-// pin a Nest worker waiting on a hung connection. The 5/min throttle in
-// front of grantBonus already bounds blast radius if every retry trips this.
+// pin a worker waiting on a hung connection. The 5/min throttle in front of
+// grantBonus already bounds blast radius if every retry trips this.
 const ONESIGNAL_REQUEST_TIMEOUT_MS = 5000;
 
 type OneSignalSendInput = {
@@ -33,24 +31,36 @@ type OneSignalUserResponse = {
   subscriptions?: OneSignalSubscription[];
 };
 
-@Injectable()
-export class OneSignalClient {
-  private readonly logger = new Logger(OneSignalClient.name);
-  private readonly apiKey = process.env.ONESIGNAL_REST_API_KEY;
-  private readonly appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+export type OneSignalClientDeps = {
+  apiKey: string | undefined;
+  appId: string | undefined;
+};
 
-  constructor() {
+const log = {
+  warn(msg: string): void {
+    // eslint-disable-next-line no-console
+    console.warn(`[OneSignalClient] ${msg}`);
+  },
+};
+
+export class OneSignalClient {
+  private readonly apiKey: string | undefined;
+  private readonly appId: string | undefined;
+
+  constructor(deps: OneSignalClientDeps) {
+    this.apiKey = deps.apiKey;
+    this.appId = deps.appId;
     if (!this.apiKey) {
-      this.logger.warn('ONESIGNAL_REST_API_KEY is not configured; push sends are disabled.');
+      log.warn('ONESIGNAL_REST_API_KEY is not configured; push sends are disabled.');
     }
     if (!this.appId) {
-      this.logger.warn('NEXT_PUBLIC_ONESIGNAL_APP_ID is not configured; push sends are disabled.');
+      log.warn('NEXT_PUBLIC_ONESIGNAL_APP_ID is not configured; push sends are disabled.');
     }
   }
 
   async sendNotification(input: OneSignalSendInput): Promise<{ sent: boolean; id?: string }> {
     if (!this.apiKey || !this.appId) {
-      this.logger.warn('Skipping OneSignal notification because credentials are missing.');
+      log.warn('Skipping OneSignal notification because credentials are missing.');
       return { sent: false };
     }
 
@@ -77,13 +87,13 @@ export class OneSignalClient {
         body: JSON.stringify(payload),
       });
     } catch (err) {
-      this.logger.warn(`OneSignal send aborted: ${describeFetchError(err)}`);
+      log.warn(`OneSignal send aborted: ${describeFetchError(err)}`);
       return { sent: false };
     }
 
     if (!res.ok) {
       const body = await res.text();
-      this.logger.warn(`OneSignal send failed with ${res.status}: ${body}`);
+      log.warn(`OneSignal send failed with ${res.status}: ${body}`);
       return { sent: false };
     }
 
@@ -93,7 +103,7 @@ export class OneSignalClient {
 
   async hasActivePushSubscription(userId: string): Promise<boolean> {
     if (!this.apiKey || !this.appId) {
-      this.logger.warn('Skipping OneSignal subscription check because credentials are missing.');
+      log.warn('Skipping OneSignal subscription check because credentials are missing.');
       return false;
     }
 
@@ -111,13 +121,13 @@ export class OneSignalClient {
         },
       );
     } catch (err) {
-      this.logger.warn(`OneSignal subscription check aborted: ${describeFetchError(err)}`);
+      log.warn(`OneSignal subscription check aborted: ${describeFetchError(err)}`);
       return false;
     }
 
     if (!res.ok) {
       const body = await res.text();
-      this.logger.warn(`OneSignal subscription check failed with ${res.status}: ${body}`);
+      log.warn(`OneSignal subscription check failed with ${res.status}: ${body}`);
       return false;
     }
 

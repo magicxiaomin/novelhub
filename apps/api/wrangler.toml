@@ -58,10 +58,12 @@ name = "novelhub-api"
 # routes = [{ pattern = "api.novelhub.com/*", custom_domain = true }]
 
 # ---- Cron triggers ----------------------------------------------------------
-# Replace @nestjs/schedule + Vercel Cron at Task 8. Commented until then so
-# `wrangler dev --test-scheduled` doesn't try to invoke a no-op handler.
-# [triggers]
-# crons = [
-#   "0 */6 * * *",   # re-engagement
-#   "0 9 * * *",     # renewal-reminders
-# ]
+# Worker scheduled() handler in src/worker.ts dispatches by event.cron.
+# Keep these schedule strings in sync with the constants at the top of that
+# handler (CRON_RE_ENGAGEMENT, CRON_RENEWAL_REMINDER). Local: trigger a tick
+# via `wrangler dev --test-scheduled` then `curl http://localhost:8787/__scheduled`.
+[triggers]
+crons = [
+  "0 */6 * * *",   # re-engagement: every 6 hours on the hour
+  "0 9 * * *",     # renewal-reminders: 09:00 UTC daily
+]

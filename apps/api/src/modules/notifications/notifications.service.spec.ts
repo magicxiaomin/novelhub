@@ -60,7 +60,11 @@ const buildService = (overrides?: {
   } as unknown as OneSignalClient;
 
   return {
-    service: new NotificationsService(prisma as unknown as PrismaClient, coins, oneSignal),
+    service: new NotificationsService({
+      prisma: prisma as unknown as PrismaClient,
+      coins,
+      oneSignal,
+    }),
     prisma,
     tx,
     coins,
@@ -298,7 +302,10 @@ describe('OneSignalClient', () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const client = new OneSignalClient();
+    const client = new OneSignalClient({
+      apiKey: process.env.ONESIGNAL_REST_API_KEY,
+      appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
+    });
 
     await expect(client.sendNotification({ title: 'Title', body: 'Body' })).resolves.toEqual({
       sent: false,
@@ -312,7 +319,10 @@ describe('OneSignalClient', () => {
     const json = jest.fn().mockResolvedValue({ id: 'push-1' });
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json }) as unknown as typeof fetch;
 
-    const client = new OneSignalClient();
+    const client = new OneSignalClient({
+      apiKey: process.env.ONESIGNAL_REST_API_KEY,
+      appId: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
+    });
 
     await expect(
       client.sendNotification({
