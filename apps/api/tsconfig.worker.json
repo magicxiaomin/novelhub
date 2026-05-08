@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "lib": ["esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "target": "esnext",
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src/worker.ts"],
+  "exclude": ["node_modules", "dist", "src/main.ts", "src/instrument.ts", "src/modules/**"]
+}
