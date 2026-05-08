@@ -1,18 +1,9 @@
-import {
-  BadRequestException,
-  ConflictException,
-  InternalServerErrorException,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { Test, type TestingModule } from '@nestjs/testing';
 import bcrypt from 'bcryptjs';
 
-import { GOOGLE_OAUTH_CLIENT, PRISMA, SIGNUP_BONUS_COINS } from './auth.constants';
-import { AuthService } from './auth.service';
-import { EmailService } from './email.service';
-import { FbCapiService } from '../fb-capi/fb-capi.service';
-import { STRIPE_CLIENT } from '../payments/stripe.constants';
+import { SIGNUP_BONUS_COINS } from './auth.constants';
+import { AuthError } from './auth.errors';
+import { AuthService, type AuthServiceDeps } from './auth.service';
+import { JoseJwtClient } from './jose-jwt.client';
 
 type StoredUser = {
   id: string;
@@ -155,6 +146,9 @@ const makeFbCapiStub = () => ({
   sendEvent: jest.fn(async (): Promise<void> => undefined),
 });
 
+const expectAuthError = (status: 400 | 401 | 409 | 500) =>
+  expect.objectContaining({ status, name: AuthError.name });
+
 describe('AuthService', () => {
   const ORIGINAL_ENV = { ...process.env };
   let service: AuthService;
@@ -164,7 +158,7 @@ describe('AuthService', () => {
   let stripeStub: ReturnType<typeof makeStripeStub>;
   let fbCapiStub: ReturnType<typeof makeFbCapiStub>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     process.env.JWT_SECRET = 'test-access-secret';
     process.env.JWT_REFRESH_SECRET = 'test-refresh-secret';
     process.env.JWT_RESET_SECRET = 'test-reset-secret';
@@ -176,19 +170,21 @@ describe('AuthService', () => {
     stripeStub = makeStripeStub();
     fbCapiStub = makeFbCapiStub();
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        JwtService,
-        { provide: PRISMA, useValue: prismaStub.prisma },
-        { provide: EmailService, useValue: emailStub },
-        { provide: GOOGLE_OAUTH_CLIENT, useValue: googleStub },
-        { provide: STRIPE_CLIENT, useValue: stripeStub },
-        { provide: FbCapiService, useValue: fbCapiStub },
-      ],
-    }).compile();
+    // The stubs here only implement the surface AuthService actually touches;
+    // typecast through `unknown` is the standard escape hatch for partial
+    // mocks of structurally-typed Prisma / Nest service classes.
+    const deps = {
+      prisma: prismaStub.prisma,
+      jwt: new JoseJwtClient('test-access-secret'),
+      refreshJwt: new JoseJwtClient('test-refresh-secret'),
+      resetJwt: new JoseJwtClient('test-reset-secret'),
+      email: emailStub,
+      googleVerifier: googleStub,
+      stripe: stripeStub,
+      fbCapi: fbCapiStub,
+    } as unknown as AuthServiceDeps;
 
-    service = module.get(AuthService);
+    service = new AuthService(deps);
   });
 
   afterEach(() => {
@@ -238,8 +234,8 @@ describe('AuthService', () => {
 
   it('register: rejects duplicate email with 409', async () => {
     await service.register('luna@example.com', 'password123');
-    await expect(service.register('luna@example.com', 'password456')).rejects.toBeInstanceOf(
-      ConflictException,
+    await expect(service.register('luna@example.com', 'password456')).rejects.toEqual(
+      expectAuthError(409),
     );
   });
 
@@ -252,14 +248,14 @@ describe('AuthService', () => {
 
   it('login: 401 on wrong password', async () => {
     await service.register('luna@example.com', 'password123');
-    await expect(service.login('luna@example.com', 'wrongpass')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    await expect(service.login('luna@example.com', 'wrongpass')).rejects.toEqual(
+      expectAuthError(401),
     );
   });
 
   it('login: 401 on unknown email (no leak)', async () => {
-    await expect(service.login('ghost@example.com', 'whatever')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    await expect(service.login('ghost@example.com', 'whatever')).rejects.toEqual(
+      expectAuthError(401),
     );
   });
 
@@ -268,8 +264,8 @@ describe('AuthService', () => {
     const onlyUser = Array.from(prismaStub.users.values())[0];
     if (!onlyUser) throw new Error('no user created');
     onlyUser.deletedAt = new Date();
-    await expect(service.login('luna@example.com', 'password123')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    await expect(service.login('luna@example.com', 'password123')).rejects.toEqual(
+      expectAuthError(401),
     );
   });
 
@@ -375,12 +371,12 @@ describe('AuthService', () => {
         email_verified: false,
       }),
     });
-    await expect(service.loginWithGoogle('fake')).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.loginWithGoogle('fake')).rejects.toEqual(expectAuthError(401));
   });
 
   it('google: 401 when verifyIdToken throws', async () => {
     googleStub.verifyIdToken.mockRejectedValue(new Error('bad token'));
-    await expect(service.loginWithGoogle('garbage')).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.loginWithGoogle('garbage')).rejects.toEqual(expectAuthError(401));
   });
 
   it('refresh: issues fresh tokens for valid refresh JWT', async () => {
@@ -392,13 +388,11 @@ describe('AuthService', () => {
 
   it('refresh: rejects access token used as refresh token', async () => {
     const reg = await service.register('luna@example.com', 'password123');
-    await expect(service.refresh(reg.tokens.accessToken)).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(service.refresh(reg.tokens.accessToken)).rejects.toEqual(expectAuthError(401));
   });
 
   it('refresh: rejects garbage', async () => {
-    await expect(service.refresh('not-a-jwt')).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.refresh('not-a-jwt')).rejects.toEqual(expectAuthError(401));
   });
 
   it('forgot-password: silent on unknown email, sends email when found', async () => {
@@ -414,11 +408,10 @@ describe('AuthService', () => {
 
   it('reset-password: updates the password hash', async () => {
     const reg = await service.register('luna@example.com', 'oldpassword');
-    // mint a reset token directly via the service's JwtService for determinism
-    const jwt = new JwtService();
-    const token = await jwt.signAsync(
+    const resetJwt = new JoseJwtClient('test-reset-secret');
+    const token = await resetJwt.signAsync(
       { sub: reg.user.id, type: 'reset' },
-      { secret: 'test-reset-secret', expiresIn: '1h' },
+      { expiresIn: '1h' },
     );
     await service.resetPassword(token, 'newpassword');
     const stored = Array.from(prismaStub.users.values())[0];
@@ -429,14 +422,14 @@ describe('AuthService', () => {
 
   it('reset-password: rejects an access token used as reset token', async () => {
     const reg = await service.register('luna@example.com', 'oldpassword');
-    await expect(
-      service.resetPassword(reg.tokens.accessToken, 'newpassword'),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.resetPassword(reg.tokens.accessToken, 'newpassword')).rejects.toEqual(
+      expectAuthError(400),
+    );
   });
 
   it('reset-password: rejects garbage', async () => {
-    await expect(service.resetPassword('not-a-jwt', 'newpassword')).rejects.toBeInstanceOf(
-      BadRequestException,
+    await expect(service.resetPassword('not-a-jwt', 'newpassword')).rejects.toEqual(
+      expectAuthError(400),
     );
   });
 
@@ -452,7 +445,7 @@ describe('AuthService', () => {
     const stored = Array.from(prismaStub.users.values())[0];
     if (!stored) throw new Error('no user');
     stored.deletedAt = new Date();
-    await expect(service.getCurrentUser(reg.user.id)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.getCurrentUser(reg.user.id)).rejects.toEqual(expectAuthError(401));
   });
 
   it('deleteAccount: soft-deletes an active user', async () => {
@@ -463,8 +456,8 @@ describe('AuthService', () => {
 
   it('deleteAccount: 401 on invalid password', async () => {
     const reg = await service.register('luna@example.com', 'password123');
-    await expect(service.deleteAccount(reg.user.id, 'wrongpass')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    await expect(service.deleteAccount(reg.user.id, 'wrongpass')).rejects.toEqual(
+      expectAuthError(401),
     );
   });
 
@@ -541,8 +534,8 @@ describe('AuthService', () => {
     });
     stripeStub.stripe.subscriptions.cancel.mockRejectedValueOnce(new Error('stripe unavailable'));
 
-    await expect(service.deleteAccount(reg.user.id, 'password123')).rejects.toBeInstanceOf(
-      InternalServerErrorException,
+    await expect(service.deleteAccount(reg.user.id, 'password123')).rejects.toEqual(
+      expectAuthError(500),
     );
 
     expect(prismaStub.users.get(reg.user.id)?.deletedAt).toBeNull();
