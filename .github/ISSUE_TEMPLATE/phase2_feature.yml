@@ -1,0 +1,52 @@
+name: Phase 2 Feature
+about: Track a NovelHub Phase 2 product/engineering feature
+labels: ['type:feature', 'status:needs-spec']
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: Background / user value
+      description: Why this matters for NovelHub users or business.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included in this issue.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: Explicitly list what must not be implemented in this issue.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist that Claude/Codex/Hermes can verify.
+      value: |
+        - [ ] 
+        - [ ] Tests added/updated
+        - [ ] Docs or user-facing text updated if needed
+        - [ ] No scope creep beyond this issue
+    validations:
+      required: true
+  - type: textarea
+    id: technical_notes
+    attributes:
+      label: Technical notes / constraints
+      description: Relevant files, APIs, data models, risks, or constraints from AGENTS.md.
+  - type: textarea
+    id: agent_workflow
+    attributes:
+      label: Agent workflow tracking
+      value: |
+        - Claude requirements proposal:
+        - Codex feasibility review:
+        - Claude final decision:
+        - Hermes Kanban tasks:
+        - Linked PRs:

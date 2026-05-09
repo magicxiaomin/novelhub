@@ -1,36 +1,99 @@
 - name: codex
-  color: "8B5CF6"
+  color: '8B5CF6'
   description: Issues for Codex to pick up
 - name: ticket
-  color: "0E8A16"
+  color: '0E8A16'
   description: A NovelHub MVP ticket
 - name: auto-pipeline
-  color: "1D76DB"
+  color: '1D76DB'
   description: Created by the auto-pipeline
 - name: claude-approved
-  color: "2EA44F"
+  color: '2EA44F'
   description: Claude reviewed and approved
 - name: claude-changes-requested
-  color: "D93F0B"
+  color: 'D93F0B'
   description: Claude requested changes
 - name: needs-human-review
-  color: "B60205"
+  color: 'B60205'
   description: Auto-pipeline halted, needs human eyes
 - name: needs-human-merge
-  color: "FBCA04"
+  color: 'FBCA04'
   description: Approved but blocked from auto-merge by policy (security/payment/launch)
 - name: needs-plan
-  color: "5319E7"
+  color: '5319E7'
   description: Issue is waiting for claude-plan.yml to generate an implementation plan
 - name: plan-ready
-  color: "1D76DB"
+  color: '1D76DB'
   description: Plan generated; @codex has been pinged
 - name: staging-healthy
-  color: "0E8A16"
+  color: '0E8A16'
   description: Last main commit passed staging healthcheck (set by staging-healthcheck.yml)
 - name: human-approved
-  color: "2EA44F"
+  color: '2EA44F'
   description: User approved a high-risk PR via the go/no-go chat protocol
 - name: human-blocked
-  color: "B60205"
+  color: 'B60205'
   description: User rejected a high-risk PR via the go/no-go chat protocol
+- name: type:feature
+  color: '0E8A16'
+  description: Product or engineering feature
+- name: type:bug
+  color: 'D73A4A'
+  description: Bug or regression
+- name: type:tech-debt
+  color: 'C5DEF5'
+  description: Refactor, maintenance, or technical debt
+- name: type:test
+  color: 'BFDADC'
+  description: Test coverage or test infrastructure
+- name: type:docs
+  color: '0075CA'
+  description: Documentation update
+- name: area:reader
+  color: '1D76DB'
+  description: Reader experience
+- name: area:import
+  color: '1D76DB'
+  description: Novel import and parsing
+- name: area:search
+  color: '1D76DB'
+  description: Search and discovery
+- name: area:backend
+  color: '5319E7'
+  description: Backend/API/database
+- name: area:frontend
+  color: '5319E7'
+  description: Frontend web app
+- name: area:infra
+  color: '5319E7'
+  description: CI/CD/deployment/infrastructure
+- name: priority:p0
+  color: 'B60205'
+  description: Critical priority
+- name: priority:p1
+  color: 'D93F0B'
+  description: High priority
+- name: priority:p2
+  color: 'FBCA04'
+  description: Normal priority
+- name: status:needs-spec
+  color: 'EDEDED'
+  description: Needs Claude requirements/specification pass
+- name: status:ready
+  color: 'C2E0C6'
+  description: Ready for implementation
+- name: status:blocked
+  color: 'B60205'
+  description: Blocked by human/technical decision
+- name: status:in-review
+  color: 'FBCA04'
+  description: PR or spec is under review
+- name: agent:claude
+  color: '6F42C1'
+  description: Owned/reviewed by Claude profile
+- name: agent:codex
+  color: '8B5CF6'
+  description: Owned/implemented by Codex profile
+- name: agent:human
+  color: 'B60205'
+  description: Requires human decision
