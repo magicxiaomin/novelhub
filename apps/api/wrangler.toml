@@ -12,7 +12,7 @@ name = "novelhub-api"
 main = "src/worker.ts"
 compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
-account_id = ""  # filled in by user when wiring deploy
+account_id = "0ead643bec90bb38a1f209ec3cec02bb"
 
 # Production-equivalent build pipeline. Wrangler bundles src/worker.ts via
 # esbuild. We don't run `tsc --build` here — TypeScript types are checked
@@ -32,16 +32,17 @@ binding = "BUCKET"
 bucket_name = "novelhub-content"
 preview_bucket_name = "novelhub-content-preview"
 
-# KV (support contact rate-limit + future rate-limit primitives). The id is
-# created via `wrangler kv namespace create novelhub-kv`; until then keep this
-# commented so `wrangler dev` doesn't error.
-# [[kv_namespaces]]
-# binding = "KV"
-# id = ""
+# KV (support contact rate-limit + future rate-limit primitives). Single
+# namespace shared between staging and production — rate-limit keys are
+# IP+email-scoped, so cross-env collision isn't a real risk.
+[[kv_namespaces]]
+binding = "KV"
+id = "6a22d526fa6841439f4b5517fe821730"
 
-# Hyperdrive (Postgres connection pooler in front of Supabase Direct port 5432).
-# Created via `wrangler hyperdrive create novelhub-pg --connection-string='postgresql://USER:PASS@HOST:5432/DB'`.
-# Commented for now; Task 4 wires the real binding.
+# Hyperdrive (Postgres connection pooler in front of Supabase Session pooler
+# port 5432). Top-level value is the production-scoped binding; staging
+# overrides via [[env.staging.hyperdrive]] below. Production id is filled in
+# by user once production Supabase + Hyperdrive create are done.
 # [[hyperdrive]]
 # binding = "HYPERDRIVE"
 # id = ""
@@ -52,6 +53,19 @@ preview_bucket_name = "novelhub-content-preview"
 [env.staging]
 name = "novelhub-api-staging"
 # routes = [{ pattern = "api-staging.novelhub.com/*", custom_domain = true }]
+
+[[env.staging.r2_buckets]]
+binding = "BUCKET"
+bucket_name = "novelhub-content-staging"
+preview_bucket_name = "novelhub-content-preview"
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "6a22d526fa6841439f4b5517fe821730"
+
+[[env.staging.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "ee7db7e85d78487796c06ba032a8c469"
 
 [env.production]
 name = "novelhub-api"
