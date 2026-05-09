@@ -12,6 +12,7 @@
  */
 import APP_NAME from '@novelhub/shared';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 
 import { DomainError } from './common/domain.errors';
@@ -52,6 +53,32 @@ const STARTED_AT = Date.now();
 type AppEnv = PaymentsWorkerEnv & NotificationsWorkerEnv & AdminWorkerEnv;
 
 const app = new Hono<{ Bindings: AppEnv; Variables: Partial<AuthVariables> }>();
+
+// CORS — mirror Phase 1 Nest's `app.enableCors({ origin: NEXT_PUBLIC_APP_URL,
+// credentials: true })`. The Pages frontend at *.pages.dev is cross-origin
+// to the Worker at *.workers.dev, so credentialed fetches need a preflight
+// allow + Set-Cookie's Access-Control-Allow-Credentials echo. Allowlist is
+// driven by NEXT_PUBLIC_APP_URL (single canonical origin) plus an optional
+// CORS_EXTRA_ORIGINS comma-separated env for staging/preview hosts. Mounted
+// before prismaMiddleware so OPTIONS preflights don't open a Prisma client.
+app.use('*', async (c, next) => {
+  const allowed = new Set<string>();
+  if (c.env.NEXT_PUBLIC_APP_URL) allowed.add(c.env.NEXT_PUBLIC_APP_URL);
+  if (c.env.CORS_EXTRA_ORIGINS) {
+    for (const o of c.env.CORS_EXTRA_ORIGINS.split(',')) {
+      const trimmed = o.trim();
+      if (trimmed) allowed.add(trimmed);
+    }
+  }
+  return cors({
+    origin: (origin) => (origin && allowed.has(origin) ? origin : null),
+    credentials: true,
+    allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposeHeaders: ['Content-Length', 'X-Ratelimit-Remaining', 'X-Ratelimit-Reset'],
+    maxAge: 600,
+  })(c, next);
+});
 
 // Mirrors apps/api/src/app.controller.ts — same envelope shape so the
 // frontend health probe / UptimeRobot keyword match keeps working when DNS

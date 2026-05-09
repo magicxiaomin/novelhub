@@ -34,6 +34,14 @@ export type WorkerEnv = {
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   NEXT_PUBLIC_APP_URL?: string;
+  // Comma-separated extra origins permitted by Worker CORS, in addition to
+  // NEXT_PUBLIC_APP_URL. Useful for staging/preview hosts (e.g. the
+  // *.pages.dev preview URL each Pages deploy gets).
+  CORS_EXTRA_ORIGINS?: string;
+  // Set to 'true' when API and web app are on different registrable domains
+  // (e.g. *.workers.dev + *.pages.dev on staging). Forces cookies to
+  // SameSite=None + Secure so cross-site fetch+credentials work in browsers.
+  COOKIE_CROSS_SITE?: string;
   NODE_ENV?: string;
   // R2 (Task 4.2 — chapter content + signed URLs)
   R2_ACCOUNT_ID?: string;

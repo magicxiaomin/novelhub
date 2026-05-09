@@ -30,7 +30,14 @@ import {
 
 type Bindings = WorkerEnv;
 
-const isProd = (env: WorkerEnv): boolean => env.NODE_ENV === 'production';
+const cookieMode = (env: WorkerEnv): { crossSite: boolean; isProd: boolean } => ({
+  // Set COOKIE_CROSS_SITE=true on staging when the Worker and web app live on
+  // different registrable domains (workers.dev + pages.dev). Once both move
+  // behind the same custom domain (e.g. novelhub.com), unset and let the
+  // default SameSite=Lax kick back in.
+  crossSite: env.COOKIE_CROSS_SITE === 'true',
+  isProd: env.NODE_ENV === 'production',
+});
 
 export const authRoutes = new Hono<{
   Bindings: Bindings;
@@ -40,14 +47,14 @@ export const authRoutes = new Hono<{
     const { email, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
     const result = await auth.register(email, password);
-    setAuthCookies(c, result.tokens, isProd(c.env));
+    setAuthCookies(c, result.tokens, cookieMode(c.env));
     return c.json({ user: result.user }, 201);
   })
   .post('/login', zValidator('json', loginSchema, validationHook), async (c) => {
     const { email, password } = c.req.valid('json');
     const auth = makeAuthService(c.env, c.get('prisma'));
     const result = await auth.login(email, password);
-    setAuthCookies(c, result.tokens, isProd(c.env));
+    setAuthCookies(c, result.tokens, cookieMode(c.env));
     return c.json({ user: result.user }, 200);
   })
   .post('/refresh', async (c) => {
@@ -57,11 +64,11 @@ export const authRoutes = new Hono<{
     }
     const auth = makeAuthService(c.env, c.get('prisma'));
     const tokens = await auth.refresh(refreshToken);
-    setAuthCookies(c, tokens, isProd(c.env));
+    setAuthCookies(c, tokens, cookieMode(c.env));
     return c.json({ refreshed: true }, 200);
   })
   .post('/logout', (c) => {
-    clearAuthCookies(c, isProd(c.env));
+    clearAuthCookies(c, cookieMode(c.env));
     return c.json({ ok: true }, 200);
   })
   .get('/me', requireAuth, async (c) => {
