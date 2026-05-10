@@ -9,6 +9,14 @@ jest.mock('../services/dramas-factory', () => ({
   makeDramasService: jest.fn(),
 }));
 
+jest.mock('../middleware/auth', () => ({
+  optionalAuth: jest.fn(async (_c, next) => next()),
+  requireAuth: jest.fn(async (c, next) => {
+    c.set('user', { id: 'user-1', email: 'reader@example.com', isAdmin: false });
+    await next();
+  }),
+}));
+
 const makeDramasServiceMock = jest.mocked(makeDramasService);
 
 const contractDramaSummary = {
@@ -172,5 +180,53 @@ describe('dramasRoutes', () => {
 
     expect(response.status).toBe(400);
     expect(list).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid unlock episode ids before calling the service', async () => {
+    const unlockEpisode = jest.fn();
+    makeDramasServiceMock.mockReturnValue({ unlockEpisode } as never);
+
+    const response = await makeApp().request('/episodes/not-a-uuid/unlock', { method: 'POST' });
+
+    expect(response.status).toBe(400);
+    expect(unlockEpisode).not.toHaveBeenCalled();
+  });
+
+  it('serves POST /episodes/:episodeId/unlock for authenticated users', async () => {
+    const unlockEpisode = jest.fn().mockResolvedValue({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      access: 'granted',
+      accessReason: 'unlocked',
+      unlockId: 'unlock-1',
+      method: 'COINS',
+      coinCost: 5,
+      balanceAfter: 15,
+      transactionId: 'txn-1',
+      unlockedAt: '2026-05-10T12:00:00.000Z',
+    });
+    makeDramasServiceMock.mockReturnValue({ unlockEpisode } as never);
+
+    const response = await makeApp().request(
+      '/episodes/11111111-1111-4111-8111-111111111111/unlock',
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(201);
+    expect(unlockEpisode).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', 'user-1');
+    await expect(response.json()).resolves.toEqual({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      access: 'granted',
+      accessReason: 'unlocked',
+      unlockId: 'unlock-1',
+      method: 'COINS',
+      coinCost: 5,
+      balanceAfter: 15,
+      transactionId: 'txn-1',
+      unlockedAt: '2026-05-10T12:00:00.000Z',
+    });
   });
 });
