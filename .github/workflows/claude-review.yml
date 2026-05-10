@@ -150,17 +150,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit ${{ github.event.pull_request.number }} \
-            --remove-label "claude-approved" --remove-label "claude-changes-requested" --remove-label "needs-human-review" 2>/dev/null || true
+          # Use issue label APIs instead of `gh pr edit --add-label/--remove-label`.
+          # Some gh versions query deprecated Projects Classic PR fields in `pr edit`,
+          # which can fail the review job even after the review itself succeeds.
+          PR=${{ github.event.pull_request.number }}
+          gh issue edit "$PR" --remove-label "claude-approved" --remove-label "claude-changes-requested" --remove-label "needs-human-review" 2>/dev/null || true
           case "${{ steps.parse.outputs.verdict }}" in
             APPROVE)
-              gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-approved"
+              gh issue edit "$PR" --add-label "claude-approved"
               ;;
             REQUEST_CHANGES)
-              gh pr edit ${{ github.event.pull_request.number }} --add-label "claude-changes-requested"
+              gh issue edit "$PR" --add-label "claude-changes-requested"
               ;;
             *)
-              gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-review"
+              gh issue edit "$PR" --add-label "needs-human-review"
               ;;
           esac
 
