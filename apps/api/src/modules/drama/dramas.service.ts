@@ -1,11 +1,16 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { DomainError } from '../../common/domain.errors';
-
+import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
+import { CoinsService } from '../coins/coins.service';
+import { InsufficientBalanceError } from '../coins/insufficient-balance.exception';
 import type {
   DramaDetail,
   DramaSummary,
+  EpisodePlayback,
+  EpisodePlaybackGranted,
   EpisodeProgress,
+  EpisodeUnlockResult,
   EpisodeSummary,
   ListDramasQuery,
   Paginated,
@@ -65,6 +70,9 @@ const publishedAtVisible = (now: Date): Prisma.DramaWhereInput[] => [
   { publishedAt: { lte: now } },
 ];
 
+const isUniqueConstraintError = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+
 export class DramasService {
   private readonly prisma: PrismaClient;
 
@@ -104,6 +112,253 @@ export class DramasService {
         totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
       },
     };
+  }
+
+  private toPlaybackGranted(
+    episode: {
+      id: string;
+      dramaId: string;
+      episodeNumber: number;
+      title: string;
+      durationSeconds: number | null;
+      videoAsset: { playbackUrl: string; provider: string; thumbnailUrl: string | null };
+    },
+    accessReason: EpisodePlaybackGranted['accessReason'],
+  ): EpisodePlaybackGranted {
+    return {
+      episodeId: episode.id,
+      dramaId: episode.dramaId,
+      episodeNumber: episode.episodeNumber,
+      title: episode.title,
+      durationSeconds: episode.durationSeconds,
+      access: 'granted',
+      accessReason,
+      hlsUrl: episode.videoAsset.playbackUrl,
+      provider: episode.videoAsset.provider,
+      thumbnailUrl: episode.videoAsset.thumbnailUrl,
+    };
+  }
+
+  async getPlayback(episodeId: string, userId: string | null): Promise<EpisodePlayback> {
+    const now = new Date();
+    const episode = await this.prisma.episode.findFirst({
+      where: {
+        id: episodeId,
+        isPublished: true,
+        deletedAt: null,
+        OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+        drama: {
+          status: PUBLISHED,
+          deletedAt: null,
+          OR: publishedAtVisible(now),
+        },
+      },
+      select: {
+        id: true,
+        dramaId: true,
+        episodeNumber: true,
+        title: true,
+        durationSeconds: true,
+        isFree: true,
+        drama: { select: { coinPerEpisode: true } },
+        videoAsset: {
+          select: {
+            playbackUrl: true,
+            provider: true,
+            thumbnailUrl: true,
+          },
+        },
+      },
+    });
+
+    if (!episode) {
+      throw DomainError.notFound('Episode not found');
+    }
+    if (!episode.videoAsset) {
+      throw DomainError.notFound('Episode playback asset not found');
+    }
+
+    const videoAsset = episode.videoAsset;
+
+    if (episode.isFree) {
+      return this.toPlaybackGranted({ ...episode, videoAsset }, 'free');
+    }
+
+    if (userId) {
+      const [unlock, subscription] = await Promise.all([
+        this.prisma.episodeUnlock.findFirst({
+          where: { userId, episodeId: episode.id },
+          select: { id: true },
+        }),
+        this.prisma.subscription.findFirst({
+          where: {
+            userId,
+            status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+            currentPeriodEnd: { gt: now },
+          },
+          select: { id: true },
+        }),
+      ]);
+
+      if (unlock) {
+        return this.toPlaybackGranted({ ...episode, videoAsset }, 'unlocked');
+      }
+      if (subscription) {
+        return this.toPlaybackGranted({ ...episode, videoAsset }, 'subscription');
+      }
+    }
+
+    return {
+      episodeId: episode.id,
+      dramaId: episode.dramaId,
+      episodeNumber: episode.episodeNumber,
+      title: episode.title,
+      durationSeconds: episode.durationSeconds,
+      access: 'denied',
+      accessReason: 'locked',
+      coinPerEpisode: episode.drama.coinPerEpisode,
+    };
+  }
+
+  private async findUnlockableEpisode(episodeId: string): Promise<{
+    id: string;
+    dramaId: string;
+    episodeNumber: number;
+    isFree: boolean;
+    drama: { coinPerEpisode: number };
+  }> {
+    const now = new Date();
+    const episode = await this.prisma.episode.findFirst({
+      where: {
+        id: episodeId,
+        isPublished: true,
+        deletedAt: null,
+        OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+        drama: {
+          status: PUBLISHED,
+          deletedAt: null,
+          OR: publishedAtVisible(now),
+        },
+      },
+      select: {
+        id: true,
+        dramaId: true,
+        episodeNumber: true,
+        isFree: true,
+        drama: { select: { coinPerEpisode: true } },
+      },
+    });
+    if (!episode) throw DomainError.notFound('Episode not found');
+    return episode;
+  }
+
+  private toUnlockResult(
+    episode: { id: string; dramaId: string; episodeNumber: number },
+    unlock: { id: string; method: string; unlockedAt: Date },
+    accessReason: EpisodeUnlockResult['accessReason'],
+    coinCost: number,
+    balanceAfter: number | null,
+    transactionId: string | null,
+  ): EpisodeUnlockResult {
+    return {
+      episodeId: episode.id,
+      dramaId: episode.dramaId,
+      episodeNumber: episode.episodeNumber,
+      access: 'granted',
+      accessReason,
+      unlockId: unlock.id,
+      method: unlock.method,
+      coinCost,
+      balanceAfter,
+      transactionId,
+      unlockedAt: unlock.unlockedAt.toISOString(),
+    };
+  }
+
+  async unlockEpisode(episodeId: string, userId: string): Promise<EpisodeUnlockResult> {
+    const now = new Date();
+    const episode = await this.findUnlockableEpisode(episodeId);
+    const coinCost = episode.drama.coinPerEpisode;
+
+    try {
+      const existing = await this.prisma.episodeUnlock.findFirst({
+        where: { userId, episodeId: episode.id },
+        select: { id: true, method: true, unlockedAt: true },
+      });
+      if (existing) {
+        return this.toUnlockResult(episode, existing, 'unlocked', 0, null, null);
+      }
+
+      const subscription = await this.prisma.subscription.findFirst({
+        where: {
+          userId,
+          status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+          currentPeriodEnd: { gt: now },
+        },
+        select: { id: true },
+      });
+      if (subscription || episode.isFree) {
+        const unlock = await this.prisma.episodeUnlock.create({
+          data: { userId, episodeId: episode.id, method: subscription ? 'SUBSCRIPTION' : 'FREE' },
+          select: { id: true, method: true, unlockedAt: true },
+        });
+        return this.toUnlockResult(
+          episode,
+          unlock,
+          subscription ? 'subscription' : 'unlocked',
+          0,
+          null,
+          null,
+        );
+      }
+
+      return await this.prisma.$transaction(async (tx) => {
+        const unlockInTx = await tx.episodeUnlock.findFirst({
+          where: { userId, episodeId: episode.id },
+          select: { id: true, method: true, unlockedAt: true },
+        });
+        if (unlockInTx) {
+          return this.toUnlockResult(episode, unlockInTx, 'unlocked', 0, null, null);
+        }
+
+        const coins = new CoinsService({ prisma: this.prisma });
+        const adjustment = await coins.adjustBalance(
+          userId,
+          -coinCost,
+          'EPISODE_UNLOCK',
+          episode.id,
+          tx,
+        );
+        const unlock = await tx.episodeUnlock.create({
+          data: { userId, episodeId: episode.id, method: 'COINS' },
+          select: { id: true, method: true, unlockedAt: true },
+        });
+        return this.toUnlockResult(
+          episode,
+          unlock,
+          'unlocked',
+          coinCost,
+          adjustment.balance,
+          adjustment.transactionId,
+        );
+      });
+    } catch (error) {
+      if (error instanceof InsufficientBalanceError) {
+        throw DomainError.paymentRequired('Insufficient coin balance', {
+          episodeId: episode.id,
+          coinCost,
+          currentBalance: error.current,
+        });
+      }
+      if (isUniqueConstraintError(error)) {
+        const unlock = await this.prisma.episodeUnlock.findFirst({
+          where: { userId, episodeId: episode.id },
+          select: { id: true, method: true, unlockedAt: true },
+        });
+        if (unlock) return this.toUnlockResult(episode, unlock, 'unlocked', 0, null, null);
+      }
+      throw error;
+    }
   }
 
   async getBySlug(slug: string, userId: string | null): Promise<DramaDetail> {
