@@ -1,10 +1,11 @@
 import Link from 'next/link';
 
+import { BookRail } from '@/components/home/book-rail';
 import { DramaCard } from '@/components/drama/drama-card';
 import { DramaRail } from '@/components/drama/drama-rail';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
-import { fetchDramasServer } from '@/lib/server-api';
+import { fetchBooksServer, fetchDramasServer } from '@/lib/server-api';
 import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
@@ -14,8 +15,10 @@ export default async function HomePage(): Promise<JSX.Element> {
     fetchDramasServer({ featured: true, pageSize: 8 }).catch(() => null),
     fetchDramasServer({ pageSize: 12 }).catch(() => null),
   ]);
+  const newReleases = await fetchBooksServer({ limit: 10 }).catch(() => null);
   const featuredItems = featured?.items ?? [];
   const allItems = all?.items ?? [];
+  const newReleaseItems = newReleases?.items ?? [];
   const hero = featuredItems[0] ?? allItems[0];
 
   return (
@@ -46,6 +49,8 @@ export default async function HomePage(): Promise<JSX.Element> {
         </section>
 
         <DramaRail title={messages.drama.featured} dramas={featuredItems} />
+
+        <BookRail title={messages.home.newReleases} books={newReleaseItems} seeAllHref="/novels" />
 
         <section className="mt-6 px-4">
           <h2 className="text-lg font-semibold tracking-tight">{messages.drama.all}</h2>
