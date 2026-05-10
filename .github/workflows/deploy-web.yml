@@ -114,9 +114,12 @@ jobs:
         if: steps.gate.outputs.deploy == 'true'
         run: pnpm install --frozen-lockfile --filter @novelhub/web...
 
-      - name: Generate Prisma Client (shared peer)
-        if: steps.gate.outputs.deploy == 'true'
-        run: pnpm --filter @novelhub/db prisma:generate
+      # No prisma:generate here — apps/web doesn't import @prisma/client
+      # or @novelhub/db (verified via grep). The `pages:build` script
+      # already runs `pnpm --filter @novelhub/shared build` inline, so
+      # the shared compilation step also lives implicitly inside the
+      # Pages build. Adding a prisma step would fail anyway because the
+      # `--filter @novelhub/web...` install excludes the db workspace.
 
       - name: Build Pages bundle (staging API URL inlined at build time)
         if: steps.gate.outputs.deploy == 'true'
@@ -206,9 +209,12 @@ jobs:
         if: steps.gate.outputs.deploy == 'true'
         run: pnpm install --frozen-lockfile --filter @novelhub/web...
 
-      - name: Generate Prisma Client (shared peer)
-        if: steps.gate.outputs.deploy == 'true'
-        run: pnpm --filter @novelhub/db prisma:generate
+      # No prisma:generate here — apps/web doesn't import @prisma/client
+      # or @novelhub/db (verified via grep). The `pages:build` script
+      # already runs `pnpm --filter @novelhub/shared build` inline, so
+      # the shared compilation step also lives implicitly inside the
+      # Pages build. Adding a prisma step would fail anyway because the
+      # `--filter @novelhub/web...` install excludes the db workspace.
 
       - name: Build Pages bundle (production API URL inlined at build time)
         if: steps.gate.outputs.deploy == 'true'
