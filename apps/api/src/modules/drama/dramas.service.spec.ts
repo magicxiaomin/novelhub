@@ -105,6 +105,7 @@ describe('DramasService', () => {
         },
       ],
     });
+    prisma.subscription.findFirst.mockResolvedValue(null);
     prisma.episodeUnlock.findMany.mockResolvedValue([{ episodeId: 'episode-2' }]);
     prisma.watchProgress.findMany.mockResolvedValue([
       {
@@ -135,6 +136,14 @@ describe('DramasService', () => {
         },
       }),
     );
+    expect(prisma.subscription.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        status: { in: ['active', 'past_due', 'canceled'] },
+        currentPeriodEnd: { gt: now },
+      },
+      select: { id: true },
+    });
     expect(detail.episodes).toEqual([
       {
         id: 'episode-1',
@@ -266,5 +275,37 @@ describe('DramasService', () => {
       },
       select: { id: true },
     });
+  });
+
+  it('marks paid episodes unlocked when the user has an active subscription', async () => {
+    const prisma = prismaStub();
+    prisma.drama.findFirst.mockResolvedValue({
+      ...baseDrama,
+      episodes: [
+        {
+          id: 'episode-2',
+          episodeNumber: 2,
+          title: 'The Escape',
+          synopsis: null,
+          durationSeconds: 70,
+          isFree: false,
+          publishedAt: now,
+        },
+      ],
+    });
+    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
+    prisma.episodeUnlock.findMany.mockResolvedValue([]);
+    prisma.watchProgress.findMany.mockResolvedValue([]);
+    const service = new DramasService({ prisma: prisma as never });
+
+    const detail = await service.getBySlug('shadow-heiress', 'user-1');
+
+    expect(detail.episodes).toEqual([
+      expect.objectContaining({
+        id: 'episode-2',
+        isFree: false,
+        isUnlocked: true,
+      }),
+    ]);
   });
 });
