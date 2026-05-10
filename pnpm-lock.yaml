@@ -327,6 +327,9 @@ importers:
         specifier: ^6.6.0
         version: 6.19.3(typescript@5.9.3)
     devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.658.0
+        version: 3.1043.0
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
