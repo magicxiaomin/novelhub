@@ -53,6 +53,13 @@ export const metadata: Metadata = {
       },
     ],
   },
+  // Chrome ≥117 deprecated `apple-mobile-web-app-capable` and asks pages to
+  // also emit the standardized `mobile-web-app-capable`. Next.js' Metadata
+  // API doesn't expose this directly under `appleWebApp`, so it goes via
+  // `other` — both meta tags ship in the rendered <head>.
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export const viewport: Viewport = {
