@@ -110,9 +110,15 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Install (web workspace + transitive deps)
+      - name: Install
+        # Full workspace install (NOT --filter @novelhub/web...). The
+        # filtered install drops dev deps that supply transitive type
+        # definitions; downstream `next-on-pages` build hits a Zod
+        # type-incompat error at the @hookform/resolvers boundary that
+        # the full install side-steps via deduplication. Marginally
+        # slower (~30s) for a much more robust build.
         if: steps.gate.outputs.deploy == 'true'
-        run: pnpm install --frozen-lockfile --filter @novelhub/web...
+        run: pnpm install --frozen-lockfile
 
       # No prisma:generate here — apps/web doesn't import @prisma/client
       # or @novelhub/db (verified via grep). The `pages:build` script
@@ -205,9 +211,15 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Install (web workspace + transitive deps)
+      - name: Install
+        # Full workspace install (NOT --filter @novelhub/web...). The
+        # filtered install drops dev deps that supply transitive type
+        # definitions; downstream `next-on-pages` build hits a Zod
+        # type-incompat error at the @hookform/resolvers boundary that
+        # the full install side-steps via deduplication. Marginally
+        # slower (~30s) for a much more robust build.
         if: steps.gate.outputs.deploy == 'true'
-        run: pnpm install --frozen-lockfile --filter @novelhub/web...
+        run: pnpm install --frozen-lockfile
 
       # No prisma:generate here — apps/web doesn't import @prisma/client
       # or @novelhub/db (verified via grep). The `pages:build` script
