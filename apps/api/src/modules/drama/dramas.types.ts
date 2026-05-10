@@ -16,10 +16,32 @@ export type DramaSummary = {
 };
 
 export type EpisodeProgress = {
+  episodeId?: string;
+  dramaId?: string;
   positionSeconds: number;
   durationSeconds: number | null;
   completedAt: string | null;
   lastWatchedAt: string;
+};
+
+export type SaveWatchProgressInput = {
+  episodeId: string;
+  positionSeconds: number;
+  durationSeconds?: number | null;
+  completed?: boolean;
+};
+
+export type WatchProgress = Required<Pick<EpisodeProgress, 'episodeId' | 'dramaId'>> &
+  Omit<EpisodeProgress, 'episodeId' | 'dramaId'>;
+
+export type ContinueWatchingItem = {
+  drama: Pick<DramaSummary, 'id' | 'slug' | 'title' | 'posterUrl'>;
+  episode: Pick<EpisodeSummary, 'id' | 'episodeNumber' | 'title'>;
+  progress: WatchProgress;
+};
+
+export type ContinueWatching = {
+  items: ContinueWatchingItem[];
 };
 
 export type EpisodeSummary = {

@@ -28,17 +28,12 @@ const prismaStub = () => ({
   episodeUnlock: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
-    create: jest.fn(),
-  },
-  user: {
-    findUnique: jest.fn(),
-    updateMany: jest.fn(),
-  },
-  coinTransaction: {
-    create: jest.fn(),
   },
   watchProgress: {
     findMany: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
   },
   episode: {
     findFirst: jest.fn(),
@@ -46,7 +41,6 @@ const prismaStub = () => ({
   subscription: {
     findFirst: jest.fn(),
   },
-  $transaction: jest.fn(),
 });
 
 describe('DramasService', () => {
@@ -277,189 +271,135 @@ describe('DramasService', () => {
     });
   });
 
-  it('idempotently returns an existing episode unlock without spending coins', async () => {
+  it('upserts authenticated watch progress against the episode drama after access validation', async () => {
     const prisma = prismaStub();
     prisma.episode.findFirst.mockResolvedValue({
       id: 'episode-2',
       dramaId: 'drama-1',
-      episodeNumber: 2,
-      title: 'The Escape',
       durationSeconds: 70,
       isFree: false,
-      drama: { coinPerEpisode: 5 },
     });
-    prisma.episodeUnlock.findFirst.mockResolvedValue({
-      id: 'unlock-1',
-      method: 'COINS',
-      unlockedAt: now,
-    });
-    const service = new DramasService({ prisma: prisma as never });
-
-    await expect(service.unlockEpisode('episode-2', 'user-1')).resolves.toEqual({
+    prisma.episodeUnlock.findFirst.mockResolvedValue({ id: 'unlock-1' });
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    prisma.watchProgress.findFirst.mockResolvedValue({ id: 'progress-1' });
+    prisma.watchProgress.update.mockResolvedValue({
       episodeId: 'episode-2',
       dramaId: 'drama-1',
-      episodeNumber: 2,
-      access: 'granted',
-      accessReason: 'unlocked',
-      unlockId: 'unlock-1',
-      method: 'COINS',
-      coinCost: 0,
-      balanceAfter: null,
-      transactionId: null,
-      unlockedAt: now.toISOString(),
-    });
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-  });
-
-  it('grants subscription episode unlock without spending coins', async () => {
-    const prisma = prismaStub();
-    prisma.episode.findFirst.mockResolvedValue({
-      id: 'episode-2',
-      dramaId: 'drama-1',
-      episodeNumber: 2,
-      title: 'The Escape',
+      positionSeconds: 70,
       durationSeconds: 70,
-      isFree: false,
-      drama: { coinPerEpisode: 5 },
-    });
-    prisma.episodeUnlock.findFirst.mockResolvedValue(null);
-    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
-    prisma.episodeUnlock.create.mockResolvedValue({
-      id: 'unlock-sub',
-      method: 'SUBSCRIPTION',
-      unlockedAt: now,
+      completedAt: now,
+      lastWatchedAt: now,
     });
     const service = new DramasService({ prisma: prisma as never });
 
-    await expect(service.unlockEpisode('episode-2', 'user-1')).resolves.toMatchObject({
-      accessReason: 'subscription',
-      unlockId: 'unlock-sub',
-      method: 'SUBSCRIPTION',
-      coinCost: 0,
-      balanceAfter: null,
-      transactionId: null,
-    });
-    expect(prisma.episodeUnlock.create).toHaveBeenCalledWith({
-      data: { userId: 'user-1', episodeId: 'episode-2', method: 'SUBSCRIPTION' },
-      select: { id: true, method: true, unlockedAt: true },
-    });
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-  });
-
-  it('maps insufficient coin balance to a 402 paywall error without creating an unlock', async () => {
-    const prisma = prismaStub();
-    const tx = prismaStub();
-    prisma.$transaction.mockImplementation(async (fn: (client: unknown) => unknown) => fn(tx));
-    prisma.episode.findFirst.mockResolvedValue({
-      id: 'episode-2',
+    await expect(
+      service.saveProgress('user-1', {
+        episodeId: 'episode-2',
+        positionSeconds: 72,
+        durationSeconds: 90,
+        completed: true,
+      }),
+    ).resolves.toEqual({
+      episodeId: 'episode-2',
       dramaId: 'drama-1',
-      episodeNumber: 2,
-      title: 'The Escape',
+      positionSeconds: 70,
       durationSeconds: 70,
-      isFree: false,
-      drama: { coinPerEpisode: 5 },
+      completedAt: now.toISOString(),
+      lastWatchedAt: now.toISOString(),
     });
-    prisma.episodeUnlock.findFirst.mockResolvedValue(null);
-    prisma.subscription.findFirst.mockResolvedValue(null);
-    tx.episodeUnlock.findFirst.mockResolvedValue(null);
-    tx.user.updateMany.mockResolvedValue({ count: 0 });
-    tx.user.findUnique.mockResolvedValue({ coinBalance: 3, deletedAt: null });
-    const service = new DramasService({ prisma: prisma as never });
-
-    await expect(service.unlockEpisode('episode-2', 'user-1')).rejects.toMatchObject({
-      status: 402,
-      message: 'Insufficient coin balance',
-      context: { episodeId: 'episode-2', coinCost: 5, currentBalance: 3 },
-    });
-    expect(tx.coinTransaction.create).not.toHaveBeenCalled();
-    expect(tx.episodeUnlock.create).not.toHaveBeenCalled();
-  });
-
-  it('treats a concurrent unique unlock write as idempotent after the winner commits', async () => {
-    const prisma = prismaStub();
-    const tx = prismaStub();
-    prisma.$transaction.mockImplementation(async (fn: (client: unknown) => unknown) => fn(tx));
-    prisma.episode.findFirst.mockResolvedValue({
-      id: 'episode-2',
-      dramaId: 'drama-1',
-      episodeNumber: 2,
-      title: 'The Escape',
-      durationSeconds: 70,
-      isFree: false,
-      drama: { coinPerEpisode: 5 },
-    });
-    prisma.episodeUnlock.findFirst
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'unlock-winner', method: 'COINS', unlockedAt: now });
-    prisma.subscription.findFirst.mockResolvedValue(null);
-    tx.episodeUnlock.findFirst.mockResolvedValue(null);
-    tx.user.updateMany.mockResolvedValue({ count: 1 });
-    tx.user.findUnique.mockResolvedValue({ coinBalance: 15, deletedAt: null });
-    tx.coinTransaction.create.mockResolvedValue({ id: 'txn-loser-rolled-back' });
-    tx.episodeUnlock.create.mockRejectedValue({ code: 'P2002' });
-    const service = new DramasService({ prisma: prisma as never });
-
-    await expect(service.unlockEpisode('episode-2', 'user-1')).resolves.toMatchObject({
-      unlockId: 'unlock-winner',
-      method: 'COINS',
-      coinCost: 0,
-      balanceAfter: null,
-      transactionId: null,
-    });
-    expect(prisma.episodeUnlock.findFirst).toHaveBeenCalledTimes(2);
-  });
-
-  it('atomically spends coins and creates an episode unlock ledger', async () => {
-    const prisma = prismaStub();
-    const tx = prismaStub();
-    prisma.$transaction.mockImplementation(async (fn: (client: unknown) => unknown) => fn(tx));
-    prisma.episode.findFirst.mockResolvedValue({
-      id: 'episode-2',
-      dramaId: 'drama-1',
-      episodeNumber: 2,
-      title: 'The Escape',
-      durationSeconds: 70,
-      isFree: false,
-      drama: { coinPerEpisode: 5 },
-    });
-    prisma.episodeUnlock.findFirst.mockResolvedValue(null);
-    prisma.subscription.findFirst.mockResolvedValue(null);
-    tx.episodeUnlock.findFirst.mockResolvedValue(null);
-    tx.user.updateMany.mockResolvedValue({ count: 1 });
-    tx.user.findUnique.mockResolvedValue({ coinBalance: 15, deletedAt: null });
-    tx.coinTransaction.create.mockResolvedValue({ id: 'txn-1' });
-    tx.episodeUnlock.create.mockResolvedValue({
-      id: 'unlock-coin',
-      method: 'COINS',
-      unlockedAt: now,
-    });
-    const service = new DramasService({ prisma: prisma as never });
-
-    await expect(service.unlockEpisode('episode-2', 'user-1')).resolves.toMatchObject({
-      accessReason: 'unlocked',
-      unlockId: 'unlock-coin',
-      method: 'COINS',
-      coinCost: 5,
-      balanceAfter: 15,
-      transactionId: 'txn-1',
-    });
-    expect(tx.user.updateMany).toHaveBeenCalledWith({
-      where: { id: 'user-1', deletedAt: null, coinBalance: { gte: 5 } },
-      data: { coinBalance: { increment: -5 } },
-    });
-    expect(tx.coinTransaction.create).toHaveBeenCalledWith({
-      data: {
-        userId: 'user-1',
-        amount: -5,
-        type: 'EPISODE_UNLOCK',
-        relatedId: 'episode-2',
-        balanceAfter: 15,
-      },
+    expect(prisma.episodeUnlock.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', episodeId: 'episode-2' },
       select: { id: true },
     });
-    expect(tx.episodeUnlock.create).toHaveBeenCalledWith({
-      data: { userId: 'user-1', episodeId: 'episode-2', method: 'COINS' },
-      select: { id: true, method: true, unlockedAt: true },
+    expect(prisma.watchProgress.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', episodeId: 'episode-2' },
+      select: { id: true },
+    });
+    expect(prisma.watchProgress.update).toHaveBeenCalledWith({
+      where: { id: 'progress-1' },
+      data: {
+        positionSeconds: 70,
+        durationSeconds: 70,
+        completedAt: now,
+        lastWatchedAt: now,
+      },
+    });
+  });
+
+  it('rejects progress saves for locked paid episodes', async () => {
+    const prisma = prismaStub();
+    prisma.episode.findFirst.mockResolvedValue({
+      id: 'episode-2',
+      dramaId: 'drama-1',
+      durationSeconds: 70,
+      isFree: false,
+    });
+    prisma.episodeUnlock.findFirst.mockResolvedValue(null);
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(
+      service.saveProgress('user-1', {
+        episodeId: 'episode-2',
+        positionSeconds: 42,
+        durationSeconds: 70,
+      }),
+    ).rejects.toMatchObject({ status: 403, message: 'Episode is locked' });
+    expect(prisma.watchProgress.findFirst).not.toHaveBeenCalled();
+    expect(prisma.watchProgress.create).not.toHaveBeenCalled();
+    expect(prisma.watchProgress.update).not.toHaveBeenCalled();
+  });
+
+  it('lists continue watching entries ordered by last watched time', async () => {
+    const prisma = prismaStub();
+    prisma.watchProgress.findMany.mockResolvedValue([
+      {
+        episodeId: 'episode-2',
+        dramaId: 'drama-1',
+        positionSeconds: 42,
+        durationSeconds: 70,
+        completedAt: null,
+        lastWatchedAt: now,
+        drama: {
+          id: 'drama-1',
+          slug: 'shadow-heiress',
+          title: 'Shadow Heiress',
+          posterUrl: 'https://cdn.example/poster.jpg',
+        },
+        episode: { id: 'episode-2', episodeNumber: 2, title: 'The Escape' },
+      },
+    ]);
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(service.listContinueWatching('user-1')).resolves.toEqual({
+      items: [
+        {
+          drama: {
+            id: 'drama-1',
+            slug: 'shadow-heiress',
+            title: 'Shadow Heiress',
+            posterUrl: 'https://cdn.example/poster.jpg',
+          },
+          episode: { id: 'episode-2', episodeNumber: 2, title: 'The Escape' },
+          progress: {
+            episodeId: 'episode-2',
+            dramaId: 'drama-1',
+            positionSeconds: 42,
+            durationSeconds: 70,
+            completedAt: null,
+            lastWatchedAt: now.toISOString(),
+          },
+        },
+      ],
+    });
+    expect(prisma.watchProgress.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      orderBy: { lastWatchedAt: 'desc' },
+      take: 10,
+      include: {
+        drama: { select: { id: true, slug: true, title: true, posterUrl: true } },
+        episode: { select: { id: true, episodeNumber: true, title: true } },
+      },
     });
   });
 });

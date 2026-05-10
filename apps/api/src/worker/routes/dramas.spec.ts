@@ -1,13 +1,10 @@
 import { Hono } from 'hono';
 
 import { DomainError } from '../../common/domain.errors';
+import { dramaProgressRoutes } from './drama-progress';
 import { dramasRoutes } from './dramas';
 import { episodesRoutes } from './episodes';
 import { makeDramasService } from '../services/dramas-factory';
-
-jest.mock('../services/dramas-factory', () => ({
-  makeDramasService: jest.fn(),
-}));
 
 jest.mock('../middleware/auth', () => ({
   optionalAuth: jest.fn(async (_c, next) => next()),
@@ -15,6 +12,10 @@ jest.mock('../middleware/auth', () => ({
     c.set('user', { id: 'user-1', email: 'reader@example.com', isAdmin: false });
     await next();
   }),
+}));
+
+jest.mock('../services/dramas-factory', () => ({
+  makeDramasService: jest.fn(),
 }));
 
 const makeDramasServiceMock = jest.mocked(makeDramasService);
@@ -79,6 +80,7 @@ const makeApp = () => {
   });
   app.route('/dramas', dramasRoutes);
   app.route('/episodes', episodesRoutes);
+  app.route('/drama-progress', dramaProgressRoutes);
   app.onError((err, c) => {
     if (err instanceof DomainError) {
       return c.json(
@@ -182,51 +184,43 @@ describe('dramasRoutes', () => {
     expect(list).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid unlock episode ids before calling the service', async () => {
-    const unlockEpisode = jest.fn();
-    makeDramasServiceMock.mockReturnValue({ unlockEpisode } as never);
+  it('serves POST /drama-progress as an authenticated progress upsert', async () => {
+    const saveProgress = jest.fn().mockResolvedValue({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      positionSeconds: 42,
+      durationSeconds: 70,
+      completedAt: null,
+      lastWatchedAt: '2026-05-10T12:00:00.000Z',
+    });
+    makeDramasServiceMock.mockReturnValue({ saveProgress } as never);
 
-    const response = await makeApp().request('/episodes/not-a-uuid/unlock', { method: 'POST' });
+    const response = await makeApp().request('/drama-progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        episodeId: '11111111-1111-4111-8111-111111111111',
+        positionSeconds: 42,
+        durationSeconds: 70,
+      }),
+    });
 
-    expect(response.status).toBe(400);
-    expect(unlockEpisode).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(saveProgress).toHaveBeenCalledWith('user-1', {
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      positionSeconds: 42,
+      durationSeconds: 70,
+    });
   });
 
-  it('serves POST /episodes/:episodeId/unlock for authenticated users', async () => {
-    const unlockEpisode = jest.fn().mockResolvedValue({
-      episodeId: '11111111-1111-4111-8111-111111111111',
-      dramaId: 'drama-1',
-      episodeNumber: 2,
-      access: 'granted',
-      accessReason: 'unlocked',
-      unlockId: 'unlock-1',
-      method: 'COINS',
-      coinCost: 5,
-      balanceAfter: 15,
-      transactionId: 'txn-1',
-      unlockedAt: '2026-05-10T12:00:00.000Z',
-    });
-    makeDramasServiceMock.mockReturnValue({ unlockEpisode } as never);
+  it('serves GET /drama-progress as continue watching state', async () => {
+    const listContinueWatching = jest.fn().mockResolvedValue({ items: [] });
+    makeDramasServiceMock.mockReturnValue({ listContinueWatching } as never);
 
-    const response = await makeApp().request(
-      '/episodes/11111111-1111-4111-8111-111111111111/unlock',
-      { method: 'POST' },
-    );
+    const response = await makeApp().request('/drama-progress');
 
-    expect(response.status).toBe(201);
-    expect(unlockEpisode).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', 'user-1');
-    await expect(response.json()).resolves.toEqual({
-      episodeId: '11111111-1111-4111-8111-111111111111',
-      dramaId: 'drama-1',
-      episodeNumber: 2,
-      access: 'granted',
-      accessReason: 'unlocked',
-      unlockId: 'unlock-1',
-      method: 'COINS',
-      coinCost: 5,
-      balanceAfter: 15,
-      transactionId: 'txn-1',
-      unlockedAt: '2026-05-10T12:00:00.000Z',
-    });
+    expect(response.status).toBe(200);
+    expect(listContinueWatching).toHaveBeenCalledWith('user-1');
+    await expect(response.json()).resolves.toEqual({ items: [] });
   });
 });
