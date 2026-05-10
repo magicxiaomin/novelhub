@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { DomainError } from '../../common/domain.errors';
+import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 
 import type {
   DramaDetail,
@@ -130,8 +131,18 @@ export class DramasService {
     const unlockedIds = new Set<string>();
     const progressByEpisode = new Map<string, EpisodeProgress>();
 
+    let hasActiveSubscription = false;
+
     if (userId && episodeIds.length > 0) {
-      const [unlocks, progresses] = await Promise.all([
+      const [subscription, unlocks, progresses] = await Promise.all([
+        this.prisma.subscription.findFirst({
+          where: {
+            userId,
+            status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+            currentPeriodEnd: { gt: now },
+          },
+          select: { id: true },
+        }),
         this.prisma.episodeUnlock.findMany({
           where: { userId, episodeId: { in: episodeIds } },
           select: { episodeId: true },
@@ -140,6 +151,7 @@ export class DramasService {
           where: { userId, episodeId: { in: episodeIds } },
         }),
       ]);
+      hasActiveSubscription = subscription !== null;
       for (const unlock of unlocks) unlockedIds.add(unlock.episodeId);
       for (const p of progresses) {
         progressByEpisode.set(p.episodeId, {
@@ -159,7 +171,7 @@ export class DramasService {
       durationSeconds: ep.durationSeconds,
       isFree: ep.isFree,
       publishedAt: toIso(ep.publishedAt),
-      isUnlocked: ep.isFree || unlockedIds.has(ep.id),
+      isUnlocked: ep.isFree || hasActiveSubscription || unlockedIds.has(ep.id),
       progress: progressByEpisode.get(ep.id) ?? null,
     }));
 
