@@ -1,0 +1,225 @@
+name: Deploy Web (Cloudflare Pages)
+
+# Phase 2 (Cloudflare migration, Task 12 follow-up): builds the Next.js
+# Pages bundle and deploys it to two separate Cloudflare Pages projects.
+# Mirrors the structure of deploy-api.yml so both halves of the deploy
+# (Worker + Pages) share trigger semantics.
+#
+# Architecture (post 2026-05-10 staging-isolation split):
+#   - novelhub-web         → serves dramavela.com / www.dramavela.com
+#                            bundle calls https://api.dramavela.com
+#   - novelhub-web-staging → serves staging.whoryou.club
+#                            bundle calls https://api-staging.whoryou.club
+#
+# Trigger semantics:
+#   - `workflow_run` on PR Checks completion: deploys staging
+#     automatically after a successful main-branch CI pass. Production
+#     stays manual to keep the launch deliberate.
+#   - `workflow_dispatch`: manual override; choose `staging-only`,
+#     `production-only`, or `both`.
+#
+# Each job is a no-op when CLOUDFLARE_API_TOKEN is not configured, so
+# this workflow is safe to land before the secret is wired.
+#
+# Required secrets:
+#   CLOUDFLARE_API_TOKEN   - same token deploy-api.yml uses
+#
+# Required repo variables (used in smoke gates):
+#   STAGING_WEB_URL        - https://staging.whoryou.club
+#   PRODUCTION_WEB_URL     - https://dramavela.com
+#
+# Optional repo variable:
+#   PRODUCTION_LIVE=true   - Once production is cut over and healthy,
+#                            missing production deploy secrets fail the
+#                            production job instead of skipping cleanly.
+
+on:
+  workflow_run:
+    workflows: ['PR Checks']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Which env to deploy'
+        required: false
+        default: 'staging-only'
+        type: choice
+        options:
+          - staging-only
+          - production-only
+          - both
+      reason:
+        description: 'Why deploying (especially required for production)'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    # On `workflow_run`, only deploy staging if the PR Checks run that
+    # triggered us was on `main` AND succeeded — same gating shape as
+    # deploy-api.yml.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if Cloudflare not configured
+        id: gate
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          MODE: ${{ github.event.inputs.environment }}
+        run: |
+          if [ -z "${TOKEN:-}" ]; then
+            echo "CLOUDFLARE_API_TOKEN not set; Cloudflare not yet provisioned. Skipping."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          elif [ "${MODE:-staging-only}" = "production-only" ]; then
+            echo "Manual dispatch requested production-only; skipping staging."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v3
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install (web workspace + transitive deps)
+        if: steps.gate.outputs.deploy == 'true'
+        run: pnpm install --frozen-lockfile --filter @novelhub/web...
+
+      - name: Generate Prisma Client (shared peer)
+        if: steps.gate.outputs.deploy == 'true'
+        run: pnpm --filter @novelhub/db prisma:generate
+
+      - name: Build Pages bundle (staging API URL inlined at build time)
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          NEXT_PUBLIC_API_URL: https://api-staging.whoryou.club
+          NEXT_PUBLIC_R2_PUBLIC_HOST: 0ead643bec90bb38a1f209ec3cec02bb.r2.cloudflarestorage.com
+          NEXT_PUBLIC_DEV_ALLOW_API_CONTENT: 'true'
+        run: pnpm --filter @novelhub/web pages:build
+
+      - name: Deploy to novelhub-web-staging
+        if: steps.gate.outputs.deploy == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          command: pages deploy .vercel/output/static --project-name novelhub-web-staging --branch main
+
+      - name: Smoke staging (frontend reachable)
+        if: steps.gate.outputs.deploy == 'true' && vars.STAGING_WEB_URL != ''
+        env:
+          URL: ${{ vars.STAGING_WEB_URL }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -sw '%{http_code}' -o /dev/null -m 30 "$URL")
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::staging frontend $URL returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "staging frontend OK: $URL → HTTP 200"
+
+  production:
+    runs-on: ubuntu-latest
+    needs: [staging]
+    # Production runs only when manually dispatched (workflow_run path is
+    # gated to staging-only deploys). Mirrors deploy-api.yml's stance
+    # that prod is a deliberate human action.
+    if: |
+      always() &&
+      needs.staging.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment != 'staging-only'
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if Cloudflare not configured
+        id: gate
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PRODUCTION_LIVE: ${{ vars.PRODUCTION_LIVE }}
+        run: |
+          if [ -z "${TOKEN:-}" ]; then
+            if [ "${PRODUCTION_LIVE:-}" = "true" ]; then
+              echo "::error::PRODUCTION_LIVE=true but CLOUDFLARE_API_TOKEN missing."
+              exit 1
+            fi
+            echo "CLOUDFLARE_API_TOKEN not set; production not yet provisioned. Skipping."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v3
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install (web workspace + transitive deps)
+        if: steps.gate.outputs.deploy == 'true'
+        run: pnpm install --frozen-lockfile --filter @novelhub/web...
+
+      - name: Generate Prisma Client (shared peer)
+        if: steps.gate.outputs.deploy == 'true'
+        run: pnpm --filter @novelhub/db prisma:generate
+
+      - name: Build Pages bundle (production API URL inlined at build time)
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          NEXT_PUBLIC_API_URL: https://api.dramavela.com
+          NEXT_PUBLIC_R2_PUBLIC_HOST: 0ead643bec90bb38a1f209ec3cec02bb.r2.cloudflarestorage.com
+          NEXT_PUBLIC_DEV_ALLOW_API_CONTENT: 'true'
+        run: pnpm --filter @novelhub/web pages:build
+
+      - name: Deploy to novelhub-web (production)
+        if: steps.gate.outputs.deploy == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          command: pages deploy .vercel/output/static --project-name novelhub-web --branch main
+
+      - name: Smoke production (frontend reachable)
+        if: steps.gate.outputs.deploy == 'true' && vars.PRODUCTION_WEB_URL != ''
+        env:
+          URL: ${{ vars.PRODUCTION_WEB_URL }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -sw '%{http_code}' -o /dev/null -m 30 "$URL")
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::production frontend $URL returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "production frontend OK: $URL → HTTP 200"
