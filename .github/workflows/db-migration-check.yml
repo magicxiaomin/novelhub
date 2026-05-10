@@ -1,0 +1,90 @@
+name: DB Migration Check
+
+# Validates that schema.prisma changes in a PR are accompanied by a
+# migration file in packages/db/prisma/migrations/. Without a migration,
+# `prisma migrate deploy` (run by migrate-on-deploy.yml on push to main)
+# would notice schema drift but have nothing to apply, and the live DB
+# would silently desync from the deployed code.
+#
+# Triggered only when the PR touches schema.prisma or migrations/**, so
+# unrelated PRs don't pay the cost. Posts a failure with a remediation
+# hint when schema changed but no migration was added.
+
+on:
+  pull_request:
+    paths:
+      - 'packages/db/prisma/schema.prisma'
+      - 'packages/db/prisma/migrations/**'
+
+concurrency:
+  group: db-migration-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify migration accompanies schema change
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Files changed in this PR (added + modified, against base ref).
+          SCHEMA_CHANGED=$(
+            git diff --name-only "origin/$BASE...$HEAD_SHA" \
+              | grep -E '^packages/db/prisma/schema\.prisma$' || true
+          )
+          NEW_MIGRATIONS=$(
+            git diff --name-only --diff-filter=A "origin/$BASE...$HEAD_SHA" \
+              | grep -E '^packages/db/prisma/migrations/.+/migration\.sql$' || true
+          )
+          # Migrations are append-only: deletions break `prisma migrate
+          # deploy` because Prisma refuses to apply a state that drifted
+          # from the recorded history. Editing an applied migration is
+          # equally dangerous (silent prod drift). Both DELETE and MODIFY
+          # under migrations/ should fail the PR.
+          DELETED_MIGRATIONS=$(
+            git diff --name-only --diff-filter=D "origin/$BASE...$HEAD_SHA" \
+              | grep -E '^packages/db/prisma/migrations/' || true
+          )
+          MODIFIED_MIGRATIONS=$(
+            git diff --name-only --diff-filter=M "origin/$BASE...$HEAD_SHA" \
+              | grep -E '^packages/db/prisma/migrations/' || true
+          )
+
+          if [ -n "$DELETED_MIGRATIONS" ]; then
+            echo "::error::PR deletes existing migration file(s); migrations are append-only. Add a new migration that reverses the change instead."
+            echo "deleted:"
+            echo "$DELETED_MIGRATIONS"
+            exit 1
+          fi
+
+          if [ -n "$MODIFIED_MIGRATIONS" ]; then
+            echo "::error::PR modifies existing migration file(s); migrations are immutable once applied. Add a new migration that adjusts the schema instead."
+            echo "modified:"
+            echo "$MODIFIED_MIGRATIONS"
+            exit 1
+          fi
+
+          if [ -n "$SCHEMA_CHANGED" ] && [ -z "$NEW_MIGRATIONS" ]; then
+            echo "::error file=packages/db/prisma/schema.prisma::schema.prisma changed but no new migration file was added. Run 'pnpm --filter @novelhub/db prisma:migrate' locally to generate one, then commit the migrations/ folder."
+            exit 1
+          fi
+
+          if [ -n "$SCHEMA_CHANGED" ]; then
+            echo "Schema changed; new migration(s) added:"
+            echo "$NEW_MIGRATIONS"
+            echo ""
+            echo "--- schema diff ---"
+            git diff "origin/$BASE...$HEAD_SHA" -- packages/db/prisma/schema.prisma
+          else
+            echo "No schema.prisma change in this PR — migrations/** edits checked above."
+          fi
