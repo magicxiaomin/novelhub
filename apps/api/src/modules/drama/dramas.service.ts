@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { DomainError } from '../../common/domain.errors';
 import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 import type {
+  ContinueWatching,
   DramaDetail,
   DramaSummary,
   EpisodePlayback,
@@ -11,6 +12,8 @@ import type {
   EpisodeSummary,
   ListDramasQuery,
   Paginated,
+  SaveWatchProgressInput,
+  WatchProgress,
 } from './dramas.types';
 
 const DEFAULT_PAGE = 1;
@@ -56,6 +59,22 @@ const toDramaSummary = (drama: DramaRow): DramaSummary => ({
   freeEpisodeCount: drama.freeEpisodeCount,
   coinPerEpisode: drama.coinPerEpisode,
   publishedAt: toIso(drama.publishedAt),
+});
+
+const toWatchProgress = (p: {
+  episodeId: string;
+  dramaId: string;
+  positionSeconds: number;
+  durationSeconds: number | null;
+  completedAt: Date | null;
+  lastWatchedAt: Date;
+}): WatchProgress => ({
+  episodeId: p.episodeId,
+  dramaId: p.dramaId,
+  positionSeconds: p.positionSeconds,
+  durationSeconds: p.durationSeconds,
+  completedAt: toIso(p.completedAt),
+  lastWatchedAt: p.lastWatchedAt.toISOString(),
 });
 
 // `publishedAt <= now OR null` — the schema permits a published drama with a
@@ -274,6 +293,100 @@ export class DramasService {
     return {
       ...toDramaSummary(drama),
       episodes,
+    };
+  }
+
+  async saveProgress(userId: string, input: SaveWatchProgressInput): Promise<WatchProgress> {
+    const now = new Date();
+    const episode = await this.prisma.episode.findFirst({
+      where: {
+        id: input.episodeId,
+        isPublished: true,
+        deletedAt: null,
+        OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+        drama: {
+          status: PUBLISHED,
+          deletedAt: null,
+          OR: publishedAtVisible(now),
+        },
+      },
+      select: { id: true, dramaId: true, durationSeconds: true, isFree: true },
+    });
+    if (!episode) {
+      throw DomainError.notFound('Episode not found');
+    }
+
+    if (!episode.isFree) {
+      const [unlock, subscription] = await Promise.all([
+        this.prisma.episodeUnlock.findFirst({
+          where: { userId, episodeId: episode.id },
+          select: { id: true },
+        }),
+        this.prisma.subscription.findFirst({
+          where: {
+            userId,
+            status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+            currentPeriodEnd: { gt: now },
+          },
+          select: { id: true },
+        }),
+      ]);
+      if (!unlock && !subscription) {
+        throw DomainError.forbidden('Episode is locked');
+      }
+    }
+
+    const durationSeconds =
+      episode.durationSeconds === null
+        ? (input.durationSeconds ?? null)
+        : Math.min(input.durationSeconds ?? episode.durationSeconds, episode.durationSeconds);
+    const positionSeconds =
+      durationSeconds === null
+        ? input.positionSeconds
+        : Math.min(input.positionSeconds, durationSeconds);
+    const data = {
+      positionSeconds,
+      durationSeconds,
+      completedAt: input.completed ? now : null,
+      lastWatchedAt: now,
+    };
+    const existing = await this.prisma.watchProgress.findFirst({
+      where: { userId, episodeId: episode.id },
+      select: { id: true },
+    });
+    const progress = existing
+      ? await this.prisma.watchProgress.update({
+          where: { id: existing.id },
+          data,
+        })
+      : await this.prisma.watchProgress.create({
+          data: {
+            userId,
+            guestId: null,
+            dramaId: episode.dramaId,
+            episodeId: episode.id,
+            ...data,
+          },
+        });
+    return toWatchProgress(progress);
+  }
+
+  async listContinueWatching(userId: string, limit = 10): Promise<ContinueWatching> {
+    const items = await this.prisma.watchProgress.findMany({
+      where: { userId },
+      orderBy: { lastWatchedAt: 'desc' },
+      take: limit,
+      include: {
+        drama: { select: { id: true, slug: true, title: true, posterUrl: true } },
+        episode: { select: { id: true, episodeNumber: true, title: true } },
+      },
+    });
+    return {
+      items: items.map((item) => ({
+        drama: item.drama,
+        episode: item.episode,
+        progress: toWatchProgress(item),
+      })),
     };
   }
 }
