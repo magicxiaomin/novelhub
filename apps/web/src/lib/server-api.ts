@@ -14,6 +14,7 @@ import { cookies } from 'next/headers';
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
 import type {
   BookDetail,
+  BookSummary,
   ChapterResponse,
   ChapterSummary,
   DramaDetail,
@@ -53,6 +54,22 @@ export async function fetchBookServer(id: string): Promise<BookDetail | null> {
     throw new Error(`Failed to fetch book ${id}: ${res.status}`);
   }
   return (await res.json()) as BookDetail;
+}
+
+export async function fetchBooksServer(query?: {
+  category?: string;
+  status?: string;
+  featured?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<Paginated<BookSummary>> {
+  const res = await fetch(buildServerApiUrl('/books', query), {
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch books: ${res.status}`);
+  }
+  return (await res.json()) as Paginated<BookSummary>;
 }
 
 const cookieHeader = (): string => {
