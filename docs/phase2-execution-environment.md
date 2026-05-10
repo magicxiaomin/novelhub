@@ -12,11 +12,11 @@ PR: https://github.com/magicxiaomin/novelhub/pull/104
 
 ## GitHub Epic + Issues
 
-GitHub issue creation is pending GitHub CLI authentication on this host. `gh auth status` currently reports: `You are not logged into any GitHub hosts`.
-
-When GitHub auth is available, create the following Epic and issues from the Final Spec.
+GitHub CLI authentication is configured for `magicxiaomin/novelhub`; the Phase 2 Epic and issues have been created from the Final Spec.
 
 ### Epic: Phase 2 Cloudflare cutover completion
+
+GitHub: #109 https://github.com/magicxiaomin/novelhub/issues/109
 
 Goal: deliver Cloudflare Pages + Workers production readiness while preserving the Nest/Vercel fallback until smoke passes.
 
@@ -31,6 +31,8 @@ Acceptance criteria:
 
 ### Issue 1: Rebase migration plan to current repo state
 
+GitHub: #110 https://github.com/magicxiaomin/novelhub/issues/110
+
 Labels: `type:task`, `phase:2`, `area:docs`, `area:cloudflare`, `priority:p1`
 
 Acceptance criteria:
@@ -43,6 +45,8 @@ Acceptance criteria:
 Kanban: `t_f0943d98` for approval gate plus follow-up docs task if needed.
 
 ### Issue 2: Prisma + Hyperdrive Worker runtime gate
+
+GitHub: #111 https://github.com/magicxiaomin/novelhub/issues/111
 
 Labels: `type:feature`, `phase:2`, `area:api`, `area:database`, `area:cloudflare`, `priority:p0`
 
@@ -58,6 +62,8 @@ Kanban: `t_6e31a401`
 
 ### Issue 3: Worker API behavior parity hardening
 
+GitHub: #112 https://github.com/magicxiaomin/novelhub/issues/112
+
 Labels: `type:feature`, `phase:2`, `area:api`, `area:cloudflare`, `priority:p0`
 
 Acceptance criteria:
@@ -70,6 +76,8 @@ Acceptance criteria:
 Kanban: `t_01e27270`
 
 ### Issue 4: Rate limiting parity
+
+GitHub: #113 https://github.com/magicxiaomin/novelhub/issues/113
 
 Labels: `type:feature`, `phase:2`, `area:api`, `area:security`, `area:cloudflare`, `priority:p1`
 
@@ -84,6 +92,8 @@ Kanban: `t_9357f5ab`
 
 ### Issue 5: Cloudflare Pages/Worker CI and e2e parity
 
+GitHub: #114 https://github.com/magicxiaomin/novelhub/issues/114
+
 Labels: `type:feature`, `phase:2`, `area:ci`, `area:web`, `area:api`, `area:cloudflare`, `priority:p0`
 
 Acceptance criteria:
@@ -96,6 +106,8 @@ Acceptance criteria:
 Kanban: `t_338e5574`
 
 ### Issue 6: Production resource and secrets readiness
+
+GitHub: #115 https://github.com/magicxiaomin/novelhub/issues/115
 
 Labels: `type:task`, `phase:2`, `area:ops`, `area:cloudflare`, `priority:p0`, `status:blocked`
 
@@ -110,6 +122,8 @@ Kanban: `t_1db47133`
 
 ### Issue 7: Cutover runbook, smoke, rollback
 
+GitHub: #116 https://github.com/magicxiaomin/novelhub/issues/116
+
 Labels: `type:task`, `phase:2`, `area:docs`, `area:ops`, `area:cloudflare`, `priority:p0`
 
 Acceptance criteria:
@@ -121,6 +135,8 @@ Acceptance criteria:
 Kanban: `t_d473d120`
 
 ### Issue 8: Human approval and final production cutover
+
+GitHub: #117 https://github.com/magicxiaomin/novelhub/issues/117
 
 Labels: `type:task`, `phase:2`, `area:ops`, `area:cloudflare`, `priority:p0`, `status:blocked`
 
@@ -158,7 +174,7 @@ Execution tasks:
 
 ## Profile role map
 
-All NovelHub profiles currently use Hermes model `gpt-5.5` via provider `openai-codex` with `agent.reasoning_effort: low`. The profile name defines the workflow role; the local Claude Code CLI is not authenticated on this host, so Claude-named profiles are role/persona profiles unless Claude Code login is completed.
+All NovelHub profiles currently use Hermes model `gpt-5.5` via provider `openai-codex` with `agent.reasoning_effort: low`. The profile name defines the workflow role. Claude-named workflow steps use local Claude Code through the shared NovelHub Claude HOME (`HOME=/root/.claude-novelhub`) when Claude output is required.
 
 - `novelhub-orchestrator`: PM/dispatcher. Owns Issue <-> Kanban <-> PR traceability. Does not implement.
 - `novelhub-claude-requirements`: requirements owner. Produces Proposal v1, assumptions, scope, user stories, acceptance criteria, and human clarification gates.
@@ -169,7 +185,6 @@ All NovelHub profiles currently use Hermes model `gpt-5.5` via provider `openai-
 
 ## Required next gates
 
-1. Authenticate GitHub CLI or provide a token so the Epic + Issues can be created on GitHub.
-2. Commit/push this PR #104 update.
-3. Human approves or changes `docs/phase2-final-spec.md`.
-4. After approval, unblock `t_f0943d98` and dispatch implementation tasks.
+1. Human approves or changes `docs/phase2-final-spec.md`.
+2. After approval, unblock `t_f0943d98` and dispatch implementation tasks.
+3. Use the created GitHub issues (#109-#117) in all implementation PR bodies and Kanban handoffs.
