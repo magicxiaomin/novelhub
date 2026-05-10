@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f2937"/>
+      <stop offset="1" stop-color="#0a0e14"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="600" fill="url(#bg)"/>
+  <rect x="32" y="32" width="336" height="536" fill="none" stroke="#c8a96a" stroke-width="2" opacity="0.55"/>
+  <rect x="40" y="40" width="320" height="520" fill="none" stroke="#c8a96a" stroke-width="1" opacity="0.35"/>
+  <text x="200" y="170" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="600" fill="#c8a96a" opacity="0.85" letter-spacing="6">THE ADVENTURES OF</text>
+  <text x="200" y="240" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="46" font-weight="700" fill="#fff8eb" letter-spacing="2">Sherlock</text>
+  <text x="200" y="294" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="46" font-weight="700" fill="#fff8eb" letter-spacing="2">Holmes</text>
+  <line x1="120" y1="350" x2="280" y2="350" stroke="#c8a96a" stroke-width="1" opacity="0.5"/>
+  <g transform="translate(200,420)" opacity="0.7">
+    <circle r="36" fill="none" stroke="#c8a96a" stroke-width="2"/>
+    <line x1="26" y1="26" x2="48" y2="48" stroke="#c8a96a" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <text x="200" y="510" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="14" fill="#c8a96a" opacity="0.7" letter-spacing="3">ARTHUR CONAN DOYLE</text>
+  <text x="200" y="555" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="10" fill="#c8a96a" opacity="0.45" letter-spacing="4">221B BAKER STREET</text>
+</svg>

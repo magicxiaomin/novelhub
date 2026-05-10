@@ -36,7 +36,7 @@ const books = [
     contentKey: 'pride-and-prejudice',
     title: 'Pride and Prejudice',
     author: 'Jane Austen',
-    coverUrl: 'https://picsum.photos/seed/pride-and-prejudice/400/600',
+    coverUrl: '/covers/pride-and-prejudice.svg',
     description:
       'When the wealthy Mr. Darcy arrives in the Bennet family neighborhood, sharp-witted Elizabeth must navigate first impressions, social pressure, and her own pride to discover what she really wants.',
     category: 'ROMANCE',
@@ -66,7 +66,7 @@ const books = [
     contentKey: 'sherlock-holmes',
     title: 'The Adventures of Sherlock Holmes',
     author: 'Arthur Conan Doyle',
-    coverUrl: 'https://picsum.photos/seed/sherlock-holmes/400/600',
+    coverUrl: '/covers/sherlock-holmes.svg',
     description:
       'Ten classic cases from 221B Baker Street: a king blackmailed by a clever opera singer, a vanishing pawnbroker, a bachelor’s missing bride, and the spotted band that creeps in the dark.',
     category: 'MYSTERY',
@@ -96,7 +96,7 @@ const books = [
     contentKey: 'frankenstein',
     title: 'Frankenstein',
     author: 'Mary Shelley',
-    coverUrl: 'https://picsum.photos/seed/frankenstein/400/600',
+    coverUrl: '/covers/frankenstein.svg',
     description:
       'A young scientist obsessed with the boundary between life and death gives form to a creature he cannot control. A gothic tragedy of ambition, isolation, and the price of creation.',
     category: 'GOTHIC',
