@@ -16,11 +16,17 @@ const mockFetch = (
 describe('apiFetch', () => {
   const realFetch = globalThis.fetch;
 
+  const originalNextPublicApiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const originalNextPublicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
   beforeEach(() => {
     process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
   });
 
   afterEach(() => {
+    process.env.NEXT_PUBLIC_API_URL = originalNextPublicApiUrl;
+    process.env.NEXT_PUBLIC_API_BASE_URL = originalNextPublicApiBaseUrl;
     globalThis.fetch = realFetch;
     vi.restoreAllMocks();
   });
@@ -39,6 +45,19 @@ describe('apiFetch', () => {
     }) as unknown as typeof fetch;
     await apiFetch('/books', { query: { page: 2, limit: undefined, q: 'x' } });
     expect(calls[0]).toBe('http://api.test/books?page=2&q=x');
+  });
+
+  it('prefers NEXT_PUBLIC_API_BASE_URL over legacy NEXT_PUBLIC_API_URL', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.dramavela.com';
+    const calls: string[] = [];
+    globalThis.fetch = vi.fn(async (url) => {
+      calls.push(String(url));
+      return { ok: true, status: 200, text: async () => JSON.stringify({}) };
+    }) as unknown as typeof fetch;
+
+    await apiFetch('/books/featured');
+
+    expect(calls[0]).toBe('https://api.dramavela.com/books/featured');
   });
 
   it('supports same-origin API proxy paths', async () => {

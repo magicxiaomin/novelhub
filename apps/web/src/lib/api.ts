@@ -7,10 +7,11 @@
  *   `enabled` / `retry` options; we don't auto-redirect here because pages
  *   like Home want to render anonymously when the auth check 401s.
  *
- * The base URL is read from `NEXT_PUBLIC_API_URL` (the public env that
- * Next.js exposes to the browser bundle). It defaults to localhost:4000
- * matching apps/api's default port.
+ * The base URL is read from `NEXT_PUBLIC_API_BASE_URL`, falling back to the
+ * legacy `NEXT_PUBLIC_API_URL`. It defaults to localhost:4000 matching
+ * apps/api's default port.
  */
+import { publicApiBaseUrl } from './api-config';
 
 export class ApiError extends Error {
   constructor(
@@ -23,12 +24,7 @@ export class ApiError extends Error {
   }
 }
 
-const getBaseUrl = (): string => {
-  // Next.js inlines NEXT_PUBLIC_* at build time on the client, and reads
-  // process.env at runtime on the server — same access pattern works for
-  // both. The defaulted localhost:4000 mirrors apps/api's PORT default.
-  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-};
+const getBaseUrl = (): string => publicApiBaseUrl();
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 

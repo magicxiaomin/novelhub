@@ -42,6 +42,8 @@ export type WorkerEnv = {
   // (e.g. *.workers.dev + *.pages.dev on staging). Forces cookies to
   // SameSite=None + Secure so cross-site fetch+credentials work in browsers.
   COOKIE_CROSS_SITE?: string;
+  // Optional shared auth cookie domain (for example `.dramavela.com`).
+  AUTH_COOKIE_DOMAIN?: string;
   NODE_ENV?: string;
   // R2 (Task 4.2 — chapter content + signed URLs)
   R2_ACCOUNT_ID?: string;

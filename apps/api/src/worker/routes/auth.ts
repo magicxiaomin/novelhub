@@ -16,7 +16,7 @@ import { zValidator } from '@hono/zod-validator';
 
 import { DomainError } from '../../common/domain.errors';
 import { COOKIE_REFRESH } from '../../modules/auth/auth.constants';
-import { clearAuthCookies, setAuthCookies } from '../cookies';
+import { clearAuthCookies, type CookieMode, setAuthCookies } from '../cookies';
 import type { PrismaVariables } from '../db/prisma';
 import { requireAuth, type AuthVariables } from '../middleware/auth';
 import { validationHook } from '../middleware/validator';
@@ -30,12 +30,13 @@ import {
 
 type Bindings = WorkerEnv;
 
-const cookieMode = (env: WorkerEnv): { crossSite: boolean; isProd: boolean } => ({
+const cookieMode = (env: WorkerEnv): CookieMode => ({
   // Set COOKIE_CROSS_SITE=true on staging when the Worker and web app live on
   // different registrable domains (workers.dev + pages.dev). Once both move
   // behind the same custom domain (e.g. novelhub.com), unset and let the
   // default SameSite=Lax kick back in.
   crossSite: env.COOKIE_CROSS_SITE === 'true',
+  domain: env.AUTH_COOKIE_DOMAIN,
   isProd: env.NODE_ENV === 'production',
 });
 

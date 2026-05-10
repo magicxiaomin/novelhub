@@ -4,22 +4,33 @@ import { buildServerApiUrl, fetchBookServer } from './server-api';
 
 describe('server API fetch helpers', () => {
   const originalNextPublicApiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const originalNextPublicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const originalApiInternalUrl = process.env.API_INTERNAL_URL;
   const realFetch = globalThis.fetch;
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.API_INTERNAL_URL;
   });
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_API_URL = originalNextPublicApiUrl;
+    process.env.NEXT_PUBLIC_API_BASE_URL = originalNextPublicApiBaseUrl;
     process.env.API_INTERNAL_URL = originalApiInternalUrl;
     globalThis.fetch = realFetch;
     vi.restoreAllMocks();
   });
 
-  it('uses the public absolute API URL when configured', () => {
+  it('prefers the canonical public API base URL when configured', () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.dramavela.com';
+
+    expect(buildServerApiUrl('/books/1', { page: 2, skip: undefined })).toBe(
+      'https://api.dramavela.com/books/1?page=2',
+    );
+  });
+
+  it('uses the legacy public absolute API URL when the canonical name is unset', () => {
     expect(buildServerApiUrl('/books/1', { page: 2, skip: undefined })).toBe(
       'http://api.test/books/1?page=2',
     );
