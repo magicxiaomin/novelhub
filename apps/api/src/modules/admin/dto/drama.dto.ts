@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
@@ -162,4 +162,6 @@ export class CreateEpisodeDto implements CreateEpisodeType {
   video?: UpsertEpisodeVideoDto;
 }
 
-export class UpdateEpisodeDto extends PartialType(CreateEpisodeDto) {}
+export class UpdateEpisodeDto extends PartialType(
+  OmitType(CreateEpisodeDto, ['dramaId'] as const),
+) {}
