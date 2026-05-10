@@ -23,12 +23,14 @@ model User {
   bannedAt         DateTime? @map("banned_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  subscriptions Subscription[]
-  unlocks       ChapterUnlock[]
-  progress      ReadingProgress[]
-  coinTxns      CoinTransaction[]
-  orders        Order[]
-  checkins      DailyCheckin[]
+  subscriptions  Subscription[]
+  unlocks        ChapterUnlock[]
+  progress       ReadingProgress[]
+  coinTxns       CoinTransaction[]
+  orders         Order[]
+  checkins       DailyCheckin[]
+  episodeUnlocks EpisodeUnlock[]
+  watchProgress  WatchProgress[]
 
   @@map("users")
 }
@@ -234,4 +236,120 @@ model FbEvent {
   @@index([eventId])
   @@index([userId])
   @@map("fb_events")
+}
+
+model Drama {
+  id               String    @id @default(uuid()) @db.Uuid
+  slug             String    @unique
+  title            String
+  description      String    @db.Text
+  posterUrl        String    @map("poster_url")
+  category         String
+  tags             String[]
+  totalEpisodes    Int       @default(0) @map("total_episodes")
+  status           String    @default("DRAFT")
+  isFeatured       Boolean   @default(false) @map("is_featured")
+  sortOrder        Int       @default(0) @map("sort_order")
+  freeEpisodeCount Int       @default(3) @map("free_episode_count")
+  coinPerEpisode   Int       @default(5) @map("coin_per_episode")
+  publishedAt      DateTime? @map("published_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  episodes      Episode[]
+  watchProgress WatchProgress[]
+
+  @@index([status, isFeatured, sortOrder])
+  @@index([category])
+  @@index([publishedAt])
+  @@map("dramas")
+}
+
+model Episode {
+  id              String    @id @default(uuid()) @db.Uuid
+  dramaId         String    @map("drama_id") @db.Uuid
+  episodeNumber   Int       @map("episode_number")
+  title           String
+  synopsis        String?   @db.Text
+  durationSeconds Int?      @map("duration_seconds")
+  isFree          Boolean   @default(false) @map("is_free")
+  isPublished     Boolean   @default(false) @map("is_published")
+  publishedAt     DateTime? @map("published_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  drama         Drama           @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+  videoAsset    VideoAsset?
+  unlocks       EpisodeUnlock[]
+  watchProgress WatchProgress[]
+
+  @@unique([dramaId, episodeNumber])
+  @@index([dramaId])
+  @@index([dramaId, episodeNumber])
+  @@index([isPublished, publishedAt])
+  @@map("episodes")
+}
+
+model VideoAsset {
+  id              String   @id @default(uuid()) @db.Uuid
+  episodeId       String   @unique @map("episode_id") @db.Uuid
+  provider        String   @default("external_hls")
+  playbackUrl     String   @map("playback_url")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  durationSeconds Int?     @map("duration_seconds")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([provider])
+  @@map("video_assets")
+}
+
+/// Exactly one of userId or guestId must be set. API services must validate this before writes; PostgreSQL CHECK constraints and partial unique indexes in the migration enforce it at storage level.
+model EpisodeUnlock {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  guestId    String?  @map("guest_id")
+  episodeId  String   @map("episode_id") @db.Uuid
+  method     String
+  unlockedAt DateTime @default(now()) @map("unlocked_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([guestId])
+  @@index([episodeId])
+  @@map("episode_unlocks")
+}
+
+/// Exactly one of userId or guestId must be set. API services must validate this before writes; PostgreSQL CHECK constraints and partial unique indexes in the migration enforce it at storage level.
+model WatchProgress {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String?   @map("user_id") @db.Uuid
+  guestId         String?   @map("guest_id")
+  dramaId         String    @map("drama_id") @db.Uuid
+  episodeId       String    @map("episode_id") @db.Uuid
+  positionSeconds Int       @default(0) @map("position_seconds")
+  durationSeconds Int?      @map("duration_seconds")
+  completedAt     DateTime? @map("completed_at")
+  lastWatchedAt   DateTime  @default(now()) @map("last_watched_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drama   Drama   @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastWatchedAt])
+  @@index([guestId, lastWatchedAt])
+  @@index([dramaId])
+  @@index([episodeId])
+  @@map("watch_progress")
 }
