@@ -106,6 +106,17 @@ jobs:
         if: steps.gate.outputs.deploy == 'true'
         run: pnpm --filter @novelhub/db prisma:generate
 
+      - name: Build @novelhub/shared
+        # Worker bundle imports @novelhub/shared; the package's
+        # `exports.default` points at `./dist/index.js`, so the workspace's
+        # source-only state is not enough — we must compile first.
+        # apps/web does this implicitly via `pages:build`; the worker
+        # deploy step calls wrangler directly so the build needs an
+        # explicit step here. Mirrors the local-dev expectation that
+        # `pnpm --filter @novelhub/shared build` runs once after install.
+        if: steps.gate.outputs.deploy == 'true'
+        run: pnpm --filter @novelhub/shared build
+
       - name: Deploy Worker to staging
         if: steps.gate.outputs.deploy == 'true'
         uses: cloudflare/wrangler-action@v3
@@ -187,6 +198,12 @@ jobs:
       - name: Generate Prisma Client
         if: steps.gate.outputs.deploy == 'true'
         run: pnpm --filter @novelhub/db prisma:generate
+
+      - name: Build @novelhub/shared
+        # See staging job comment — same reason: worker imports compiled
+        # shared package, must be built before wrangler bundles.
+        if: steps.gate.outputs.deploy == 'true'
+        run: pnpm --filter @novelhub/shared build
 
       - name: Deploy Worker to production
         if: steps.gate.outputs.deploy == 'true'
