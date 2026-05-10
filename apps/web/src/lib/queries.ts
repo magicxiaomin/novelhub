@@ -19,6 +19,10 @@ import type {
   ChapterUnlock,
   CheckoutSession,
   CoinTransaction,
+  DramaDetail,
+  EpisodePlayback,
+  EpisodeProgress,
+  EpisodeUnlockResult,
   Paginated,
   PaymentOrder,
   PushGrantBonus,
@@ -53,6 +57,8 @@ export const queryKeys = {
   readingProgressForChapter: (bookId: string, chapterId: string) =>
     ['reading-progress', bookId, chapterId] as const,
   checkinStatus: ['checkin', 'status'] as const,
+  drama: (slug: string) => ['dramas', 'detail', slug] as const,
+  episodePlayback: (episodeId: string) => ['episodes', 'playback', episodeId] as const,
 };
 
 export const fetchMe = (): Promise<{ user: AuthUser }> => apiFetch('/auth/me');
@@ -199,3 +205,23 @@ export const claimCheckin = (): Promise<CheckinClaim> => apiFetch('/checkin', { 
 
 export const grantPushBonus = (): Promise<PushGrantBonus> =>
   apiFetch('/notifications/grant-bonus', { method: 'POST' });
+
+export const fetchDrama = (slug: string): Promise<DramaDetail> =>
+  apiFetch(`/dramas/${encodeURIComponent(slug)}`);
+
+export const fetchEpisodePlayback = (episodeId: string): Promise<EpisodePlayback> =>
+  apiFetch(`/episodes/${encodeURIComponent(episodeId)}/playback`);
+
+export const unlockDramaEpisode = (episodeId: string): Promise<EpisodeUnlockResult> =>
+  apiFetch(`/episodes/${encodeURIComponent(episodeId)}/unlock`, { method: 'POST' });
+
+export const saveDramaProgress = (input: {
+  episodeId: string;
+  positionSeconds: number;
+  durationSeconds?: number | null;
+  completed?: boolean;
+}): Promise<EpisodeProgress> =>
+  apiFetch('/drama-progress', {
+    method: 'POST',
+    body: input,
+  });

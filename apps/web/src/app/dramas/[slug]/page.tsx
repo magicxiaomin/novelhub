@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { fetchDramaServer } from '@/lib/server-api';
+import type { EpisodeSummary } from '@/lib/types';
 import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
@@ -30,6 +32,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function DramaDetailPage({ params }: Params): Promise<JSX.Element> {
   const drama = await fetchDramaServer(params.slug);
   if (!drama) notFound();
+
+  const startEpisode = selectStartEpisode(drama.episodes);
 
   return (
     <AppShell>
@@ -57,11 +61,17 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
             </div>
           </div>
         </div>
-        <Button className="mt-5 w-full" disabled>
-          {drama.episodes.length > 0
-            ? messages.drama.playbackComingSoon
-            : messages.drama.episodesComingSoon}
-        </Button>
+        {startEpisode ? (
+          <Button asChild className="mt-5 w-full">
+            <Link href={`/dramas/${drama.slug}/watch/${startEpisode.id}`}>
+              {startEpisode.progress ? messages.drama.continueWatching : messages.drama.watchNow}
+            </Link>
+          </Button>
+        ) : (
+          <Button className="mt-5 w-full" disabled>
+            {messages.drama.episodesComingSoon}
+          </Button>
+        )}
       </header>
 
       <section className="mt-6 px-4">
@@ -83,10 +93,11 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
             <p className="p-4 text-sm text-muted-foreground">{messages.drama.episodesComingSoon}</p>
           ) : (
             drama.episodes.map((episode) => (
-              <div
+              <Link
                 key={episode.id}
+                href={`/dramas/${drama.slug}/watch/${episode.id}`}
                 id={`episode-${episode.episodeNumber}`}
-                className="flex items-center justify-between gap-3 p-4"
+                className="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
@@ -105,13 +116,19 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
                       ? messages.reader.unlocked
                       : messages.drama.locked}
                 </Badge>
-              </div>
+              </Link>
             ))
           )}
         </div>
       </section>
       <div className="h-8" />
     </AppShell>
+  );
+}
+
+function selectStartEpisode(episodes: EpisodeSummary[]): EpisodeSummary | undefined {
+  return (
+    episodes.find((episode) => episode.progress && !episode.progress.completedAt) ?? episodes[0]
   );
 }
 

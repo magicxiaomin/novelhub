@@ -435,6 +435,19 @@
     "backHome": "Back to dramas",
     "status": "Status",
     "category": "Category",
-    "novelsLink": "Read novels instead"
+    "novelsLink": "Read novels instead",
+    "backToDetail": "Back to details",
+    "unlockEpisode": "Unlock episode",
+    "unlockWithCoins": "Unlock for {coins} coins",
+    "subscribeToUnlock": "Subscribe to unlock every episode",
+    "paywallTitle": "Episode locked",
+    "paywallBody": "Unlock this episode with coins or keep watching with an active subscription.",
+    "playbackError": "Video could not be loaded.",
+    "retryPlayback": "Retry video",
+    "savingProgress": "Saving progress...",
+    "progressSaved": "Progress saved",
+    "progressUnavailable": "Progress sync unavailable",
+    "resumePrefix": "Resume available",
+    "hlsUnsupported": "Your browser cannot play this stream. Please try Safari or another HLS-compatible browser."
   }
 }
