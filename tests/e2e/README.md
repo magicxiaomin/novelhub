@@ -30,3 +30,7 @@ pnpm --filter @novelhub/e2e test
 ```
 
 Set `PLAYWRIGHT_BASE_URL` to target a non-default web origin.
+
+## Drama HLS Fixture
+
+`specs/drama.spec.ts` intercepts `https://media.dramavela.test/hls/**` and serves the deterministic files in `fixtures/hls/`. Keep seeded drama playback URLs on the `media.dramavela.test` fixture host so local and CI e2e never depend on a third-party HLS provider.
