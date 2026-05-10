@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 
 import { DomainError } from '../../common/domain.errors';
 import { dramasRoutes } from './dramas';
+import { episodesRoutes } from './episodes';
 import { makeDramasService } from '../services/dramas-factory';
 
 jest.mock('../services/dramas-factory', () => ({
@@ -64,7 +65,12 @@ const makeApp = () => {
     c.set('prisma', { user: { findUnique: jest.fn() } });
     await next();
   });
+  app.use('/episodes/*', async (c, next) => {
+    c.set('prisma', { user: { findUnique: jest.fn() } });
+    await next();
+  });
   app.route('/dramas', dramasRoutes);
+  app.route('/episodes', episodesRoutes);
   app.onError((err, c) => {
     if (err instanceof DomainError) {
       return c.json(
@@ -104,6 +110,47 @@ describe('dramasRoutes', () => {
       items: [contractDramaSummary],
       pageInfo: { page: 2, pageSize: 10, total: 1, totalPages: 1 },
     });
+  });
+
+  it('serves GET /episodes/:episodeId/playback and does not wrap denied paywall response', async () => {
+    const getPlayback = jest.fn().mockResolvedValue({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'denied',
+      accessReason: 'locked',
+      coinPerEpisode: 5,
+    });
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp().request(
+      '/episodes/11111111-1111-4111-8111-111111111111/playback',
+    );
+
+    expect(response.status).toBe(200);
+    expect(getPlayback).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', null);
+    await expect(response.json()).resolves.toEqual({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'denied',
+      accessReason: 'locked',
+      coinPerEpisode: 5,
+    });
+  });
+
+  it('rejects invalid playback episode ids before calling the service', async () => {
+    const getPlayback = jest.fn();
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp().request('/episodes/not-a-uuid/playback');
+
+    expect(response.status).toBe(400);
+    expect(getPlayback).not.toHaveBeenCalled();
   });
 
   it('serves GET /dramas/:slug with ordered episode contract metadata', async () => {
