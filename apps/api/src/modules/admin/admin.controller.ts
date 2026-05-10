@@ -25,6 +25,12 @@ import { AdminService } from './admin.service';
 import { CreateBookDto, UpdateBookDto } from './dto/book.dto';
 import { BulkCreateChaptersDto, BulkImportOptionsDto, UpdateChapterDto } from './dto/chapter.dto';
 import {
+  CreateDramaDto,
+  CreateEpisodeDto,
+  UpdateDramaDto,
+  UpdateEpisodeDto,
+} from './dto/drama.dto';
+import {
   AdminChapterListDto,
   AdminOrderListDto,
   AdminSearchDto,
@@ -151,6 +157,120 @@ export class AdminController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
   ): Promise<{ id: string }> {
     return this.admin.softDeleteChapter(id);
+  }
+
+  @Get('dramas')
+  @ApiOperation({ summary: 'List dramas for admin' })
+  listDramas(@Query() query: AdminSearchDto): ReturnType<AdminService['listDramas']> {
+    return this.admin.listDramas(query);
+  }
+
+  @Get('dramas/:id')
+  @ApiOperation({ summary: 'Get a drama for admin editing' })
+  getDrama(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): ReturnType<AdminService['getDrama']> {
+    return this.admin.getDrama(id);
+  }
+
+  @Post('dramas')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a drama' })
+  createDrama(@Body() dto: CreateDramaDto): Promise<{ id: string }> {
+    return this.admin.createDrama(dto);
+  }
+
+  @Put('dramas/:id')
+  @ApiOperation({ summary: 'Update a drama' })
+  updateDrama(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateDramaDto,
+  ): Promise<{ id: string }> {
+    return this.admin.updateDrama(id, dto);
+  }
+
+  @Delete('dramas/:id')
+  @ApiOperation({ summary: 'Soft-delete a drama' })
+  softDeleteDrama(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<{ id: string }> {
+    return this.admin.softDeleteDrama(id);
+  }
+
+  @Post('dramas/:id/publish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Publish a drama' })
+  publishDrama(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<{ id: string }> {
+    return this.admin.publishDrama(id);
+  }
+
+  @Post('dramas/:id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unpublish a drama' })
+  unpublishDrama(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<{ id: string }> {
+    return this.admin.unpublishDrama(id);
+  }
+
+  @Get('episodes')
+  @ApiOperation({ summary: 'List drama episodes for admin' })
+  listEpisodes(
+    @Query() query: AdminChapterListDto & { dramaId?: string },
+  ): ReturnType<AdminService['listEpisodes']> {
+    return this.admin.listEpisodes(query);
+  }
+
+  @Get('episodes/:id')
+  @ApiOperation({ summary: 'Get a drama episode for admin editing' })
+  getEpisode(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): ReturnType<AdminService['getEpisode']> {
+    return this.admin.getEpisode(id);
+  }
+
+  @Post('episodes')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a drama episode' })
+  createEpisode(@Body() dto: CreateEpisodeDto): Promise<{ id: string }> {
+    return this.admin.createEpisode(dto);
+  }
+
+  @Put('episodes/:id')
+  @ApiOperation({ summary: 'Update a drama episode' })
+  updateEpisode(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateEpisodeDto,
+  ): Promise<{ id: string }> {
+    return this.admin.updateEpisode(id, dto);
+  }
+
+  @Delete('episodes/:id')
+  @ApiOperation({ summary: 'Soft-delete a drama episode' })
+  softDeleteEpisode(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<{ id: string }> {
+    return this.admin.softDeleteEpisode(id);
+  }
+
+  @Post('episodes/:id/publish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Publish a drama episode' })
+  publishEpisode(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<{ id: string }> {
+    return this.admin.publishEpisode(id);
+  }
+
+  @Post('episodes/:id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unpublish a drama episode' })
+  unpublishEpisode(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<{ id: string }> {
+    return this.admin.unpublishEpisode(id);
   }
 
   @Get('users')
