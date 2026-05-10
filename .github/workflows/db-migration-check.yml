@@ -46,6 +46,33 @@ jobs:
             git diff --name-only --diff-filter=A "origin/$BASE...$HEAD_SHA" \
               | grep -E '^packages/db/prisma/migrations/.+/migration\.sql$' || true
           )
+          # Migrations are append-only: deletions break `prisma migrate
+          # deploy` because Prisma refuses to apply a state that drifted
+          # from the recorded history. Editing an applied migration is
+          # equally dangerous (silent prod drift). Both DELETE and MODIFY
+          # under migrations/ should fail the PR.
+          DELETED_MIGRATIONS=$(
+            git diff --name-only --diff-filter=D "origin/$BASE...$HEAD_SHA" \
+              | grep -E '^packages/db/prisma/migrations/' || true
+          )
+          MODIFIED_MIGRATIONS=$(
+            git diff --name-only --diff-filter=M "origin/$BASE...$HEAD_SHA" \
+              | grep -E '^packages/db/prisma/migrations/' || true
+          )
+
+          if [ -n "$DELETED_MIGRATIONS" ]; then
+            echo "::error::PR deletes existing migration file(s); migrations are append-only. Add a new migration that reverses the change instead."
+            echo "deleted:"
+            echo "$DELETED_MIGRATIONS"
+            exit 1
+          fi
+
+          if [ -n "$MODIFIED_MIGRATIONS" ]; then
+            echo "::error::PR modifies existing migration file(s); migrations are immutable once applied. Add a new migration that adjusts the schema instead."
+            echo "modified:"
+            echo "$MODIFIED_MIGRATIONS"
+            exit 1
+          fi
 
           if [ -n "$SCHEMA_CHANGED" ] && [ -z "$NEW_MIGRATIONS" ]; then
             echo "::error file=packages/db/prisma/schema.prisma::schema.prisma changed but no new migration file was added. Run 'pnpm --filter @novelhub/db prisma:migrate' locally to generate one, then commit the migrations/ folder."
@@ -59,5 +86,5 @@ jobs:
             echo "--- schema diff ---"
             git diff "origin/$BASE...$HEAD_SHA" -- packages/db/prisma/schema.prisma
           else
-            echo "No schema.prisma change in this PR — migrations/** edits are reviewed manually."
+            echo "No schema.prisma change in this PR — migrations/** edits checked above."
           fi

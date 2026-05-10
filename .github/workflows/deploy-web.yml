@@ -61,13 +61,18 @@ concurrency:
 jobs:
   staging:
     runs-on: ubuntu-latest
-    # On `workflow_run`, only deploy staging if the PR Checks run that
-    # triggered us was on `main` AND succeeded — same gating shape as
-    # deploy-api.yml.
+    # On `workflow_run`, only deploy staging if:
+    #   1. The triggering PR Checks run was on `main` (head_branch)
+    #   2. AND the triggering event was a push (not a PR run whose source
+    #      branch happens to be named `main` — extremely unlikely but
+    #      possible). The `event` field on workflow_run reflects the
+    #      original trigger type.
+    #   3. AND that run succeeded.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
     permissions:
       contents: read
     env:
