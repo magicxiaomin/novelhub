@@ -7,6 +7,7 @@
 import { setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 
+import { authCookieDomain } from '../config/domain';
 import {
   ACCESS_TOKEN_MAX_AGE_MS,
   COOKIE_ACCESS,
@@ -29,6 +30,8 @@ export type CookieMode = {
   /** Production-mode flag. When false, `Secure` is omitted in same-site mode
    * so dev over `http://localhost` can still set cookies. */
   isProd: boolean;
+  /** Optional AUTH_COOKIE_DOMAIN; validated before being written. */
+  domain?: string;
 };
 
 function cookieOpts(mode: CookieMode): {
@@ -36,6 +39,7 @@ function cookieOpts(mode: CookieMode): {
   secure: boolean;
   sameSite: 'Lax' | 'None';
   path: '/';
+  domain?: string;
 } {
   return {
     httpOnly: true,
@@ -43,6 +47,7 @@ function cookieOpts(mode: CookieMode): {
     secure: mode.crossSite || mode.isProd,
     sameSite: mode.crossSite ? 'None' : 'Lax',
     path: '/',
+    domain: authCookieDomain((mode as CookieMode & { domain?: string }).domain),
   };
 }
 
