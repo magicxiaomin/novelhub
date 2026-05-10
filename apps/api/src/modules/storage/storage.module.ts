@@ -1,11 +1,13 @@
 import { Global, Module, type Provider } from '@nestjs/common';
 
+import { LocalStorageClient } from './local.client';
 import { R2StorageClient } from './r2.client';
-import { STORAGE_CLIENT } from './storage.constants';
+import { STORAGE_CLIENT, type StorageClient } from './storage.constants';
 
 const StorageProvider: Provider = {
   provide: STORAGE_CLIENT,
-  useFactory: (): R2StorageClient => new R2StorageClient(),
+  useFactory: (): StorageClient =>
+    process.env.R2_ACCOUNT_ID ? new R2StorageClient() : new LocalStorageClient(),
 };
 
 @Global()

@@ -7,10 +7,6 @@ const HASH_COST = 12;
 const ADMIN_EMAIL = 'admin@novelhub.local';
 const ADMIN_PASSWORD = 'admin12345';
 
-// Chapter content URLs point at the API's static asset route in dev. In
-// production this would be an R2 key resolved via getSignedUrl().
-const CHAPTER_CONTENT_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-
 function buildChapters(bookId, idPrefix, contentKey, chapterTitles) {
   return Array.from({ length: 10 }, (_, index) => {
     const order = index + 1;
@@ -24,7 +20,7 @@ function buildChapters(bookId, idPrefix, contentKey, chapterTitles) {
       bookId,
       order,
       title,
-      contentUrl: `${CHAPTER_CONTENT_BASE}/static/chapters/${contentKey}/chapter-${paddedOrder}.txt`,
+      contentUrl: `chapters/${contentKey}/chapter-${paddedOrder}.txt`,
       wordCount: 1800 + order * 120,
       isFree: order <= 3,
       publishedAt: new Date(Date.UTC(2026, 0, order)),
@@ -177,9 +173,60 @@ async function seedBooks() {
   }
 }
 
+async function uploadChapterContentToR2() {
+  const required = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY', 'R2_SECRET_KEY', 'R2_BUCKET'];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length === required.length) {
+    console.log('[seed] R2 env unset - skipping chapter content upload to R2.');
+    return;
+  }
+  if (missing.length > 0) {
+    throw new Error(`[seed] Partial R2 env: missing ${missing.join(', ')}`);
+  }
+
+  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+  const { readFile } = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  const s3 = new S3Client({
+    region: 'auto',
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY,
+      secretAccessKey: process.env.R2_SECRET_KEY,
+    },
+  });
+
+  // Anchor at the workspace's apps/api/static dir. process.cwd() is the
+  // package the seed was invoked from, so resolve relative to this file.
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const staticRoot = path.resolve(here, '..', '..', '..', 'apps', 'api', 'static');
+
+  let uploaded = 0;
+  for (const book of books) {
+    for (let order = 1; order <= 10; order += 1) {
+      const padded = String(order).padStart(2, '0');
+      const key = `chapters/${book.contentKey}/chapter-${padded}.txt`;
+      const filePath = path.join(staticRoot, 'chapters', book.contentKey, `chapter-${padded}.txt`);
+      const body = await readFile(filePath, 'utf-8');
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: key,
+          Body: body,
+          ContentType: 'text/plain; charset=utf-8',
+        }),
+      );
+      uploaded += 1;
+    }
+  }
+  console.log(`[seed] Uploaded ${uploaded} chapter files to R2 bucket ${process.env.R2_BUCKET}.`);
+}
+
 async function main() {
   await seedAdmin();
   await seedBooks();
+  await uploadChapterContentToR2();
 }
 
 main()
