@@ -19,6 +19,7 @@ import type {
   DramaDetail,
   DramaPaginated,
   DramaSummary,
+  EpisodePlayback,
   Paginated,
 } from './types';
 
@@ -119,4 +120,21 @@ export async function fetchDramaServer(slug: string): Promise<DramaDetail | null
     throw new Error(`Failed to fetch drama ${slug}: ${res.status}`);
   }
   return (await res.json()) as DramaDetail;
+}
+
+export async function fetchEpisodePlaybackServer(
+  episodeId: string,
+): Promise<EpisodePlayback | null> {
+  const res = await fetch(
+    buildServerApiUrl(`/episodes/${encodeURIComponent(episodeId)}/playback`),
+    {
+      cache: 'no-store',
+      headers: { cookie: cookieHeader() },
+    },
+  );
+  if (res.status === 404 || res.status === 401) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to fetch episode playback ${episodeId}: ${res.status}`);
+  }
+  return (await res.json()) as EpisodePlayback;
 }
