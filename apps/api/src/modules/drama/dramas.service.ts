@@ -1,10 +1,12 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { DomainError } from '../../common/domain.errors';
-
+import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 import type {
   DramaDetail,
   DramaSummary,
+  EpisodePlayback,
+  EpisodePlaybackGranted,
   EpisodeProgress,
   EpisodeSummary,
   ListDramasQuery,
@@ -103,6 +105,112 @@ export class DramasService {
         total,
         totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
       },
+    };
+  }
+
+  private toPlaybackGranted(
+    episode: {
+      id: string;
+      dramaId: string;
+      episodeNumber: number;
+      title: string;
+      durationSeconds: number | null;
+      videoAsset: { playbackUrl: string; provider: string; thumbnailUrl: string | null };
+    },
+    accessReason: EpisodePlaybackGranted['accessReason'],
+  ): EpisodePlaybackGranted {
+    return {
+      episodeId: episode.id,
+      dramaId: episode.dramaId,
+      episodeNumber: episode.episodeNumber,
+      title: episode.title,
+      durationSeconds: episode.durationSeconds,
+      access: 'granted',
+      accessReason,
+      hlsUrl: episode.videoAsset.playbackUrl,
+      provider: episode.videoAsset.provider,
+      thumbnailUrl: episode.videoAsset.thumbnailUrl,
+    };
+  }
+
+  async getPlayback(episodeId: string, userId: string | null): Promise<EpisodePlayback> {
+    const now = new Date();
+    const episode = await this.prisma.episode.findFirst({
+      where: {
+        id: episodeId,
+        isPublished: true,
+        deletedAt: null,
+        OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+        drama: {
+          status: PUBLISHED,
+          deletedAt: null,
+          OR: publishedAtVisible(now),
+        },
+      },
+      select: {
+        id: true,
+        dramaId: true,
+        episodeNumber: true,
+        title: true,
+        durationSeconds: true,
+        isFree: true,
+        drama: { select: { coinPerEpisode: true } },
+        videoAsset: {
+          select: {
+            playbackUrl: true,
+            provider: true,
+            thumbnailUrl: true,
+          },
+        },
+      },
+    });
+
+    if (!episode) {
+      throw DomainError.notFound('Episode not found');
+    }
+    if (!episode.videoAsset) {
+      throw DomainError.notFound('Episode playback asset not found');
+    }
+
+    const videoAsset = episode.videoAsset;
+
+    if (episode.isFree) {
+      return this.toPlaybackGranted({ ...episode, videoAsset }, 'free');
+    }
+
+    if (userId) {
+      const [unlock, subscription] = await Promise.all([
+        this.prisma.episodeUnlock.findFirst({
+          where: { userId, episodeId: episode.id },
+          select: { id: true },
+        }),
+        this.prisma.subscription.findFirst({
+          where: {
+            userId,
+            status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+            currentPeriodEnd: { gt: now },
+          },
+          select: { id: true },
+        }),
+      ]);
+
+      if (unlock) {
+        return this.toPlaybackGranted({ ...episode, videoAsset }, 'unlocked');
+      }
+      if (subscription) {
+        return this.toPlaybackGranted({ ...episode, videoAsset }, 'subscription');
+      }
+    }
+
+    return {
+      episodeId: episode.id,
+      dramaId: episode.dramaId,
+      episodeNumber: episode.episodeNumber,
+      title: episode.title,
+      durationSeconds: episode.durationSeconds,
+      access: 'denied',
+      accessReason: 'locked',
+      coinPerEpisode: episode.drama.coinPerEpisode,
     };
   }
 

@@ -38,6 +38,34 @@ export type DramaDetail = DramaSummary & {
   episodes: EpisodeSummary[];
 };
 
+export type EpisodePlaybackAccessReason = 'free' | 'unlocked' | 'subscription' | 'locked';
+
+export type EpisodePlaybackGranted = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  title: string;
+  durationSeconds: number | null;
+  access: 'granted';
+  accessReason: Exclude<EpisodePlaybackAccessReason, 'locked'>;
+  hlsUrl: string;
+  provider: string;
+  thumbnailUrl: string | null;
+};
+
+export type EpisodePlaybackDenied = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  title: string;
+  durationSeconds: number | null;
+  access: 'denied';
+  accessReason: 'locked';
+  coinPerEpisode: number;
+};
+
+export type EpisodePlayback = EpisodePlaybackGranted | EpisodePlaybackDenied;
+
 export type PageInfo = {
   page: number;
   pageSize: number;

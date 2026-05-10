@@ -27,3 +27,7 @@ export const dramaSlugParamSchema = z.object({
     .max(160)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
 });
+
+export const episodeIdParamSchema = z.object({
+  episodeId: z.string().uuid(),
+});
