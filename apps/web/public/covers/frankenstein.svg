@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0e1e16"/>
+      <stop offset="0.6" stop-color="#13241a"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.4" r="0.5">
+      <stop offset="0" stop-color="#5fa37b" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#5fa37b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="600" fill="url(#bg)"/>
+  <rect width="400" height="600" fill="url(#glow)"/>
+  <rect x="32" y="32" width="336" height="536" fill="none" stroke="#5fa37b" stroke-width="1" opacity="0.4"/>
+  <text x="200" y="220" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="56" font-weight="700" fill="#dfe5d9" letter-spacing="3">Franken-</text>
+  <text x="200" y="282" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="56" font-weight="700" fill="#dfe5d9" letter-spacing="3">stein</text>
+  <line x1="120" y1="332" x2="280" y2="332" stroke="#5fa37b" stroke-width="1" opacity="0.5"/>
+  <text x="200" y="378" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="16" font-style="italic" fill="#9bb8a4" opacity="0.85" letter-spacing="2">or, The Modern Prometheus</text>
+  <g transform="translate(200,460)" opacity="0.7">
+    <path d="M-30 0 L-12 0 L-6 -18 L6 18 L12 0 L30 0" fill="none" stroke="#5fa37b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="200" y="525" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="14" fill="#9bb8a4" opacity="0.7" letter-spacing="3">MARY SHELLEY</text>
+  <text x="200" y="560" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="10" fill="#5fa37b" opacity="0.45" letter-spacing="4">GOTHIC · 1818</text>
+</svg>
