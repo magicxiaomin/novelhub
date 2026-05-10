@@ -1,5 +1,7 @@
 import type { Response } from 'express';
 
+import { authCookieDomain } from '../../config/domain';
+
 import {
   ACCESS_TOKEN_MAX_AGE_MS,
   COOKIE_ACCESS,
@@ -18,6 +20,7 @@ export const setAuthCookies = (
     secure: isProd(),
     sameSite: 'lax' as const,
     path: '/',
+    domain: authCookieDomain(process.env.AUTH_COOKIE_DOMAIN),
   };
   res.cookie(COOKIE_ACCESS, tokens.accessToken, {
     ...baseOpts,
@@ -35,6 +38,7 @@ export const clearAuthCookies = (res: Response): void => {
     secure: isProd(),
     sameSite: 'lax' as const,
     path: '/',
+    domain: authCookieDomain(process.env.AUTH_COOKIE_DOMAIN),
   };
   res.clearCookie(COOKIE_ACCESS, baseOpts);
   res.clearCookie(COOKIE_REFRESH, baseOpts);

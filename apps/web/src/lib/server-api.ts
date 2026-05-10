@@ -11,14 +11,12 @@
  */
 import { cookies } from 'next/headers';
 
+import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
 import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from './types';
 
-const publicApiBase = (): string => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-const internalApiBase = (): string => process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
-
 const apiBase = (): string => {
-  const base = publicApiBase();
-  return base.startsWith('/') ? internalApiBase() : base;
+  const base = publicApiBaseUrl();
+  return base.startsWith('/') ? internalApiBaseUrl() : base;
 };
 
 export const buildServerApiUrl = (

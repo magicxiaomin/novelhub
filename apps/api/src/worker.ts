@@ -16,6 +16,7 @@ import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 
 import { DomainError } from './common/domain.errors';
+import { corsAllowedOrigins } from './config/domain';
 import { prismaMiddleware } from './worker/db/prisma';
 import type { AuthVariables } from './worker/middleware/auth';
 import { withCronLock } from './modules/notifications/cron/leader-election';
@@ -62,14 +63,7 @@ const app = new Hono<{ Bindings: AppEnv; Variables: Partial<AuthVariables> }>();
 // CORS_EXTRA_ORIGINS comma-separated env for staging/preview hosts. Mounted
 // before prismaMiddleware so OPTIONS preflights don't open a Prisma client.
 app.use('*', async (c, next) => {
-  const allowed = new Set<string>();
-  if (c.env.NEXT_PUBLIC_APP_URL) allowed.add(c.env.NEXT_PUBLIC_APP_URL);
-  if (c.env.CORS_EXTRA_ORIGINS) {
-    for (const o of c.env.CORS_EXTRA_ORIGINS.split(',')) {
-      const trimmed = o.trim();
-      if (trimmed) allowed.add(trimmed);
-    }
-  }
+  const allowed = new Set(corsAllowedOrigins(c.env));
   return cors({
     origin: (origin) => (origin && allowed.has(origin) ? origin : null),
     credentials: true,
