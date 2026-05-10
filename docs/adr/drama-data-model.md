@@ -1,8 +1,9 @@
 # ADR: Phase 3 Drama Data Model
 
-Status: DRAFT FOR HUMAN APPROVAL  
-Date: 2026-05-10  
+Status: DRAFT FOR HUMAN APPROVAL — DRAMA-006 revised
+Date: 2026-05-10
 Related spec: `docs/phase3-short-drama-mvp-spec.md`
+Related resolution: `docs/adr/drama-phase3-feasibility-resolution.md`
 
 ## Context
 
@@ -56,12 +57,13 @@ This is intentionally a draft; implementation requires a separate schema approva
 
 - `id`
 - `title`
+- `slug` (unique, non-null, public detail route key)
 - `synopsis`
 - `portraitPosterUrl`
 - `landscapeBannerUrl`
 - `category`
 - `tags`
-- `totalEpisodes`
+- `totalEpisodes` (derived/cache value, not admin-authored)
 - `status`
 - `isFeatured`
 - `freeEpisodeCount`
@@ -77,7 +79,7 @@ This is intentionally a draft; implementation requires a separate schema approva
 
 - `id`
 - `dramaId`
-- `order`
+- `order` or `episodeNumber` (unique with `dramaId`)
 - `title`
 - `description`
 - `durationSec`
@@ -110,7 +112,8 @@ For Phase 3 MVP, provider is expected to be `external_hls`.
 - `id`
 - `userId`
 - `episodeId`
-- `method`
+- `method` (`coin`, `subscription_grant`, or equivalent audited value)
+- `coinTransactionId` where coin spend applies
 - `unlockedAt`
 - `createdAt`
 - `updatedAt`
@@ -120,7 +123,7 @@ Semantics mirror `ChapterUnlock`.
 ### WatchProgress
 
 - `id`
-- `userId` or `guestId`
+- exactly one of `userId` or `guestId`
 - `dramaId`
 - `episodeId`
 - `lastPositionMs`
@@ -129,7 +132,19 @@ Semantics mirror `ChapterUnlock`.
 - `createdAt`
 - `updatedAt`
 
-Semantics mirror `ReadingProgress` but use playback time, not scroll position.
+Semantics mirror `ReadingProgress` but use playback time, not scroll position. Continue-watching queries must be indexed by actor (`userId` or `guestId`) and `lastWatchedAt`.
+
+## DRAMA-006 schema hardening
+
+Implementation must include the following details before schema approval:
+
+- `Drama.slug` is required, unique, and used for public detail URLs. Treat it as effectively immutable after publish unless a redirect strategy is separately approved.
+- `User` must define explicit relations for `episodeUnlocks` and `watchProgress` so Prisma schema generation is unambiguous.
+- `Drama.totalEpisodes`, if stored, is a derived/cache field maintained transactionally during episode create/delete/publish mutations. Admin requests must not directly set it as the source of truth.
+- Browse indexes should cover public visibility and ordering, including slug lookup and published/status/featured/order fields chosen by implementation.
+- Continue-watching indexes should cover `(userId, lastWatchedAt)` and `(guestId, lastWatchedAt)` or equivalent actor-specific access paths.
+- `EpisodeUnlock` and `WatchProgress` require exactly one actor identifier: `userId` XOR `guestId`. Enforce this in service validation and add PostgreSQL CHECK/partial unique indexes via raw migration SQL where practical, because Prisma cannot portably express every invariant.
+- Nullable uniqueness must be explicit: do not rely on a single composite unique containing nullable columns for idempotency. Use separate partial unique indexes such as `(episodeId, userId) WHERE userId IS NOT NULL` and `(episodeId, guestId) WHERE guestId IS NOT NULL` where supported.
 
 ## Migration strategy
 

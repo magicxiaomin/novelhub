@@ -1,8 +1,9 @@
 # ADR: Phase 3 Video Pipeline — External/Mock HLS First
 
-Status: DRAFT FOR HUMAN APPROVAL  
-Date: 2026-05-10  
+Status: DRAFT FOR HUMAN APPROVAL — DRAMA-006 revised
+Date: 2026-05-10
 Related spec: `docs/phase3-short-drama-mvp-spec.md`
+Related resolution: `docs/adr/drama-phase3-feasibility-resolution.md`
 
 ## Context
 
@@ -57,6 +58,18 @@ It avoids spending engineering time on video infrastructure before the product e
 - No first-party upload/transcode workflow.
 - Anti-hotlinking and asset control are weak in MVP.
 - Later migration to Cloudflare Stream/R2 HLS still required before serious launch.
+
+## DRAMA-006 external HLS guardrails
+
+External/mock HLS remains acceptable for alpha, but implementation must add guardrails before production alpha content is entered through admin:
+
+- Production alpha HLS URLs must use `https`. Local/CI fixtures may use localhost HTTP only in non-production.
+- Allowed production hosts are configured by `HLS_ALLOWED_HOSTS`; admin writes reject unapproved hosts.
+- URLs with userinfo (`user:pass@host`) are rejected.
+- URLs with credential-bearing or token-like query parameters such as `token`, `sig`, `signature`, `expires`, `key`, or `policy` are rejected unless a later signed-URL ADR explicitly allows them.
+- CI and local e2e must use a deterministic `.m3u8` fixture served from a controlled fixture host; tests must not depend on third-party HLS availability.
+- Browser CORS/playability must be validated for approved alpha hosts and documented in the runbook. This may be an operational validation rather than a synchronous database-write dependency.
+- Returning direct HLS URLs after access is granted is an accepted alpha limitation; DRM, signed manifests, and proxying video bytes remain out of scope until a later video-pipeline ADR.
 
 ## Data model implications
 

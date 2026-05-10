@@ -1,13 +1,13 @@
 # NovelHub Phase 3 Spec — Short Drama MVP
 
-Status: READY FOR HUMAN APPROVAL — Proposal v2  
-Owner: NovelHub Orchestrator / requirements  
-Created: 2026-05-10  
-Task: GitHub #129 / DRAMA-001  
-Entry handoff: GitHub Issue #127, `docs/handoff-2026-05-10.md`, `docs/operations.md`  
-Related ADRs: `docs/adr/drama-video-pipeline.md`, `docs/adr/drama-data-model.md`
+Status: READY FOR HUMAN APPROVAL — DRAMA-006 revised
+Owner: NovelHub Orchestrator / requirements
+Created: 2026-05-10
+Task: GitHub #129 / DRAMA-001
+Entry handoff: GitHub Issue #127, `docs/handoff-2026-05-10.md`, `docs/operations.md`
+Related ADRs: `docs/adr/drama-video-pipeline.md`, `docs/adr/drama-data-model.md`, `docs/adr/drama-phase3-feasibility-resolution.md`
 
-> Approval gate: this document is requirements only. Do not begin implementation until the human product owner approves #132. DRAMA-001/002/003 planning has been finalized; DRAMA-010+ implementation issues should be created only after #132 approval.
+> Approval gate: this document is requirements only. Do not begin implementation until the human product owner approves #132. DRAMA-006 feasibility revisions are incorporated here; DRAMA-010+ implementation issues should be created only after #132 approval.
 
 ## 1. Restated requirement
 
@@ -42,7 +42,7 @@ The user approved autonomous PM defaults except where a true product decision is
 | Q9  | Admin                                     | Minimal admin CRUD is in scope because this MVP requires non-engineer metadata/url management.                                                                    |
 | Q10 | Social/captions/recommendations/age gates | Out of scope unless separately approved.                                                                                                                          |
 
-Remaining gate: #132 human approval to create and dispatch DRAMA-010+ implementation issues. Merge to `main` also remains a human approval gate.
+Remaining gate: #132 human approval to create and dispatch DRAMA-010+ implementation issues. Merge to `main` also remains a human approval gate. The human approval must explicitly include the DRAMA-006 revisions: resource-rooted Worker API paths, Cloudflare Pages domain routing, shared-cookie/CORS gate, HLS allowlist policy, Worker/Hono target runtime, schema invariants, and revised task dependencies.
 
 ## 3. Scope and non-goals
 
@@ -160,16 +160,16 @@ Remaining gate: #132 human approval to create and dispatch DRAMA-010+ implementa
 
 ## 7. API implications
 
-Potential REST surface for feasibility review; exact shape should match current NestJS conventions:
+Final REST surface must match current repository conventions: backend routes are resource-rooted. Do not document or implement `/api` as part of the Worker contract unless a later Pages routing PR explicitly adds a frontend proxy. The frontend may still use a Next/Pages `/api/*` rewrite internally, but backend docs, Worker tests, and API clients should target `NEXT_PUBLIC_API_BASE_URL` plus these resource paths:
 
 - `GET /dramas` — list published dramas.
 - `GET /dramas/:slug` — drama detail and ordered episode metadata.
-- `GET /dramas/:slug/episodes/:episodeNumber/playback` — playback metadata if free/unlocked/subscription-accessible.
-- `POST /dramas/:slug/episodes/:episodeNumber/unlock` — coin unlock.
+- `GET /dramas/:slug/episodes/:episodeNumber/playback` or `GET /episodes/:id/playback` — playback metadata if free/unlocked/subscription-accessible.
+- `POST /dramas/:slug/episodes/:episodeNumber/unlock` or `POST /episodes/:id/unlock` — idempotent coin unlock.
 - `GET /me/drama-progress` or scoped equivalent — continue watching state.
-- `POST /drama-progress` — save watch progress.
-- Admin-only drama CRUD endpoints.
-- Admin-only episode/video URL management endpoints.
+- `PUT /episodes/:id/progress` or `POST /drama-progress` — throttling-safe progress upsert.
+- Admin-only drama CRUD under `/admin/dramas...`.
+- Admin-only episode/video URL management under `/admin/dramas/:dramaId/episodes...` or `/admin/episodes/:episodeId/video-asset`.
 
 Security/access implications:
 
@@ -178,18 +178,28 @@ Security/access implications:
 - Coin unlock must follow existing atomic coin transaction rules.
 - External HLS URLs are consumed by the browser in MVP; backend should not proxy video bytes unless a later ADR changes that.
 
+### 7.1 Runtime, domain, auth, and HLS gates from DRAMA-006
+
+- New short-drama APIs target the Cloudflare Worker/Hono runtime for MVP. Do not build parallel Nest drama controllers unless a later approved parity task requires it. Existing Nest/novel modules remain untouched.
+- `dramavela.com` and `www.dramavela.com` are drama-first. `novel.dramavela.com` preserves the existing novel experience. Use Cloudflare Pages routing/build variants rather than introducing new host middleware in this MVP plan.
+- Cross-subdomain sessions require a pre-frontend auth/CORS gate: cookie `Domain=.dramavela.com; Path=/; Secure; HttpOnly; SameSite=Lax`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_API_BASE_URL`, and `CORS_EXTRA_ORIGINS` must be validated for apex, www, novel subdomain, preview, and local dev behavior.
+- Production alpha external HLS URLs must be HTTPS, host-allowlisted via `HLS_ALLOWED_HOSTS`, free of userinfo and credential/token-like query strings, and validated for browser CORS/playability. CI must use a deterministic fixture `.m3u8`; no third-party HLS availability should be required for CI.
+
 ## 8. Data implications
 
 Proposal v1 confirms the ADR direction: do not reuse `Book`/`Chapter` for short drama. Add new video-specific content/playback tables and reuse account/commerce tables.
 
-Expected relationships:
+Expected relationships and invariants:
 
-- `Drama` has many `Episode` records.
-- `Episode` has one MVP `VideoAsset` unless feasibility review recommends supporting multiple assets from day one.
-- `User` has many `EpisodeUnlock` records.
-- `User` has many `WatchProgress` records.
+- `Drama` has many `Episode` records and has a unique, non-null `slug` used by public detail routes.
+- `Episode` has one MVP `VideoAsset`; `VideoAsset.episodeId` is unique.
+- `User` has explicit `episodeUnlocks` and `watchProgress` relation fields.
+- `EpisodeUnlock` records user/episode paid or subscription access; unique non-null actor/episode behavior must make unlock writes idempotent.
+- `WatchProgress` stores user or guest playback position; continue-watching queries need indexes by actor and `lastWatchedAt`.
 - `CoinTransaction` records coin spend for episode unlocks.
 - Existing `Subscription` state grants access to paid episodes if approved.
+- `Drama.totalEpisodes`, if stored, is a derived/cache value maintained transactionally from episode mutations, not an admin-authored source of truth.
+- `EpisodeUnlock` and `WatchProgress` require a CHECK-equivalent invariant: exactly one of `userId` or `guestId` is set. Because Prisma does not model CHECK constraints portably, enforce this in service validation and add raw SQL partial unique indexes in the migration where PostgreSQL supports them.
 
 Data approval gates:
 
