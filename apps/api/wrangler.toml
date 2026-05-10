@@ -69,7 +69,22 @@ id = "ee7db7e85d78487796c06ba032a8c469"
 
 [env.production]
 name = "novelhub-api"
-# routes = [{ pattern = "api.novelhub.com/*", custom_domain = true }]
+# Custom domain wired via Cloudflare API after first deploy (workers/domains
+# endpoint). Don't set `routes = ...` here — that conflicts with the custom
+# domain bind. See cutover runbook 2026-05-10.
+
+[[env.production.r2_buckets]]
+binding = "BUCKET"
+bucket_name = "novelhub-content"
+preview_bucket_name = "novelhub-content-preview"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "6a22d526fa6841439f4b5517fe821730"
+
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "7598b12e346d473b99d2e9ca4f64d054"
 
 # ---- Cron triggers ----------------------------------------------------------
 # Worker scheduled() handler in src/worker.ts dispatches by event.cron.
