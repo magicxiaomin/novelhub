@@ -1,174 +1,301 @@
 # NovelHub Phase 3 Spec — Short Drama MVP
 
-Status: DRAFT FOR HUMAN APPROVAL  
-Owner: NovelHub Orchestrator  
+Status: READY FOR HUMAN APPROVAL — Proposal v2  
+Owner: NovelHub Orchestrator / requirements  
 Created: 2026-05-10  
-Entry handoff: GitHub Issue #127, `docs/handoff-2026-05-10.md`, `docs/operations.md`
+Task: GitHub #129 / DRAMA-001  
+Entry handoff: GitHub Issue #127, `docs/handoff-2026-05-10.md`, `docs/operations.md`  
+Related ADRs: `docs/adr/drama-video-pipeline.md`, `docs/adr/drama-data-model.md`
 
-## Decision summary
+> Approval gate: this document is requirements only. Do not begin implementation until the human product owner approves #132. DRAMA-001/002/003 planning has been finalized; DRAMA-010+ implementation issues should be created only after #132 approval.
 
-NovelHub Phase 1/2 infrastructure and Cloudflare cutover are complete. Phase 3 shifts from infrastructure to product development: a short-drama / vertical-drama MVP.
+## 1. Restated requirement
 
-The user selected video pipeline option **C: external HLS / mock video URL first**. This means Phase 3 should validate the short-drama product loop before building an upload/transcoding pipeline.
+NovelHub Phase 3 should validate a short-drama / vertical-drama product loop on Dramavela without first building a video upload, transcoding, DRM, or Cloudflare Stream pipeline.
 
-Additional user/PM decisions recorded on 2026-05-10:
+The MVP should let an alpha user:
 
-- Phase 3 alpha content source is **demo/mock content first**.
-- Dramavela becomes **drama-primary**.
-- Domain routing decides the product surface:
-  - `www.dramavela.com` / `dramavela.com`: short drama experience.
-  - `novel.dramavela.com`: existing novel experience.
-- The reason for the split is to reuse the already-built novel infrastructure while making drama the primary business direction.
-- PM default decisions: first 3 episodes free, 5 coins per paid episode, keep subscription bypass, keep novel accessible on the `novel` subdomain, allow external/mock HLS URLs in alpha/staging/prod-like DBs, and approve additive Phase 3 schema changes subject to the normal migration gate.
-
-## Phase 3 goal
-
-Build a minimal short-drama experience that lets an alpha user:
-
-1. browse drama-first content on Dramavela;
+1. browse a drama-first entry surface;
 2. open a drama detail page;
-3. play free vertical episodes from external/mock HLS URLs;
-4. hit an episode-level paywall after the configured free episode count;
-5. log in and unlock paid episodes using the existing coin/subscription model;
-6. resume playback progress;
-7. let admin users create/manage drama and episode metadata and bind external playback URLs.
+3. play free vertical video episodes from external/mock HLS URLs;
+4. encounter episode-level locked states after the configured free episode count;
+5. log in and unlock paid episodes through the existing subscription/coin model;
+6. resume video watch progress;
+7. let admin users create/manage drama and episode metadata and bind external/mock playback URLs.
 
-## Explicit non-goals
+The user selected video pipeline option C: **external/mock HLS URL first**. The goal is to validate product, commerce, and data-model fit before investing in first-party video infrastructure.
 
-The following are intentionally skipped until after product development is complete:
+## 2. Resolved decisions and remaining gates
 
-- formal operations launch activities;
-- paid ads / growth campaign / SEO launch push;
-- Stripe Live mode;
-- social/KOL/newsletter launch;
-- production rollback or release automation changes beyond normal development gates;
-- video upload/transcoding pipeline;
-- Cloudflare Stream integration;
-- DRM or advanced anti-piracy;
-- recommendation algorithm;
-- comments, danmaku, social features;
-- native iOS/Android app.
+The user approved autonomous PM defaults except where a true product decision is required. Current Phase 3 decisions are:
 
-## MVP scope
+| ID  | Decision                                  | Resolution                                                                                                                                                        |
+| --- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | First alpha content source                | Demo/mock content first.                                                                                                                                          |
+| Q2  | Domain/product positioning                | `dramavela.com` and `www.dramavela.com` are drama-primary; `novel.dramavela.com` preserves the existing novel experience.                                         |
+| Q3  | Default free episodes                     | 3 free episodes per drama by default.                                                                                                                             |
+| Q4  | Default paid episode price                | 5 coins per paid episode by default.                                                                                                                              |
+| Q5  | Subscription access                       | Active subscriptions bypass paid episode locks.                                                                                                                   |
+| Q6  | External/mock HLS in DB                   | Allowed for alpha validation; not the final production video pipeline.                                                                                            |
+| Q7  | Anonymous playback                        | Anonymous users may watch free episodes.                                                                                                                          |
+| Q8  | Guest watch progress                      | Support guest progress using the same guest-id pattern as the existing product where feasible; otherwise browser-local fallback is acceptable for the first pass. |
+| Q9  | Admin                                     | Minimal admin CRUD is in scope because this MVP requires non-engineer metadata/url management.                                                                    |
+| Q10 | Social/captions/recommendations/age gates | Out of scope unless separately approved.                                                                                                                          |
 
-### Content domain
+Remaining gate: #132 human approval to create and dispatch DRAMA-010+ implementation issues. Merge to `main` also remains a human approval gate.
 
-Add a short-drama content domain alongside the existing novel domain. Do not delete or rewrite the novel domain.
+## 3. Scope and non-goals
 
-New conceptual entities:
+### In scope
 
-- `Drama`: a drama series / show.
-- `Episode`: one short vertical video episode in a drama.
-- `VideoAsset`: playback metadata for an episode. In MVP this points to an external/mock HLS URL and poster URL.
-- `EpisodeUnlock`: paid access record for a user and episode.
-- `WatchProgress`: playback progress for a user or guest.
+- Short-drama content domain alongside, not replacing, the novel domain.
+- Drama browse surface and/or homepage section.
+- Drama detail page with metadata and ordered episode list.
+- Vertical 9:16 episode player using external/mock HLS (`.m3u8`) URLs.
+- Free, locked, subscription-unlocked, and coin-unlocked episode states.
+- Login-required paid unlock flow using existing user, subscription, order, coin transaction, and payment primitives.
+- Watch progress save/resume for authenticated users.
+- Minimal admin CRUD for dramas, episodes, publish state, free/paid state, poster URL, and external/mock HLS URL binding.
+- Tests/smoke coverage proving the new drama flow does not regress the existing novel flow.
 
-### User experience
+### Explicit non-goals
 
-- Domain-routed product surfaces:
-  - `www.dramavela.com` / `dramavela.com` show the short-drama experience.
-  - `novel.dramavela.com` shows the existing novel experience.
-- Drama-first homepage on the primary domain.
-- Drama detail page with episode list.
-- Vertical 9:16 player page.
-- HLS playback from external/mock URL.
-- Episode free/locked states.
-- Continue watching support.
+- Video upload UI.
+- ffmpeg/transcoding workers.
+- Cloudflare Stream integration.
+- R2 HLS segment storage/management.
+- DRM, signed video manifests, tokenized playback, or advanced anti-piracy.
+- Formal operations launch, paid ads/growth campaign, SEO launch push, social/KOL/newsletter launch.
+- Stripe Live mode.
+- Native iOS/Android apps.
+- Recommendation algorithm.
+- Comments, danmaku, social feeds, creator portal, or moderation workflow.
+- Deleting, rewriting, or hiding the novel domain without separate human approval.
 
-### Commerce
+## 4. User stories
 
-Reuse existing user/payment primitives:
+### Viewer
 
-- `User`
-- `Subscription`
-- `Order`
-- `CoinTransaction`
-- existing Stripe checkout/webhook path, when Stripe is configured
-- existing coin balance and unlock semantics
-
-MVP paywall policy:
-
-- first 3 episodes are free by default;
-- paid episodes cost 5 coins per episode by default;
-- paid episodes require either active subscription or coin unlock;
-- pricing fields remain configurable per drama so the defaults can change later without a schema rewrite.
+- As a visitor, I can discover short dramas from the main experience so I can try the new vertical.
+- As a viewer, I can open a drama detail page and understand the story, poster, episode count, and available episodes.
+- As a viewer, I can play free episodes in a mobile-first vertical player.
+- As a viewer, I can clearly see which episodes are free and which are locked.
+- As a logged-in user, I can unlock a paid episode with coins when I do not have an active subscription.
+- As a subscriber, I can play paid episodes without spending coins if my subscription state grants access.
+- As a logged-in viewer, I can leave and return later and resume near my last playback position.
+- As a viewer, I see a useful retry/error state if an external HLS URL fails.
 
 ### Admin
 
-Admin MVP should support:
+- As an admin, I can create and edit a drama series record.
+- As an admin, I can create and edit ordered episodes under a drama.
+- As an admin, I can paste an external/mock HLS URL and poster URL for each episode without uploading video files.
+- As an admin, I can mark dramas and episodes as draft/published and free/paid so unfinished or locked content does not leak.
 
-- create/edit/list dramas;
-- create/edit/list episodes under a drama;
-- bind external/mock playback URL and poster URL to an episode;
-- mark episodes free/paid;
-- publish/unpublish drama/episode.
+### Operator / reviewer
 
-No upload/transcoding in Phase 3 MVP.
+- As a reviewer, I can run smoke/e2e checks proving existing novel browse/read/unlock paths remain green.
+- As a reviewer, I can inspect tests proving the drama browse → free playback → paid unlock → resume path works with fixture HLS data.
 
-## Technical direction
+## 5. Acceptance criteria
 
-### Video pipeline decision
+### 5.1 Content and data model
 
-Chosen for MVP: **external/mock HLS URL first**.
+- AC-1: Schema direction supports separate `Drama`, `Episode`, `VideoAsset`, `EpisodeUnlock`, and `WatchProgress` concepts rather than reusing `Book`/`Chapter` for video.
+- AC-2: Existing novel tables and migrations are not deleted or rewritten; any schema work is append-only via Prisma Migrate.
+- AC-3: `Drama` supports at minimum title, slug, synopsis, poster/banner metadata, status, free episode count, coin price per episode, ordering/featured metadata, timestamps, and soft delete strategy consistent with existing content tables.
+- AC-4: `Episode` supports at minimum drama relation, episode number/order, title, duration, free/paid state, publish state, timestamps, and soft delete strategy.
+- AC-5: `VideoAsset` supports provider abstraction with `external_hls` for MVP, HLS URL, poster URL, playback status, duration/aspect-ratio metadata where available, and future provider-specific migration room.
+- AC-6: `EpisodeUnlock` records user/episode paid access and can distinguish subscription-granted access from coin unlock where needed for auditability.
+- AC-7: `WatchProgress` stores authenticated user playback position by episode and supports continue-watching at the drama level.
 
-Implications:
+### 5.2 Public API
 
-- store external `hlsUrl` / `posterUrl` in `VideoAsset`;
-- no Cloudflare Stream provisioning now;
-- no R2 segment upload pipeline now;
-- no ffmpeg/transcoding worker now;
-- later migration to Cloudflare Stream or R2 HLS should be possible by changing `VideoAsset.provider` and adding provider-specific fields.
+- AC-8: API can list published dramas with pagination and basic filters/sorting suitable for the drama browse surface.
+- AC-9: API can return a published drama detail payload with ordered episode metadata and per-user access/progress state when authenticated.
+- AC-10: API can return playback metadata for a free or unlocked episode, including external/mock HLS URL and poster URL.
+- AC-11: API does not return playable HLS metadata for a locked episode unless the user has access.
+- AC-12: API can unlock a paid episode with coins using an atomic transaction that updates coin balance and writes a `CoinTransaction` plus `EpisodeUnlock` record.
+- AC-13: API treats active subscription as access-granting for paid episodes if Q5 is approved.
+- AC-14: API can save and retrieve watch progress; progress writes are idempotent and throttling-safe.
+- AC-15: Public endpoints follow existing auth, validation, DTO, OpenAPI, and rate-limit conventions.
 
-### Data model strategy
+### 5.3 Web UX
 
-Do **not** reuse `Book`/`Chapter` for short drama.
+- AC-16: Web provides a drama entry surface from the main product experience without removing access to novels.
+- AC-17: Drama browse renders mobile-first cards with poster, title, and key metadata.
+- AC-18: Drama detail renders synopsis, episode list, free/locked states, and continue-watching CTA when progress exists.
+- AC-19: Player page is optimized for vertical video and supports play/pause, seek, mute/volume, fullscreen, loading, retry, and error states.
+- AC-20: Free episodes play for anonymous and logged-in users, subject to normal public content rules.
+- AC-21: Locked episodes show a paywall/unlock prompt rather than failing silently.
+- AC-22: Logged-in users can unlock a paid episode and immediately play it after successful unlock.
+- AC-23: Watch progress resumes within an acceptable tolerance of the last saved position after leaving and returning.
+- AC-24: User-facing strings are localization-ready and follow existing web i18n conventions.
 
-Reasoning:
+### 5.4 Admin
 
-- chapters are text-first and use `contentUrl` for R2 text content;
-- episodes need duration, playback URL, poster, provider status, and video-specific progress;
-- reading progress is scroll-based, while watch progress is time-based;
-- forcing one table to serve both domains would create nullable-field drift and fragile type branches.
+- AC-25: Admin can create/edit/list dramas.
+- AC-26: Admin can create/edit/list episodes under a drama.
+- AC-27: Admin can bind or update external/mock HLS URL and poster URL for an episode.
+- AC-28: Admin can set free/paid state and publish/unpublish state.
+- AC-29: Unpublished dramas/episodes are excluded from public browse/detail/playback APIs.
+- AC-30: Admin inputs validate URL shape and required metadata; invalid HLS/poster URLs are rejected or clearly marked invalid.
 
-Reuse account and commerce tables; add new content/playback tables.
+### 5.5 Tests and regression gates
 
-## Decisions before implementation
+- AC-31: New drama e2e covers browse → play free episode → encounter locked episode → unlock paid episode → resume playback.
+- AC-32: Backend tests cover access rules: free episode, active subscription, prior episode unlock, insufficient coins, and anonymous locked access denial.
+- AC-33: Existing novel smoke/e2e remains green.
+- AC-34: Fixture/mock HLS data is deterministic enough for CI and local development.
+- AC-35: Production operations launch remains deferred until explicit post-development approval.
 
-The following decisions are now recorded:
+## 6. UX implications
 
-1. Content source for the first alpha set: **demo/mock content first**.
-2. Primary domain behavior: **`www.dramavela.com` / `dramavela.com` show drama**.
-3. Novel domain behavior: **`novel.dramavela.com` keeps the existing novel experience available**.
-4. Default free episodes: **3**.
-5. Default paid episode price: **5 coins per episode**.
-6. Mock/external HLS URLs may be stored directly for alpha validation.
-7. Additive Phase 3 schema changes are allowed after ADR approval and normal migration review.
+- Product navigation must decide whether drama is the default homepage experience or a prominent secondary section.
+- Drama detail and player should be mobile-first because short drama is primarily consumed in vertical format.
+- Locked episode UX should reuse existing paywall concepts where possible so users understand subscription/coin access.
+- The player needs explicit external-stream failure states because upstream HLS reliability is outside NovelHub control.
+- Continue-watching should prioritize the last watched drama/episode for authenticated users.
+- Novels should remain reachable until a separate human decision approves a drama-first replacement strategy.
 
-Remaining implementation gate: approve this updated spec/ADR set and then create DRAMA-010+ implementation issues.
+## 7. API implications
 
-## Acceptance criteria for Phase 3 MVP
+Potential REST surface for feasibility review; exact shape should match current NestJS conventions:
 
-- Schema supports Drama/Episode/VideoAsset/EpisodeUnlock/WatchProgress.
-- API supports listing dramas, reading drama detail, retrieving episode playback metadata, unlocking paid episodes, and saving/resuming watch progress.
-- Web supports drama browse, detail, vertical player, paywall, unlock, and continue watching.
-- Admin supports creating drama/episode records and binding external/mock URLs.
-- Existing novel smoke remains green.
-- New drama e2e covers browse → play free episode → unlock paid episode → resume playback.
-- Production operations launch remains deferred until explicit post-development approval.
+- `GET /dramas` — list published dramas.
+- `GET /dramas/:slug` — drama detail and ordered episode metadata.
+- `GET /dramas/:slug/episodes/:episodeNumber/playback` — playback metadata if free/unlocked/subscription-accessible.
+- `POST /dramas/:slug/episodes/:episodeNumber/unlock` — coin unlock.
+- `GET /me/drama-progress` or scoped equivalent — continue watching state.
+- `POST /drama-progress` — save watch progress.
+- Admin-only drama CRUD endpoints.
+- Admin-only episode/video URL management endpoints.
 
-## Suggested issue sequence
+Security/access implications:
 
-1. DRAMA-001: Short Drama MVP requirements and acceptance criteria.
-2. DRAMA-002: External/mock HLS video pipeline ADR.
-3. DRAMA-003: Drama data model ADR.
-4. DRAMA-004: Human approval gate for Phase 3 schema/product scope.
-5. DRAMA-010+: implementation issues after approval.
+- Public list/detail may be anonymous, but locked playback metadata and coin unlock require auth.
+- Do not expose paid episode HLS URLs before access is granted.
+- Coin unlock must follow existing atomic coin transaction rules.
+- External HLS URLs are consumed by the browser in MVP; backend should not proxy video bytes unless a later ADR changes that.
 
-## Guardrails
+## 8. Data implications
 
+Proposal v1 confirms the ADR direction: do not reuse `Book`/`Chapter` for short drama. Add new video-specific content/playback tables and reuse account/commerce tables.
+
+Expected relationships:
+
+- `Drama` has many `Episode` records.
+- `Episode` has one MVP `VideoAsset` unless feasibility review recommends supporting multiple assets from day one.
+- `User` has many `EpisodeUnlock` records.
+- `User` has many `WatchProgress` records.
+- `CoinTransaction` records coin spend for episode unlocks.
+- Existing `Subscription` state grants access to paid episodes if approved.
+
+Data approval gates:
+
+- Human must approve new schema direction before Prisma migration work begins.
+- Human must approve whether production alpha may store external/mock HLS URLs directly.
+- Human must approve default `freeEpisodeCount` and `coinPerEpisode`.
+- ADR `docs/adr/drama-data-model.md` should be updated or accepted as the schema source of truth before implementation tickets are cut.
+
+## 9. Risks and mitigations
+
+| Risk                                                                    | Impact                                                     | Mitigation / decision needed                                                                             |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| External HLS URLs fail, rate-limit, or have CORS issues                 | Playback blocked despite app being healthy                 | Validate URLs in admin; use deterministic fixture HLS for CI; show clear retry/error states.             |
+| Storing direct HLS URLs leaks paid content after first authorized fetch | Weak anti-piracy in MVP                                    | Accept as alpha limitation or require a redirect/signing design before implementation.                   |
+| Paywall semantics diverge from chapter unlock semantics                 | User confusion and duplicate logic                         | Mirror existing free/subscription/prior unlock/coin purchase rules unless approved otherwise.            |
+| Video fields pollute novel schema if tables are reused                  | Long-term schema fragility                                 | Keep drama/video tables separate.                                                                        |
+| Watch progress writes are too frequent                                  | Backend load and noisy data                                | Client throttle/debounce; save on interval plus pause/exit; feasibility review should choose thresholds. |
+| Admin URL entry enables bad or unsafe URLs                              | Broken UX or security concerns                             | Validate URL scheme/host policy; restrict production URLs to approved sources if needed.                 |
+| Drama-first homepage may harm existing novel users                      | Product/monetization regression                            | Keep novels accessible; require explicit homepage positioning approval.                                  |
+| Stripe is deliberately unconfigured/test-only                           | Paid unlock checkout may not work end-to-end in production | Coin unlock can use existing balances in alpha; do not enable Stripe Live without separate approval.     |
+
+## 10. Decisions resolved; approval still required
+
+The previously open product questions have been resolved as follows:
+
+1. MVP scope approved for planning: browse, detail, external/mock HLS playback, paywall/unlock, progress, admin metadata/url management.
+2. Alpha content source: demo/mock.
+3. Homepage/domain positioning: drama on `dramavela.com`/`www`, novel on `novel.dramavela.com`.
+4. Novels remain accessible during Phase 3.
+5. Default free episode count: 3.
+6. Default coin price: 5 coins per paid episode.
+7. Active subscription unlocks paid drama episodes.
+8. External/mock HLS URLs may be stored for alpha validation.
+9. Direct HLS URLs are acceptable for MVP, but should only be returned from playback APIs after access is granted.
+10. `VideoAsset` is 1:1 with `Episode` for MVP.
+11. Guest watch progress should use a server-side guest identifier if it fits existing patterns; otherwise browser-local fallback is acceptable for the first pass.
+12. Admin starts as minimal CRUD plus external URL binding; no upload/transcoding.
+
+Remaining approvals before implementation:
+
+- Approve #132 human gate.
+- Approve additive schema PR when DRAMA-010 is produced.
+- Approve merge of PR #133 or any future implementation PR.
+
+## 11. Proposal v1 for Codex feasibility review
+
+### Proposed implementation sequence after human approval
+
+See also `docs/phase3-short-drama-implementation-plan.md` for the finalized DRAMA-010+ split.
+
+1. DRAMA-002: confirm external/mock HLS pipeline ADR and direct-url constraints.
+2. DRAMA-003: confirm data model ADR and schema migration shape.
+3. DRAMA-004: record human approval gate for scope, defaults, and production external URL allowance.
+4. DRAMA-010: schema and seed/fixture data for drama, episode, video asset, unlock, progress.
+5. DRAMA-011: public drama list/detail/playback APIs.
+6. DRAMA-012: coin/subscription access and episode unlock APIs.
+7. DRAMA-013: watch progress APIs.
+8. DRAMA-014: web browse/detail/player UX.
+9. DRAMA-015: admin drama/episode/video URL management.
+10. DRAMA-016: e2e, regression smoke, and documentation updates.
+
+### Questions for Codex feasibility review
+
+- Does the proposed REST/API surface fit the current NestJS module conventions?
+- Should playback return direct `hlsUrl`, or should MVP introduce an indirection endpoint to prepare for future signed/private playback?
+- Is `VideoAsset` 1:1 with `Episode` sufficient for MVP, or should multiple assets/renditions be modeled immediately?
+- How should watch progress throttling be implemented to avoid excessive writes while preserving resume accuracy?
+- Can existing chapter unlock and coin transaction patterns be reused cleanly without introducing polymorphic content abstractions?
+- What is the smallest admin implementation that satisfies AC-25 through AC-30 without overbuilding?
+- What deterministic HLS fixture strategy should be used for local/CI tests?
+- Are there hidden Cloudflare Worker, CORS, or browser-player constraints that require a spike before estimation?
+
+### Feasibility review output expected
+
+Codex should return:
+
+- feasibility verdict for each major scope area;
+- recommended implementation ticket order;
+- risks that require spikes;
+- schema/API adjustments before approval;
+- any acceptance criteria that are too broad, missing, or not testable.
+
+## 12. Guardrails
+
+- Do not implement code from this requirements task.
 - Do not touch production secrets.
 - Do not enable Stripe Live mode.
 - Do not delete or rewrite existing novel tables.
-- Do not modify existing migrations; append only.
+- Do not modify existing migrations; append only after approval.
 - Do not start formal launch/ops/growth activities in Phase 3 product development.
 - Do not build upload/transcoding until a later video-pipeline phase is approved.
+- Do not hide/remove the novel experience without explicit approval.
+
+## 13. Approval checklist
+
+Human product owner should answer or approve:
+
+- [ ] Q1 content source.
+- [ ] Q2 homepage positioning.
+- [ ] Q3 free episode count.
+- [ ] Q4 coin price per episode.
+- [ ] Q5 subscription access semantics.
+- [ ] Q6 production storage of external/mock HLS URLs.
+- [ ] Q7 anonymous free playback.
+- [ ] Q8 guest progress behavior.
+- [ ] Q9 admin UI vs seed/import scope.
+- [ ] Q10 captions/social/age-gate exclusion.
+- [ ] AC-1 through AC-35 are accepted as DRAMA-001 requirements.
+- [ ] Proposal v1 may proceed to Codex feasibility review.
