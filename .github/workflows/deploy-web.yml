@@ -136,13 +136,20 @@ jobs:
         run: pnpm --filter @novelhub/web pages:build
 
       - name: Deploy to novelhub-web-staging
+        # Direct shell instead of cloudflare/wrangler-action@v3:
+        # the action runs `npx wrangler` from `workingDirectory`, but
+        # `apps/web/node_modules/.bin/wrangler` is a pnpm symlink that
+        # the action's pre-step (`npx --no-install wrangler --version`)
+        # doesn't resolve, causing it to fall back to `npm i wrangler`,
+        # which then explodes on the workspace's `workspace:*` protocol.
+        # `pnpm exec` understands workspace bins natively, so we
+        # bypass that whole mess.
         if: steps.gate.outputs.deploy == 'true'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/web
-          command: pages deploy .vercel/output/static --project-name novelhub-web-staging --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/web
+        run: pnpm exec wrangler pages deploy .vercel/output/static --project-name novelhub-web-staging --branch main
 
       - name: Smoke staging (frontend reachable)
         if: steps.gate.outputs.deploy == 'true' && vars.STAGING_WEB_URL != ''
@@ -237,13 +244,13 @@ jobs:
         run: pnpm --filter @novelhub/web pages:build
 
       - name: Deploy to novelhub-web (production)
+        # See staging-job comment — same direct-shell rationale.
         if: steps.gate.outputs.deploy == 'true'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/web
-          command: pages deploy .vercel/output/static --project-name novelhub-web --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/web
+        run: pnpm exec wrangler pages deploy .vercel/output/static --project-name novelhub-web --branch main
 
       - name: Smoke production (frontend reachable)
         if: steps.gate.outputs.deploy == 'true' && vars.PRODUCTION_WEB_URL != ''
