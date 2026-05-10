@@ -3,6 +3,16 @@ import { Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
 import { Suspense } from 'react';
 
+// `<Analytics />` injects a script tag pointing at `/_vercel/insights/script.js`,
+// which only exists on Vercel's edge. On Cloudflare Pages it 404s, the SPA
+// fallback returns text/html, and the browser refuses to execute. Use a
+// `NEXT_PUBLIC_*` env so Next inlines the value at build time — a plain
+// `process.env.BUILD_TARGET` only works in Node-side code; layout.tsx ships
+// to the edge and would evaluate the expression at request time, where
+// the variable is undefined and the conditional always trues. The Pages
+// build script (`apps/web/package.json`) sets NEXT_PUBLIC_BUILD_TARGET=pages.
+const isVercelTarget = process.env.NEXT_PUBLIC_BUILD_TARGET !== 'pages';
+
 import { ConsentBanner } from '@/components/consent/consent-banner';
 import { FbTracking } from '@/components/consent/fb-tracking';
 import { Footer } from '@/components/layout/footer';
@@ -67,7 +77,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <ConsentBanner />
         </Providers>
         <Toaster />
-        <Analytics />
+        {isVercelTarget ? <Analytics /> : null}
       </body>
     </html>
   );

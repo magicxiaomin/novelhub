@@ -10,7 +10,7 @@
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "pages:build": "BUILD_TARGET=pages pnpm --filter @novelhub/shared build && BUILD_TARGET=pages next-on-pages",
+    "pages:build": "BUILD_TARGET=pages NEXT_PUBLIC_BUILD_TARGET=pages pnpm --filter @novelhub/shared build && BUILD_TARGET=pages NEXT_PUBLIC_BUILD_TARGET=pages next-on-pages",
     "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name novelhub-web",
     "pages:dev": "wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat --port=8788"
   },
