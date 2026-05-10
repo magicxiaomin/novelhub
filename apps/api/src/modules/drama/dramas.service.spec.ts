@@ -240,6 +240,39 @@ describe('DramasService', () => {
     });
   });
 
+  it('returns playback HLS URL for an individually unlocked paid episode', async () => {
+    const prisma = prismaStub();
+    prisma.episode.findFirst.mockResolvedValue({
+      id: 'episode-2',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      isFree: false,
+      drama: { coinPerEpisode: 5 },
+      videoAsset: {
+        playbackUrl: 'https://cdn.example/drama/episode-2.m3u8',
+        provider: 'external_hls',
+        thumbnailUrl: null,
+      },
+    });
+    prisma.episodeUnlock.findFirst.mockResolvedValue({ id: 'unlock-1' });
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    const service = new DramasService({ prisma: prisma as never });
+
+    const playback = await service.getPlayback('episode-2', 'user-1');
+
+    expect(playback).toMatchObject({
+      access: 'granted',
+      accessReason: 'unlocked',
+      hlsUrl: 'https://cdn.example/drama/episode-2.m3u8',
+    });
+    expect(prisma.episodeUnlock.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', episodeId: 'episode-2' },
+      select: { id: true },
+    });
+  });
+
   it('returns playback HLS URL for a subscription-accessible paid episode', async () => {
     const prisma = prismaStub();
     prisma.episode.findFirst.mockResolvedValue({
