@@ -55,6 +55,9 @@ on:
         type: string
 
 concurrency:
+  # Workflow-level: per-ref so two staging deploys from the same branch
+  # serialize, but parallel deploys from different feature branches are
+  # OK (only the staging job benefits from ref isolation).
   group: deploy-web-${{ github.ref }}
   cancel-in-progress: false
 
@@ -156,6 +159,14 @@ jobs:
       needs.staging.result == 'success' &&
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.environment != 'staging-only'
+    # Job-level concurrency, ref-INDEPENDENT. Without this, two manual
+    # workflow_dispatch runs from different refs (e.g. main vs a hotfix
+    # branch) would race and both try to deploy to `novelhub-web`. The
+    # group name is fixed so all production deploys serialize regardless
+    # of which ref triggered them.
+    concurrency:
+      group: deploy-web-production
+      cancel-in-progress: false
     permissions:
       contents: read
     env:
