@@ -29,6 +29,94 @@ function buildChapters(bookId, idPrefix, contentKey, chapterTitles) {
   });
 }
 
+const dramas = [
+  {
+    id: '44444444-4444-4444-8444-444444444444',
+    slug: 'the-billionaire-contract',
+    title: 'The Billionaire Contract',
+    description:
+      'A florist signs a one-year marriage contract with a guarded CEO, then discovers the family secret that could destroy both their hearts.',
+    posterUrl: '/dramas/the-billionaire-contract/poster.svg',
+    category: 'ROMANCE',
+    tags: ['contract-marriage', 'billionaire', 'vertical-drama'],
+    totalEpisodes: 6,
+    status: 'PUBLISHED',
+    isFeatured: true,
+    sortOrder: 10,
+    freeEpisodeCount: 3,
+    coinPerEpisode: 5,
+    publishedAt: new Date(Date.UTC(2026, 4, 1)),
+    deletedAt: null,
+    episodeTitles: [
+      'The Offer',
+      'A Ring Before Sunrise',
+      'Dinner With Enemies',
+      'The Locked Penthouse',
+      'A Contract Torn',
+      'Choose Me Again',
+    ],
+  },
+  {
+    id: '55555555-5555-4555-8555-555555555555',
+    slug: 'revenge-in-red-heels',
+    title: 'Revenge in Red Heels',
+    description:
+      'After a public betrayal, a designer returns under a new name to reclaim her company and expose the people who stole her life.',
+    posterUrl: '/dramas/revenge-in-red-heels/poster.svg',
+    category: 'REVENGE',
+    tags: ['revenge', 'fashion', 'comeback'],
+    totalEpisodes: 6,
+    status: 'PUBLISHED',
+    isFeatured: false,
+    sortOrder: 20,
+    freeEpisodeCount: 3,
+    coinPerEpisode: 5,
+    publishedAt: new Date(Date.UTC(2026, 4, 2)),
+    deletedAt: null,
+    episodeTitles: [
+      'The Fall',
+      'A New Name',
+      'Runway Trap',
+      'The Hidden Ledger',
+      'Boardroom Fire',
+      'Her Final Bow',
+    ],
+  },
+];
+
+function buildDramaEpisodes(drama) {
+  return drama.episodeTitles.map((title, index) => {
+    const episodeNumber = index + 1;
+    const padded = String(episodeNumber).padStart(2, '0');
+    const uuidTail = String(episodeNumber).padStart(12, '0');
+    const prefix = drama.id.slice(0, 8);
+
+    return {
+      id: `${prefix}-${padded.padStart(4, '0')}-4d00-8d00-${uuidTail}`,
+      dramaId: drama.id,
+      episodeNumber,
+      title,
+      synopsis: `Episode ${episodeNumber} of ${drama.title}.`,
+      durationSeconds: 72 + episodeNumber * 8,
+      isFree: episodeNumber <= drama.freeEpisodeCount,
+      isPublished: true,
+      publishedAt: new Date(Date.UTC(2026, 4, episodeNumber)),
+      deletedAt: null,
+      videoAsset: {
+        id: `${prefix}-${padded.padStart(4, '0')}-4a00-8a00-${uuidTail}`,
+        provider: 'external_hls',
+        playbackUrl: `https://media.dramavela.test/hls/${drama.slug}/episode-${padded}.m3u8`,
+        thumbnailUrl: `/dramas/${drama.slug}/episode-${padded}.jpg`,
+        durationSeconds: 72 + episodeNumber * 8,
+        metadata: {
+          fixture: true,
+          aspectRatio: '9:16',
+        },
+      },
+    };
+  });
+}
+
 const books = [
   {
     id: '11111111-1111-4111-8111-111111111111',
@@ -173,6 +261,38 @@ async function seedBooks() {
   }
 }
 
+async function seedDramas() {
+  for (const drama of dramas) {
+    const { episodeTitles, ...dramaData } = drama;
+
+    await prisma.drama.upsert({
+      where: { id: drama.id },
+      update: dramaData,
+      create: dramaData,
+    });
+
+    const episodes = buildDramaEpisodes(drama);
+    for (const episode of episodes) {
+      const { videoAsset, ...episodeData } = episode;
+
+      await prisma.episode.upsert({
+        where: { id: episode.id },
+        update: episodeData,
+        create: episodeData,
+      });
+
+      await prisma.videoAsset.upsert({
+        where: { episodeId: episode.id },
+        update: videoAsset,
+        create: {
+          episodeId: episode.id,
+          ...videoAsset,
+        },
+      });
+    }
+  }
+}
+
 async function uploadChapterContentToR2() {
   const required = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY', 'R2_SECRET_KEY', 'R2_BUCKET'];
   const missing = required.filter((key) => !process.env[key]);
@@ -226,6 +346,7 @@ async function uploadChapterContentToR2() {
 async function main() {
   await seedAdmin();
   await seedBooks();
+  await seedDramas();
   await uploadChapterContentToR2();
 }
 
