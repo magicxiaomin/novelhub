@@ -66,6 +66,20 @@ export type EpisodePlaybackDenied = {
 
 export type EpisodePlayback = EpisodePlaybackGranted | EpisodePlaybackDenied;
 
+export type EpisodeUnlockResult = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  access: 'granted';
+  accessReason: 'unlocked' | 'subscription';
+  unlockId: string;
+  method: string;
+  coinCost: number;
+  balanceAfter: number | null;
+  transactionId: string | null;
+  unlockedAt: string;
+};
+
 export type PageInfo = {
   page: number;
   pageSize: number;

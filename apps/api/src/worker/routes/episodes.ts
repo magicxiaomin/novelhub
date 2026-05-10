@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 
 import type { PrismaVariables } from '../db/prisma';
 import type { AuthVariables } from '../middleware/auth';
-import { optionalAuth } from '../middleware/auth';
+import { optionalAuth, requireAuth } from '../middleware/auth';
 import { validationHook } from '../middleware/validator';
 import type { WorkerEnv } from '../services/auth-factory';
 import { makeDramasService } from '../services/dramas-factory';
@@ -22,5 +22,16 @@ export const episodesRoutes = new Hono<{ Bindings: Bindings; Variables: Variable
       const user = c.get('user');
       const dramas = makeDramasService(c.env, c.get('prisma'));
       return c.json(await dramas.getPlayback(episodeId, user?.id ?? null), 200);
+    },
+  )
+  .post(
+    '/:episodeId/unlock',
+    requireAuth,
+    zValidator('param', episodeIdParamSchema, validationHook),
+    async (c) => {
+      const { episodeId } = c.req.valid('param');
+      const user = c.get('user');
+      const dramas = makeDramasService(c.env, c.get('prisma'));
+      return c.json(await dramas.unlockEpisode(episodeId, user.id), 201);
     },
   );
