@@ -138,13 +138,18 @@ Semantics mirror `ReadingProgress` but use playback time, not scroll position.
 - Do not delete existing novel tables.
 - Keep novels accessible unless a later human-approved product decision changes this.
 
-## Open questions before implementation
+## Resolved implementation defaults
 
-1. Should `Drama.status` reuse current book statuses or introduce drama-specific statuses?
-2. What are the initial `freeEpisodeCount` and `coinPerEpisode` defaults?
-3. Should external/mock HLS URLs be allowed in production DB during alpha?
-4. Does admin need draft/scheduled state in MVP, or only published/unpublished?
-5. Should `VideoAsset` be 1:1 with episode in MVP, or support multiple assets per episode from day one?
+- `Drama.status` should reuse the existing status vocabulary where possible for MVP: `ONGOING`, `COMPLETED`, `HIATUS`, with publishing controlled by `publishedAt`/`deletedAt` and admin visibility rules.
+- Default `freeEpisodeCount`: **3**.
+- Default `coinPerEpisode`: **5**.
+- External/mock HLS URLs are allowed for alpha validation.
+- Admin MVP only needs published/unpublished plus draft via missing `publishedAt`; scheduled publishing can be deferred unless implementation finds it cheap.
+- `VideoAsset` should be 1:1 with `Episode` in MVP. Add provider abstraction fields, but do not model multiple renditions/assets until the real video pipeline is selected.
+
+## Remaining questions before implementation
+
+None blocking for planning. Implementation still requires the normal schema migration review gate and PR review.
 
 ## Consequences
 

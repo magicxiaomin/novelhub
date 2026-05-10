@@ -11,6 +11,16 @@ NovelHub Phase 1/2 infrastructure and Cloudflare cutover are complete. Phase 3 s
 
 The user selected video pipeline option **C: external HLS / mock video URL first**. This means Phase 3 should validate the short-drama product loop before building an upload/transcoding pipeline.
 
+Additional user/PM decisions recorded on 2026-05-10:
+
+- Phase 3 alpha content source is **demo/mock content first**.
+- Dramavela becomes **drama-primary**.
+- Domain routing decides the product surface:
+  - `www.dramavela.com` / `dramavela.com`: short drama experience.
+  - `novel.dramavela.com`: existing novel experience.
+- The reason for the split is to reuse the already-built novel infrastructure while making drama the primary business direction.
+- PM default decisions: first 3 episodes free, 5 coins per paid episode, keep subscription bypass, keep novel accessible on the `novel` subdomain, allow external/mock HLS URLs in alpha/staging/prod-like DBs, and approve additive Phase 3 schema changes subject to the normal migration gate.
+
 ## Phase 3 goal
 
 Build a minimal short-drama experience that lets an alpha user:
@@ -55,7 +65,10 @@ New conceptual entities:
 
 ### User experience
 
-- Drama-first homepage or entry section.
+- Domain-routed product surfaces:
+  - `www.dramavela.com` / `dramavela.com` show the short-drama experience.
+  - `novel.dramavela.com` shows the existing novel experience.
+- Drama-first homepage on the primary domain.
 - Drama detail page with episode list.
 - Vertical 9:16 player page.
 - HLS playback from external/mock URL.
@@ -75,9 +88,10 @@ Reuse existing user/payment primitives:
 
 MVP paywall policy:
 
-- first N episodes are free;
+- first 3 episodes are free by default;
+- paid episodes cost 5 coins per episode by default;
 - paid episodes require either active subscription or coin unlock;
-- default pricing may mirror `Book.coinPerChapter` as `Drama.coinPerEpisode`, subject to human approval.
+- pricing fields remain configurable per drama so the defaults can change later without a schema rewrite.
 
 ### Admin
 
@@ -118,16 +132,19 @@ Reasoning:
 
 Reuse account and commerce tables; add new content/playback tables.
 
-## Required human decisions before implementation
+## Decisions before implementation
 
-Implementation should not start until the user approves the following:
+The following decisions are now recorded:
 
-1. Content source for the first alpha set: mock/demo, licensed, self-produced, or external sample.
-2. Whether `dramavela.com` homepage becomes drama-first immediately or keeps novels as the top experience until alpha is ready.
-3. Default free episode count and coin price per episode.
-4. Whether novel remains accessible as a tab/secondary route during Phase 3.
-5. Whether mock/external HLS URLs may be stored directly in production DB for alpha.
-6. Whether schema changes are approved for Phase 3.
+1. Content source for the first alpha set: **demo/mock content first**.
+2. Primary domain behavior: **`www.dramavela.com` / `dramavela.com` show drama**.
+3. Novel domain behavior: **`novel.dramavela.com` keeps the existing novel experience available**.
+4. Default free episodes: **3**.
+5. Default paid episode price: **5 coins per episode**.
+6. Mock/external HLS URLs may be stored directly for alpha validation.
+7. Additive Phase 3 schema changes are allowed after ADR approval and normal migration review.
+
+Remaining implementation gate: approve this updated spec/ADR set and then create DRAMA-010+ implementation issues.
 
 ## Acceptance criteria for Phase 3 MVP
 

@@ -14,7 +14,7 @@ Three video-pipeline options were considered:
 2. R2 + pre-transcoded HLS.
 3. External/mock HLS URLs first.
 
-The user selected option 3.
+The user selected option 3 and clarified that Phase 3 alpha content should use demo/mock content first. Domain routing will make `www.dramavela.com` / `dramavela.com` drama-primary while the existing novel experience remains available at `novel.dramavela.com`.
 
 ## Decision
 
