@@ -95,7 +95,12 @@ const makeApp = () => {
   app.onError((err, c) => {
     if (err instanceof DomainError) {
       return c.json(
-        { statusCode: err.status, message: err.message, error: 'Bad Request' },
+        {
+          statusCode: err.status,
+          message: err.message,
+          error: err.status === 404 ? 'Not Found' : 'Bad Request',
+          ...(err.context ?? {}),
+        },
         err.status,
       );
     }
@@ -187,6 +192,41 @@ describe('dramasRoutes', () => {
     expect(response.status).toBe(200);
     expect(getBySlug).toHaveBeenCalledWith('shadow-heiress', null);
     await expect(response.json()).resolves.toEqual(contractDramaDetail);
+  });
+
+  it('returns disabled list semantics instead of 500 when the drama table is not deployed', async () => {
+    const list = jest
+      .fn()
+      .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
+    makeDramasServiceMock.mockReturnValue({ list } as never);
+
+    const response = await makeApp().request('/dramas?page=2&pageSize=10');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      items: [],
+      pageInfo: { page: 2, pageSize: 10, total: 0, totalPages: 0 },
+      disabled: true,
+      reason: 'drama_schema_unavailable',
+    });
+  });
+
+  it('returns disabled detail semantics instead of 500 when the drama table is not deployed', async () => {
+    const getBySlug = jest
+      .fn()
+      .mockRejectedValue({ code: 'P2022', message: 'Column `dramas.deleted_at` does not exist' });
+    makeDramasServiceMock.mockReturnValue({ getBySlug } as never);
+
+    const response = await makeApp().request('/dramas/shadow-heiress');
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      statusCode: 404,
+      message: 'Drama catalog is temporarily unavailable',
+      error: 'Not Found',
+      disabled: true,
+      reason: 'drama_schema_unavailable',
+    });
   });
 
   it('rejects invalid list query parameters before calling the service', async () => {

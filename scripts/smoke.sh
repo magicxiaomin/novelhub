@@ -48,6 +48,22 @@ check() {
   fi
 }
 
+check_not_5xx() {
+  local description="$1"; shift
+  local response
+  : >/tmp/smoke.body
+  response=$(curl -s -o /tmp/smoke.body -w '%{http_code}' "$@" 2>/dev/null)
+  : "${response:=000}"
+  if [[ "$response" =~ ^[0-4][0-9][0-9]$ ]]; then
+    green "  PASS  $description (HTTP $response)"
+    PASS=$((PASS + 1))
+  else
+    red "  FAIL  $description (expected non-5xx, got $response)"
+    gray "        body: $(head -c 200 /tmp/smoke.body 2>/dev/null || echo '<no body>')"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 echo "Smoke testing $API"
 echo
 
@@ -58,6 +74,7 @@ check "GET /books (catalog)"          200 "$API/books"
 check "GET /books/categories"         200 "$API/books/categories"
 check "GET /books/featured"           200 "$API/books/featured"
 check "GET /books/trending"           200 "$API/books/trending"
+check_not_5xx "GET /dramas (browse is enabled or gracefully disabled)" "$API/dramas"
 check "GET /reading-progress (no auth, 401)" 401 "$API/reading-progress"
 check "POST /reading-progress (no auth, 401)" 401 -X POST -H 'Content-Type: application/json' \
   -d '{"chapterId":"00000000-0000-4000-8000-000000000000","scrollPercent":10}' \
