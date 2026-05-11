@@ -212,3 +212,45 @@ export type DramaPaginated<T> = {
   items: T[];
   pageInfo: DramaPageInfo;
 };
+
+export type EpisodePlaybackAccessReason = 'free' | 'unlocked' | 'subscription' | 'locked';
+
+export type EpisodePlaybackGranted = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  title: string;
+  durationSeconds: number | null;
+  access: 'granted';
+  accessReason: Exclude<EpisodePlaybackAccessReason, 'locked'>;
+  hlsUrl: string;
+  provider: string;
+  thumbnailUrl: string | null;
+};
+
+export type EpisodePlaybackDenied = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  title: string;
+  durationSeconds: number | null;
+  access: 'denied';
+  accessReason: 'locked';
+  coinPerEpisode: number;
+};
+
+export type EpisodePlayback = EpisodePlaybackGranted | EpisodePlaybackDenied;
+
+export type EpisodeUnlockResult = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  access: 'granted';
+  accessReason: 'unlocked' | 'subscription';
+  unlockId: string;
+  method: string;
+  coinCost: number;
+  balanceAfter: number | null;
+  transactionId: string | null;
+  unlockedAt: string;
+};
