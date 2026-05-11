@@ -32,6 +32,9 @@ const prismaStub = () => ({
   },
   watchProgress: {
     findMany: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
   },
   episode: {
     findFirst: jest.fn(),
@@ -501,5 +504,239 @@ describe('DramasService', () => {
         isUnlocked: true,
       }),
     ]);
+  });
+
+  it('upserts authenticated watch progress after access validation', async () => {
+    const prisma = prismaStub();
+    prisma.episode.findFirst.mockResolvedValue({
+      id: 'episode-2',
+      dramaId: 'drama-1',
+      durationSeconds: 70,
+      isFree: false,
+    });
+    prisma.episodeUnlock.findFirst.mockResolvedValue({ id: 'unlock-1' });
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    prisma.watchProgress.findFirst.mockResolvedValue({ id: 'progress-1' });
+    prisma.watchProgress.update.mockResolvedValue({
+      episodeId: 'episode-2',
+      dramaId: 'drama-1',
+      positionSeconds: 70,
+      durationSeconds: 70,
+      completedAt: now,
+      lastWatchedAt: now,
+    });
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(
+      service.saveProgress('user-1', {
+        episodeId: 'episode-2',
+        positionSeconds: 72,
+        durationSeconds: 90,
+        completed: true,
+      }),
+    ).resolves.toEqual({
+      episodeId: 'episode-2',
+      dramaId: 'drama-1',
+      positionSeconds: 70,
+      durationSeconds: 70,
+      completedAt: now.toISOString(),
+      lastWatchedAt: now.toISOString(),
+    });
+    expect(prisma.episodeUnlock.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', episodeId: 'episode-2' },
+      select: { id: true },
+    });
+    expect(prisma.watchProgress.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', episodeId: 'episode-2' },
+      select: { id: true, positionSeconds: true, completedAt: true },
+    });
+    expect(prisma.watchProgress.update).toHaveBeenCalledWith({
+      where: { id: 'progress-1' },
+      data: {
+        positionSeconds: 70,
+        durationSeconds: 70,
+        completedAt: now,
+        lastWatchedAt: now,
+      },
+    });
+  });
+
+  it('rejects progress saves for locked paid episodes', async () => {
+    const prisma = prismaStub();
+    prisma.episode.findFirst.mockResolvedValue({
+      id: 'episode-2',
+      dramaId: 'drama-1',
+      durationSeconds: 70,
+      isFree: false,
+    });
+    prisma.episodeUnlock.findFirst.mockResolvedValue(null);
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(
+      service.saveProgress('user-1', {
+        episodeId: 'episode-2',
+        positionSeconds: 42,
+        durationSeconds: 70,
+      }),
+    ).rejects.toMatchObject({ status: 403, message: 'Episode is locked' });
+    expect(prisma.watchProgress.findFirst).not.toHaveBeenCalled();
+    expect(prisma.watchProgress.create).not.toHaveBeenCalled();
+    expect(prisma.watchProgress.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid negative progress values before reading episode state', async () => {
+    const prisma = prismaStub();
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(
+      service.saveProgress('user-1', {
+        episodeId: 'episode-1',
+        positionSeconds: -1,
+        durationSeconds: 70,
+      }),
+    ).rejects.toMatchObject({ status: 400, message: 'Progress values must be non-negative' });
+    expect(prisma.episode.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('keeps saved position and completion monotonic while accepting the latest watch timestamp', async () => {
+    const prisma = prismaStub();
+    const completedAt = new Date('2026-05-10T11:00:00.000Z');
+    prisma.episode.findFirst.mockResolvedValue({
+      id: 'episode-1',
+      dramaId: 'drama-1',
+      durationSeconds: 70,
+      isFree: true,
+    });
+    prisma.watchProgress.findFirst.mockResolvedValue({
+      id: 'progress-1',
+      positionSeconds: 55,
+      completedAt,
+    });
+    prisma.watchProgress.update.mockResolvedValue({
+      episodeId: 'episode-1',
+      dramaId: 'drama-1',
+      positionSeconds: 55,
+      durationSeconds: 70,
+      completedAt,
+      lastWatchedAt: now,
+    });
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(
+      service.saveProgress('user-1', {
+        episodeId: 'episode-1',
+        positionSeconds: 20,
+        durationSeconds: 70,
+      }),
+    ).resolves.toMatchObject({
+      positionSeconds: 55,
+      completedAt: completedAt.toISOString(),
+      lastWatchedAt: now.toISOString(),
+    });
+    expect(prisma.episodeUnlock.findFirst).not.toHaveBeenCalled();
+    expect(prisma.subscription.findFirst).not.toHaveBeenCalled();
+    expect(prisma.watchProgress.update).toHaveBeenCalledWith({
+      where: { id: 'progress-1' },
+      data: {
+        positionSeconds: 55,
+        durationSeconds: 70,
+        completedAt,
+        lastWatchedAt: now,
+      },
+    });
+  });
+
+  it('recovers from concurrent progress create races by updating the existing row', async () => {
+    const prisma = prismaStub();
+    prisma.episode.findFirst.mockResolvedValue({
+      id: 'episode-1',
+      dramaId: 'drama-1',
+      durationSeconds: 70,
+      isFree: true,
+    });
+    prisma.watchProgress.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'progress-1', positionSeconds: 40, completedAt: null });
+    prisma.watchProgress.create.mockRejectedValue({ code: 'P2002' });
+    prisma.watchProgress.update.mockResolvedValue({
+      episodeId: 'episode-1',
+      dramaId: 'drama-1',
+      positionSeconds: 42,
+      durationSeconds: 70,
+      completedAt: null,
+      lastWatchedAt: now,
+    });
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(
+      service.saveProgress('user-1', {
+        episodeId: 'episode-1',
+        positionSeconds: 42,
+        durationSeconds: 70,
+      }),
+    ).resolves.toMatchObject({ positionSeconds: 42, lastWatchedAt: now.toISOString() });
+    expect(prisma.watchProgress.update).toHaveBeenCalledWith({
+      where: { id: 'progress-1' },
+      data: {
+        positionSeconds: 42,
+        durationSeconds: 70,
+        completedAt: null,
+        lastWatchedAt: now,
+      },
+    });
+  });
+
+  it('lists continue watching entries ordered by last watched time', async () => {
+    const prisma = prismaStub();
+    prisma.watchProgress.findMany.mockResolvedValue([
+      {
+        episodeId: 'episode-2',
+        dramaId: 'drama-1',
+        positionSeconds: 42,
+        durationSeconds: 70,
+        completedAt: null,
+        lastWatchedAt: now,
+        drama: {
+          id: 'drama-1',
+          slug: 'shadow-heiress',
+          title: 'Shadow Heiress',
+          posterUrl: 'https://cdn.example/poster.jpg',
+        },
+        episode: { id: 'episode-2', episodeNumber: 2, title: 'The Escape' },
+      },
+    ]);
+    const service = new DramasService({ prisma: prisma as never });
+
+    await expect(service.listContinueWatching('user-1')).resolves.toEqual({
+      items: [
+        {
+          drama: {
+            id: 'drama-1',
+            slug: 'shadow-heiress',
+            title: 'Shadow Heiress',
+            posterUrl: 'https://cdn.example/poster.jpg',
+          },
+          episode: { id: 'episode-2', episodeNumber: 2, title: 'The Escape' },
+          progress: {
+            episodeId: 'episode-2',
+            dramaId: 'drama-1',
+            positionSeconds: 42,
+            durationSeconds: 70,
+            completedAt: null,
+            lastWatchedAt: now.toISOString(),
+          },
+        },
+      ],
+    });
+    expect(prisma.watchProgress.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      orderBy: { lastWatchedAt: 'desc' },
+      take: 10,
+      include: {
+        drama: { select: { id: true, slug: true, title: true, posterUrl: true } },
+        episode: { select: { id: true, episodeNumber: true, title: true } },
+      },
+    });
   });
 });

@@ -22,6 +22,11 @@ export type EpisodeProgress = {
   lastWatchedAt: string;
 };
 
+export type WatchProgress = EpisodeProgress & {
+  episodeId: string;
+  dramaId: string;
+};
+
 export type EpisodeSummary = {
   id: string;
   episodeNumber: number;
@@ -97,4 +102,28 @@ export type ListDramasQuery = {
   featured?: boolean;
   page?: number;
   pageSize?: number;
+};
+
+export type SaveWatchProgressInput = {
+  episodeId: string;
+  positionSeconds: number;
+  durationSeconds?: number;
+  completed?: boolean;
+};
+
+export type ContinueWatching = {
+  items: Array<{
+    drama: {
+      id: string;
+      slug: string;
+      title: string;
+      posterUrl: string;
+    };
+    episode: {
+      id: string;
+      episodeNumber: number;
+      title: string;
+    };
+    progress: WatchProgress;
+  }>;
 };
