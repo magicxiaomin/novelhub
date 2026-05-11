@@ -143,12 +143,13 @@ jobs:
         id: parse
         run: |
           set -euo pipefail
-          VERDICT=$(grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md | tail -1 || echo "REQUEST_CHANGES")
           HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md \
             | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
-          if [ -n "${HEADING_VERDICT:-}" ]; then
-            VERDICT="$HEADING_VERDICT"
+          if [ -z "${HEADING_VERDICT:-}" ]; then
+            echo "ERROR: /tmp/review.md has no required verdict heading; treating as review infra failure, not REQUEST_CHANGES"
+            exit 1
           fi
+          VERDICT="$HEADING_VERDICT"
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
           echo "Parsed correctness verdict: $VERDICT"
 
@@ -279,12 +280,13 @@ jobs:
         id: parse
         run: |
           set -euo pipefail
-          VERDICT=$(grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/security-review.md | tail -1 || echo "REQUEST_CHANGES")
           HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/security-review.md \
             | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
-          if [ -n "${HEADING_VERDICT:-}" ]; then
-            VERDICT="$HEADING_VERDICT"
+          if [ -z "${HEADING_VERDICT:-}" ]; then
+            echo "ERROR: /tmp/security-review.md has no required verdict heading; treating as review infra failure, not REQUEST_CHANGES"
+            exit 1
           fi
+          VERDICT="$HEADING_VERDICT"
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
           echo "Parsed security verdict: $VERDICT"
 
@@ -469,6 +471,10 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Ping Codex to address review
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -476,8 +482,10 @@ jobs:
           CORR: ${{ needs.correctness_review.outputs.verdict }}
           SEC: ${{ needs.security_review.outputs.verdict }}
         run: |
+          set -euo pipefail
           NEXT_ITER=$((ITERATION + 1))
-          gh pr comment ${{ github.event.pull_request.number }} --body "@codex
+          cat > /tmp/codex-ping.md <<EOF
+          @codex
 
           Review verdicts: correctness=${CORR}, security=${SEC}. Auto-merge requires BOTH to be APPROVE.
 
@@ -492,7 +500,13 @@ jobs:
           - Re-run \`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test\` and paste real output in a PR comment when done.
           - If PR branch update fails, stop and comment with the exact error instead of claiming success.
 
-          This is auto-iteration $NEXT_ITER of 3. After 3 iterations the pipeline halts for human review."
+          This is auto-iteration $NEXT_ITER of 3. After 3 iterations the pipeline halts for human review.
+          EOF
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/codex-ping.md || {
+            echo "ERROR: failed to post Codex ping comment; checkout/workdir is $(pwd)"
+            git status --short || true
+            exit 1
+          }
 
   # =========================================================================
   # Auto-merge: needs all three gates green plus non-blacklisted ticket.
