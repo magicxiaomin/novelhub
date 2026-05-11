@@ -53,3 +53,54 @@ export function isPlaybackComplete(
   if (!durationSeconds || durationSeconds <= 0) return false;
   return currentSeconds >= Math.max(durationSeconds - 3, durationSeconds * 0.95);
 }
+
+export type HlsPlaybackMode = 'native' | 'mse' | 'unsupported';
+
+export function chooseHlsPlaybackMode({
+  canPlayNativeHls,
+  hlsJsSupported,
+}: {
+  canPlayNativeHls: boolean;
+  hlsJsSupported: boolean;
+}): HlsPlaybackMode {
+  if (canPlayNativeHls) return 'native';
+  if (hlsJsSupported) return 'mse';
+  return 'unsupported';
+}
+
+export type DramaPaywallDecision = {
+  canAttemptCoinUnlock: boolean;
+  primaryAction: 'signin' | 'unlock';
+  primaryDisabled: boolean;
+  subscribeHref: '/recharge?tab=subscribe';
+  status: 'idle' | 'sign-in-first' | 'checking-auth' | 'unlocking' | 'success';
+};
+
+export function getDramaPaywallDecision({
+  isAuthenticated,
+  authLoading,
+  isUnlocking,
+  unlockSucceeded,
+}: {
+  isAuthenticated: boolean;
+  authLoading: boolean;
+  isUnlocking: boolean;
+  unlockSucceeded: boolean;
+}): DramaPaywallDecision {
+  const isAnonymous = !authLoading && !isAuthenticated;
+  return {
+    canAttemptCoinUnlock: isAuthenticated && !authLoading,
+    primaryAction: isAnonymous ? 'signin' : 'unlock',
+    primaryDisabled: authLoading || isUnlocking || unlockSucceeded,
+    subscribeHref: '/recharge?tab=subscribe',
+    status: unlockSucceeded
+      ? 'success'
+      : isUnlocking
+        ? 'unlocking'
+        : authLoading
+          ? 'checking-auth'
+          : isAnonymous
+            ? 'sign-in-first'
+            : 'idle',
+  };
+}

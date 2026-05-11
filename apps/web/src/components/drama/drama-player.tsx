@@ -3,12 +3,16 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type Hls from 'hls.js';
 
+import { useAuth } from '@/components/providers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  chooseHlsPlaybackMode,
   chooseInitialPlaybackState,
   formatResumeLabel,
+  getDramaPaywallDecision,
   isPlaybackComplete,
   shouldPersistProgress,
 } from '@/lib/drama-player';
@@ -35,6 +39,7 @@ export function DramaPlayer({
   detailHref,
 }: DramaPlayerProps): JSX.Element {
   const queryClient = useQueryClient();
+  const { user, isLoading: authLoading, openAuthModal } = useAuth();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastSavedSecondsRef = useRef(episode.progress?.positionSeconds ?? 0);
   const [retryKey, setRetryKey] = useState(0);
@@ -79,6 +84,72 @@ export function DramaPlayer({
       await playback.refetch();
     },
   });
+
+  const paywallDecision = getDramaPaywallDecision({
+    isAuthenticated: Boolean(user),
+    authLoading,
+    isUnlocking: unlockMutation.isPending,
+    unlockSucceeded: unlockMutation.isSuccess,
+  });
+
+  const handleUnlockClick = (): void => {
+    if (!paywallDecision.canAttemptCoinUnlock) {
+      openAuthModal({ mode: 'signin', reason: 'drama-paywall' });
+      return;
+    }
+    unlockMutation.mutate();
+  };
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || initialState.mode !== 'playback') return;
+
+    let hls: Hls | null = null;
+    let cancelled = false;
+    setVideoError(null);
+
+    const canPlayNativeHls = Boolean(
+      video.canPlayType('application/vnd.apple.mpegurl') ||
+      video.canPlayType('application/x-mpegURL'),
+    );
+
+    const attachHls = async (): Promise<void> => {
+      const { default: HlsCtor } = await import('hls.js');
+      if (cancelled) return;
+
+      const mode = chooseHlsPlaybackMode({
+        canPlayNativeHls,
+        hlsJsSupported: HlsCtor.isSupported(),
+      });
+
+      if (mode === 'native') {
+        video.src = initialState.hlsUrl;
+        video.load();
+        return;
+      }
+
+      if (mode === 'unsupported') {
+        setVideoError(messages.drama.hlsUnsupported);
+        return;
+      }
+
+      hls = new HlsCtor();
+      hls.on(HlsCtor.Events.ERROR, (_event, data) => {
+        if (data.fatal) setVideoError(messages.drama.playbackError);
+      });
+      hls.loadSource(initialState.hlsUrl);
+      hls.attachMedia(video);
+    };
+
+    void attachHls().catch(() => setVideoError(messages.drama.playbackError));
+
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [initialState, retryKey]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -147,7 +218,6 @@ export function DramaPlayer({
                   key={`${currentPlayback.episodeId}-${retryKey}`}
                   ref={videoRef}
                   className="h-full w-full object-cover"
-                  src={initialState.hlsUrl}
                   poster={
                     currentPlayback.access === 'granted'
                       ? (currentPlayback.thumbnailUrl ?? undefined)
@@ -201,24 +271,55 @@ export function DramaPlayer({
                 <Badge variant="secondary">{messages.drama.locked}</Badge>
                 <h1 className="mt-4 text-2xl font-black">{messages.drama.paywallTitle}</h1>
                 <p className="mt-3 text-sm leading-6 text-white/70">{messages.drama.paywallBody}</p>
+                <ul className="mt-4 space-y-2 text-left text-sm text-white/80">
+                  <li>• {messages.drama.paywallBenefitSubscription}</li>
+                  <li>• {messages.drama.paywallBenefitCoins}</li>
+                  <li>• {messages.drama.paywallBenefitResume}</li>
+                </ul>
                 <Button
                   type="button"
                   className="mt-6 w-full"
-                  onClick={() => unlockMutation.mutate()}
-                  disabled={unlockMutation.isPending}
+                  onClick={handleUnlockClick}
+                  disabled={paywallDecision.primaryDisabled}
                 >
-                  {messages.drama.unlockWithCoins.replace(
-                    '{coins}',
-                    String(initialState.coinPerEpisode),
-                  )}
+                  {paywallDecision.primaryAction === 'signin'
+                    ? messages.drama.signInToUnlock
+                    : unlockMutation.isPending
+                      ? messages.drama.unlockingEpisode
+                      : messages.drama.unlockWithCoins.replace(
+                          '{coins}',
+                          String(initialState.coinPerEpisode),
+                        )}
                 </Button>
                 <Button
                   asChild
                   variant="outline"
                   className="mt-3 w-full border-white/30 bg-transparent text-white"
                 >
-                  <Link href="/recharge">{messages.drama.subscribeToUnlock}</Link>
+                  <Link href={paywallDecision.subscribeHref}>
+                    {messages.drama.subscribeToUnlock}
+                  </Link>
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-3 w-full border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                  onClick={() => openAuthModal({ mode: 'signin', reason: 'drama-paywall-restore' })}
+                >
+                  {messages.drama.restoreAccess}
+                </Button>
+                {paywallDecision.status === 'sign-in-first' ? (
+                  <p className="mt-3 text-xs text-white/70">{messages.drama.signInFirst}</p>
+                ) : null}
+                {paywallDecision.status === 'checking-auth' ? (
+                  <p className="mt-3 text-xs text-white/70">{messages.drama.checkingAccess}</p>
+                ) : null}
+                {paywallDecision.status === 'unlocking' ? (
+                  <p className="mt-3 text-xs text-white/70">{messages.drama.unlockingEpisode}</p>
+                ) : null}
+                {paywallDecision.status === 'success' ? (
+                  <p className="mt-3 text-xs text-green-200">{messages.drama.unlockSuccess}</p>
+                ) : null}
                 {unlockMutation.isError ? (
                   <p className="mt-3 text-xs text-red-200">{messages.errors.pleaseTryAgain}</p>
                 ) : null}

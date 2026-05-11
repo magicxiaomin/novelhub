@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  chooseHlsPlaybackMode,
   chooseInitialPlaybackState,
   formatResumeLabel,
+  getDramaPaywallDecision,
   shouldPersistProgress,
 } from './drama-player';
 import type { EpisodePlayback, EpisodeProgress } from './types';
@@ -74,5 +76,46 @@ describe('drama player helpers', () => {
     expect(
       shouldPersistProgress({ lastSavedSeconds: 20, currentSeconds: 21, completed: true }),
     ).toBe(true);
+  });
+
+  it('chooses native HLS before MSE playback', () => {
+    expect(chooseHlsPlaybackMode({ canPlayNativeHls: true, hlsJsSupported: true })).toBe('native');
+    expect(chooseHlsPlaybackMode({ canPlayNativeHls: false, hlsJsSupported: true })).toBe('mse');
+    expect(chooseHlsPlaybackMode({ canPlayNativeHls: false, hlsJsSupported: false })).toBe(
+      'unsupported',
+    );
+  });
+
+  it('blocks anonymous coin unlocks and points subscription CTA at subscribe tab', () => {
+    expect(
+      getDramaPaywallDecision({
+        isAuthenticated: false,
+        authLoading: false,
+        isUnlocking: false,
+        unlockSucceeded: false,
+      }),
+    ).toMatchObject({
+      canAttemptCoinUnlock: false,
+      primaryAction: 'signin',
+      primaryDisabled: false,
+      subscribeHref: '/recharge?tab=subscribe',
+      status: 'sign-in-first',
+    });
+  });
+
+  it('allows authenticated coin unlock after auth state resolves', () => {
+    expect(
+      getDramaPaywallDecision({
+        isAuthenticated: true,
+        authLoading: false,
+        isUnlocking: false,
+        unlockSucceeded: false,
+      }),
+    ).toMatchObject({
+      canAttemptCoinUnlock: true,
+      primaryAction: 'unlock',
+      primaryDisabled: false,
+      status: 'idle',
+    });
   });
 });
