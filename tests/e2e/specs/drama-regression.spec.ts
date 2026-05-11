@@ -43,13 +43,12 @@ test('anonymous visitor can browse drama detail, open deterministic free playbac
 
   await page.goto('/dramas');
   await expect(page.getByRole('heading', { name: 'Browse dramas' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /The Billionaire Contract/ }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: /Revenge in Red Heels/ }).first()).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: /Watch now: The Billionaire Contract/ }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: /Watch now: Revenge in Red Heels/ })).toBeVisible();
 
-  await page
-    .getByRole('link', { name: /The Billionaire Contract/ })
-    .first()
-    .click();
+  await page.getByRole('link', { name: /Watch now: The Billionaire Contract/ }).click();
   await expect(page).toHaveURL(new RegExp(`/dramas/${dramaSlug}$`));
   await expect(page.getByRole('heading', { name: 'The Billionaire Contract' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Episodes' })).toBeVisible();
@@ -95,16 +94,34 @@ test('signed-in viewer sees resume CTA and resume label for existing drama progr
   await page.getByRole('button', { name: 'Create Account' }).click();
   await expect(page.getByRole('link', { name: 'Account' })).toBeVisible();
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
-  const progressResponse = await page.request.post(`${apiBaseUrl}/drama-progress`, {
-    data: {
-      episodeId: freeEpisodeId,
-      positionSeconds: 37,
-      durationSeconds: 80,
-      completed: false,
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    'http://localhost:4000';
+  const progressUrl = `${apiBaseUrl.replace(/\/+$/, '')}/drama-progress`;
+  const progressResponse = await page.evaluate(
+    async ({ episodeId, url }) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episodeId,
+          positionSeconds: 37,
+          durationSeconds: 80,
+          completed: false,
+        }),
+      });
+      return { ok: response.ok, status: response.status, body: await response.text() };
     },
+    { episodeId: freeEpisodeId, url: progressUrl },
+  );
+  expect(
+    progressResponse,
+    `drama progress response: ${JSON.stringify(progressResponse)}`,
+  ).toMatchObject({
+    ok: true,
   });
-  expect(progressResponse.ok()).toBe(true);
 
   await page.goto(`/dramas/${dramaSlug}`);
   await expect(page.getByRole('link', { name: 'Continue watching' })).toBeVisible();
