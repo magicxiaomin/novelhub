@@ -130,7 +130,10 @@ jobs:
           REVIEW_TMP_DIR=$(mktemp -d "${RUNNER_TEMP:-/tmp}/claude-review-${{ github.run_id }}-${{ github.run_attempt }}-correctness-XXXXXX")
           PR_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff.trimmed"
           RAW_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff"
+          REVIEW_OUTPUT_PATH="$REVIEW_TMP_DIR/review.md"
+          echo "REVIEW_TMP_DIR=$REVIEW_TMP_DIR" >> "$GITHUB_ENV"
           echo "PR_DIFF_PATH=$PR_DIFF_PATH" >> "$GITHUB_ENV"
+          echo "REVIEW_OUTPUT_PATH=$REVIEW_OUTPUT_PATH" >> "$GITHUB_ENV"
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > "$RAW_DIFF_PATH"
           if [ "$(wc -c < "$RAW_DIFF_PATH")" -gt 200000 ]; then
@@ -156,19 +159,20 @@ jobs:
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
           CLAUDE_TIMEOUT_SECONDS: '600'
         run: |
-          python3 .github/scripts/claude_review.py > /tmp/review.md
+          set -euo pipefail
+          python3 .github/scripts/claude_review.py > "$REVIEW_OUTPUT_PATH"
           echo "--- Correctness review preview ---"
-          head -40 /tmp/review.md
+          head -40 "$REVIEW_OUTPUT_PATH"
 
       - name: Parse verdict
         if: steps.ticket.outputs.skip == 'false'
         id: parse
         run: |
           set -euo pipefail
-          HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/review.md \
+          HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' "$REVIEW_OUTPUT_PATH" \
             | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
           if [ -z "${HEADING_VERDICT:-}" ]; then
-            echo "ERROR: /tmp/review.md has no required verdict heading; treating as review infra failure, not REQUEST_CHANGES"
+            echo "ERROR: $REVIEW_OUTPUT_PATH has no required verdict heading; treating as review infra failure, not REQUEST_CHANGES"
             exit 1
           fi
           VERDICT="$HEADING_VERDICT"
@@ -180,7 +184,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/review.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file "$REVIEW_OUTPUT_PATH"
 
       - name: Apply correctness verdict label
         if: steps.ticket.outputs.skip == 'false'
@@ -272,7 +276,10 @@ jobs:
           REVIEW_TMP_DIR=$(mktemp -d "${RUNNER_TEMP:-/tmp}/claude-review-${{ github.run_id }}-${{ github.run_attempt }}-security-XXXXXX")
           PR_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff.trimmed"
           RAW_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff"
+          SECURITY_REVIEW_OUTPUT_PATH="$REVIEW_TMP_DIR/security-review.md"
+          echo "REVIEW_TMP_DIR=$REVIEW_TMP_DIR" >> "$GITHUB_ENV"
           echo "PR_DIFF_PATH=$PR_DIFF_PATH" >> "$GITHUB_ENV"
+          echo "SECURITY_REVIEW_OUTPUT_PATH=$SECURITY_REVIEW_OUTPUT_PATH" >> "$GITHUB_ENV"
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > "$RAW_DIFF_PATH"
           if [ "$(wc -c < "$RAW_DIFF_PATH")" -gt 200000 ]; then
@@ -298,19 +305,20 @@ jobs:
           TICKET_NUM: ${{ steps.ticket.outputs.num }}
           CLAUDE_TIMEOUT_SECONDS: '600'
         run: |
-          python3 .github/scripts/claude_security_review.py > /tmp/security-review.md
+          set -euo pipefail
+          python3 .github/scripts/claude_security_review.py > "$SECURITY_REVIEW_OUTPUT_PATH"
           echo "--- Security review preview ---"
-          head -40 /tmp/security-review.md
+          head -40 "$SECURITY_REVIEW_OUTPUT_PATH"
 
       - name: Parse security verdict
         if: steps.ticket.outputs.skip == 'false'
         id: parse
         run: |
           set -euo pipefail
-          HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' /tmp/security-review.md \
+          HEADING_VERDICT=$(grep -oE '^### Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)' "$SECURITY_REVIEW_OUTPUT_PATH" \
             | grep -oE '(APPROVE|REQUEST_CHANGES|COMMENT)' | tail -1 || true)
           if [ -z "${HEADING_VERDICT:-}" ]; then
-            echo "ERROR: /tmp/security-review.md has no required verdict heading; treating as review infra failure, not REQUEST_CHANGES"
+            echo "ERROR: $SECURITY_REVIEW_OUTPUT_PATH has no required verdict heading; treating as review infra failure, not REQUEST_CHANGES"
             exit 1
           fi
           VERDICT="$HEADING_VERDICT"
@@ -322,7 +330,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/security-review.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file "$SECURITY_REVIEW_OUTPUT_PATH"
 
   # =========================================================================
   # Mechanical gates: path policy + diff size cap.
@@ -512,7 +520,9 @@ jobs:
         run: |
           set -euo pipefail
           NEXT_ITER=$((ITERATION + 1))
-          cat > /tmp/codex-ping.md <<EOF
+          REVIEW_TMP_DIR=$(mktemp -d "${RUNNER_TEMP:-/tmp}/claude-review-${{ github.run_id }}-${{ github.run_attempt }}-codex-ping-XXXXXX")
+          CODEX_PING_PATH="$REVIEW_TMP_DIR/codex-ping.md"
+          cat > "$CODEX_PING_PATH" <<EOF
           @codex
 
           Review verdicts: correctness=${CORR}, security=${SEC}. Auto-merge requires BOTH to be APPROVE.
@@ -530,7 +540,7 @@ jobs:
 
           This is auto-iteration $NEXT_ITER of 3. After 3 iterations the pipeline halts for human review.
           EOF
-          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/codex-ping.md || {
+          gh pr comment ${{ github.event.pull_request.number }} --body-file "$CODEX_PING_PATH" || {
             echo "ERROR: failed to post Codex ping comment; checkout/workdir is $(pwd)"
             git status --short || true
             exit 1
