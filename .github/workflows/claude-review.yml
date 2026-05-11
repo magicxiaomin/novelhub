@@ -42,13 +42,31 @@ jobs:
           # "WARNING" Severity row) and APPROVE/COMMENT verdicts must NOT
           # count toward the 3-iteration cap, otherwise temporary API
           # outages permanently jam a PR.
-          COUNT=$(gh pr view ${{ github.event.pull_request.number }} \
-            --json comments --jq \
-            '[.comments[]
-              | select(.body | startswith("## Claude Review"))
-              | select(.body | test("### Verdict:?\\s*REQUEST_CHANGES"))
-              | select(.body | contains("WARNING") | not)
-            ] | length')
+          COUNT_QUERY='[.comments[]
+            | select(.body | startswith("## Claude Review"))
+            | select(.body | test("### Verdict:?\\s*REQUEST_CHANGES"))
+            | select(.body | contains("WARNING") | not)
+          ] | length'
+
+          COUNT=""
+          for attempt in 1 2 3; do
+            if COUNT=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq "$COUNT_QUERY"); then
+              break
+            fi
+            echo "gh pr view comments failed on attempt $attempt; retrying..." >&2
+            sleep $((attempt * 5))
+          done
+
+          if [ -z "${COUNT:-}" ]; then
+            echo "gh pr view comments failed after retries; falling back to issue comments REST API" >&2
+            COUNT=$(gh api --paginate repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+              --jq '[.[]
+                | select(.body | startswith("## Claude Review"))
+                | select(.body | test("### Verdict:?\\s*REQUEST_CHANGES"))
+                | select(.body | contains("WARNING") | not)
+              ] | length')
+          fi
+
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
           echo "Previous REQUEST_CHANGES reviews on this PR: $COUNT"
 
@@ -109,16 +127,20 @@ jobs:
         if: steps.ticket.outputs.skip == 'false'
         run: |
           set -euo pipefail
+          REVIEW_TMP_DIR=$(mktemp -d "${RUNNER_TEMP:-/tmp}/claude-review-${{ github.run_id }}-${{ github.run_attempt }}-correctness-XXXXXX")
+          PR_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff.trimmed"
+          RAW_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff"
+          echo "PR_DIFF_PATH=$PR_DIFF_PATH" >> "$GITHUB_ENV"
           git fetch origin ${{ github.event.pull_request.base.ref }}
-          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.diff
-          if [ "$(wc -c < /tmp/pr.diff)" -gt 200000 ]; then
-            head -c 200000 /tmp/pr.diff > /tmp/pr.diff.trimmed
-            echo "" >> /tmp/pr.diff.trimmed
-            echo "[... diff truncated at 200KB; full diff has $(wc -c < /tmp/pr.diff) bytes ...]" >> /tmp/pr.diff.trimmed
+          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > "$RAW_DIFF_PATH"
+          if [ "$(wc -c < "$RAW_DIFF_PATH")" -gt 200000 ]; then
+            head -c 200000 "$RAW_DIFF_PATH" > "$PR_DIFF_PATH"
+            echo "" >> "$PR_DIFF_PATH"
+            echo "[... diff truncated at 200KB; full diff has $(wc -c < "$RAW_DIFF_PATH") bytes ...]" >> "$PR_DIFF_PATH"
           else
-            cp /tmp/pr.diff /tmp/pr.diff.trimmed
+            cp "$RAW_DIFF_PATH" "$PR_DIFF_PATH"
           fi
-          echo "Diff size: $(wc -c < /tmp/pr.diff.trimmed) bytes"
+          echo "Diff size: $(wc -c < "$PR_DIFF_PATH") bytes"
 
       - name: Verify Claude CLI
         if: steps.ticket.outputs.skip == 'false'
@@ -247,15 +269,20 @@ jobs:
         if: steps.ticket.outputs.skip == 'false'
         run: |
           set -euo pipefail
+          REVIEW_TMP_DIR=$(mktemp -d "${RUNNER_TEMP:-/tmp}/claude-review-${{ github.run_id }}-${{ github.run_attempt }}-security-XXXXXX")
+          PR_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff.trimmed"
+          RAW_DIFF_PATH="$REVIEW_TMP_DIR/pr.diff"
+          echo "PR_DIFF_PATH=$PR_DIFF_PATH" >> "$GITHUB_ENV"
           git fetch origin ${{ github.event.pull_request.base.ref }}
-          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > /tmp/pr.diff
-          if [ "$(wc -c < /tmp/pr.diff)" -gt 200000 ]; then
-            head -c 200000 /tmp/pr.diff > /tmp/pr.diff.trimmed
-            echo "" >> /tmp/pr.diff.trimmed
-            echo "[... diff truncated at 200KB ...]" >> /tmp/pr.diff.trimmed
+          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > "$RAW_DIFF_PATH"
+          if [ "$(wc -c < "$RAW_DIFF_PATH")" -gt 200000 ]; then
+            head -c 200000 "$RAW_DIFF_PATH" > "$PR_DIFF_PATH"
+            echo "" >> "$PR_DIFF_PATH"
+            echo "[... diff truncated at 200KB ...]" >> "$PR_DIFF_PATH"
           else
-            cp /tmp/pr.diff /tmp/pr.diff.trimmed
+            cp "$RAW_DIFF_PATH" "$PR_DIFF_PATH"
           fi
+          echo "Diff size: $(wc -c < "$PR_DIFF_PATH") bytes"
 
       - name: Verify Claude CLI
         if: steps.ticket.outputs.skip == 'false'

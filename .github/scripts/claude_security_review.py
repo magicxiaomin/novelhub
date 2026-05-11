@@ -9,7 +9,7 @@ first review. Auto-merge requires BOTH reviewers to APPROVE.
 Reads:
   $TICKET_FILE - path to ticket markdown (e.g. docs/tickets/03-auth-module.md)
   $TICKET_NUM  - two-digit ticket number
-  /tmp/pr.diff.trimmed - unified diff (capped at ~200KB upstream)
+  $PR_DIFF_PATH - optional path to capped unified diff (defaults to /tmp/pr.diff.trimmed)
   AGENTS.md, the ticket file, docs/_postmortem.md (when present)
 
 Writes:
@@ -62,7 +62,8 @@ def build_prompt(ticket_num: str, ticket_file: str) -> str:
     agents_md = read("AGENTS.md")
     ticket_md = ticket_context(ticket_file)
     postmortem = read("docs/_postmortem.md")
-    diff = Path("/tmp/pr.diff.trimmed").read_text(encoding="utf-8", errors="replace")
+    diff_path = Path(os.environ.get("PR_DIFF_PATH", "/tmp/pr.diff.trimmed"))
+    diff = diff_path.read_text(encoding="utf-8", errors="replace")
 
     return f"""You are an INDEPENDENT security reviewer for the NovelHub project. A separate correctness reviewer is examining functional correctness; your job is exclusively security and operational risk. Do not duplicate their checks. Be paranoid but specific - cite file paths and line numbers from the diff for every finding.
 

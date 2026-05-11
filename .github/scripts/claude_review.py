@@ -4,7 +4,7 @@
 Reads:
   $TICKET_FILE - path to ticket markdown, e.g. docs/tickets/02-database-schema.md
   $TICKET_NUM - two-digit ticket number, e.g. "02"
-  /tmp/pr.diff.trimmed - unified diff to review, capped upstream
+  $PR_DIFF_PATH - optional path to capped unified diff (defaults to /tmp/pr.diff.trimmed)
   AGENTS.md and the ticket file relative to the repo root
 
 Writes:
@@ -63,7 +63,8 @@ def build_prompt(ticket_num: str, ticket_file: str) -> str:
     agents_md = read("AGENTS.md")
     ticket_md = ticket_context(ticket_file)
     postmortem = read("docs/_postmortem.md")
-    diff = Path("/tmp/pr.diff.trimmed").read_text(encoding="utf-8", errors="replace")
+    diff_path = Path(os.environ.get("PR_DIFF_PATH", "/tmp/pr.diff.trimmed"))
+    diff = diff_path.read_text(encoding="utf-8", errors="replace")
 
     is_security = ticket_num in SECURITY_TICKETS
     security_block = ""

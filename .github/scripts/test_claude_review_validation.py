@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -84,6 +86,24 @@ class ClaudeReviewValidationTest(unittest.TestCase):
             ]
         )
         self.assertIsNone(claude_security_review.validate_review(review))
+
+    def test_review_scripts_read_configured_diff_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            diff_path = Path(tmpdir) / "pr.diff.trimmed"
+            diff_path.write_text("diff --git a/example b/example\n+configured diff path\n", encoding="utf-8")
+            previous = os.environ.get("PR_DIFF_PATH")
+            os.environ["PR_DIFF_PATH"] = str(diff_path)
+            try:
+                correctness_prompt = claude_review.build_prompt("172", "")
+                security_prompt = claude_security_review.build_prompt("172", "")
+            finally:
+                if previous is None:
+                    os.environ.pop("PR_DIFF_PATH", None)
+                else:
+                    os.environ["PR_DIFF_PATH"] = previous
+
+        self.assertIn("configured diff path", correctness_prompt)
+        self.assertIn("configured diff path", security_prompt)
 
 
 if __name__ == "__main__":
