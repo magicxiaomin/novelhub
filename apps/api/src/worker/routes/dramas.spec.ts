@@ -246,4 +246,96 @@ describe('dramasRoutes', () => {
       unlockedAt: '2026-05-10T12:00:00.000Z',
     });
   });
+
+  it('rejects unauthenticated POST /drama-progress before calling the service', async () => {
+    const saveProgress = jest.fn();
+    makeDramasServiceMock.mockReturnValue({ saveProgress } as never);
+    mockRequireAuth.mockImplementation(async (c) => c.json({ message: 'Unauthorized' }, 401));
+
+    const response = await makeApp().request('/drama-progress', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        episodeId: '11111111-1111-4111-8111-111111111111',
+        positionSeconds: 42,
+        durationSeconds: 60,
+        completed: false,
+      }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(saveProgress).not.toHaveBeenCalled();
+  });
+
+  it('serves authenticated POST /drama-progress and forwards userId plus validated body', async () => {
+    const savedProgress = {
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      positionSeconds: 42,
+      durationSeconds: 60,
+      completed: false,
+      updatedAt: '2026-05-10T12:00:00.000Z',
+    };
+    const saveProgress = jest.fn().mockResolvedValue(savedProgress);
+    makeDramasServiceMock.mockReturnValue({ saveProgress } as never);
+
+    const response = await makeApp().request('/drama-progress', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        episodeId: '11111111-1111-4111-8111-111111111111',
+        positionSeconds: 42,
+        durationSeconds: 60,
+        completed: false,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(saveProgress).toHaveBeenCalledWith('user-1', {
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      positionSeconds: 42,
+      durationSeconds: 60,
+      completed: false,
+    });
+    await expect(response.json()).resolves.toEqual(savedProgress);
+  });
+
+  it('serves authenticated GET /drama-progress and forwards userId', async () => {
+    const continueWatching = [
+      {
+        dramaId: 'drama-1',
+        dramaSlug: 'shadow-heiress',
+        episodeId: '11111111-1111-4111-8111-111111111111',
+        episodeNumber: 1,
+        positionSeconds: 42,
+        durationSeconds: 60,
+        updatedAt: '2026-05-10T12:00:00.000Z',
+      },
+    ];
+    const listContinueWatching = jest.fn().mockResolvedValue(continueWatching);
+    makeDramasServiceMock.mockReturnValue({ listContinueWatching } as never);
+
+    const response = await makeApp().request('/drama-progress');
+
+    expect(response.status).toBe(200);
+    expect(listContinueWatching).toHaveBeenCalledWith('user-1');
+    await expect(response.json()).resolves.toEqual(continueWatching);
+  });
+
+  it('rejects invalid POST /drama-progress payloads before calling the service', async () => {
+    const saveProgress = jest.fn();
+    makeDramasServiceMock.mockReturnValue({ saveProgress } as never);
+
+    const response = await makeApp().request('/drama-progress', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        episodeId: 'not-a-uuid',
+        positionSeconds: -1,
+        completed: 'no',
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(saveProgress).not.toHaveBeenCalled();
+  });
 });
