@@ -11,6 +11,16 @@ to "fix" them — they reflect what we learned at that point in time.
 
 ---
 
+## Ticket 14 — feat(drama): episode unlock API
+
+**What worked:** PR merged successfully via the auto-pipeline.
+
+**Pitfalls hit:** Postmerge analysis could not run — `claude -p` exited 1: no stderr. A human should review the merged diff and append a manual lesson if anything is worth remembering.
+
+**Rule for future tickets:** None recorded for this ticket.
+
+---
+
 ## Ticket 01 — Initialize Monorepo and Tooling
 
 **What worked:** pnpm workspace + tsconfig path aliases set up cleanly; eslint
