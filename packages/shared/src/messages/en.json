@@ -47,7 +47,9 @@
     "newReleases": "New Releases",
     "continueReading": "Continue Reading",
     "seeAll": "See all",
-    "progress": "Chapter {chapterNumber} \u00b7 {scrollPercent}%"
+    "progress": "Chapter {chapterNumber} \u00b7 {scrollPercent}%",
+    "railError": "This row could not be loaded. Please try again soon.",
+    "railEmpty": "More stories are coming soon."
   },
   "checkin": {
     "title": "Daily check-in",
@@ -415,6 +417,14 @@
     "coins": "coins/episode",
     "watchNow": "Watch now",
     "continueWatching": "Continue watching",
+    "playbackComingSoon": "Playback coming soon",
+    "episodesComingSoon": "Episodes coming soon",
+    "browseError": "Dramas could not be loaded. Please try again soon.",
+    "featuredEmpty": "Featured dramas are coming soon.",
+    "allEmpty": "More dramas are coming soon.",
+    "browseTitle": "Browse dramas",
+    "browseBody": "Explore short dramas by newest releases and featured picks.",
+    "loading": "Loading dramas...",
     "about": "About this drama",
     "episodeList": "Episodes",
     "free": "Free",

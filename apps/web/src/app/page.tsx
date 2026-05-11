@@ -10,15 +10,38 @@ import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
 
+type DramaRailResult = Awaited<ReturnType<typeof fetchDramasServer>>;
+type BookRailResult = Awaited<ReturnType<typeof fetchBooksServer>>;
+
+async function safeFetchDramaRail(
+  query: Parameters<typeof fetchDramasServer>[0],
+): Promise<{ data: DramaRailResult | null; error: boolean }> {
+  try {
+    return { data: await fetchDramasServer(query), error: false };
+  } catch {
+    return { data: null, error: true };
+  }
+}
+
+async function safeFetchBookRail(
+  query: Parameters<typeof fetchBooksServer>[0],
+): Promise<{ data: BookRailResult | null; error: boolean }> {
+  try {
+    return { data: await fetchBooksServer(query), error: false };
+  } catch {
+    return { data: null, error: true };
+  }
+}
+
 export default async function HomePage(): Promise<JSX.Element> {
-  const [featured, all] = await Promise.all([
-    fetchDramasServer({ featured: true, pageSize: 8 }).catch(() => null),
-    fetchDramasServer({ pageSize: 12 }).catch(() => null),
+  const [featuredResult, allResult, newReleasesResult] = await Promise.all([
+    safeFetchDramaRail({ featured: true, pageSize: 8 }),
+    safeFetchDramaRail({ pageSize: 12 }),
+    safeFetchBookRail({ limit: 10 }),
   ]);
-  const newReleases = await fetchBooksServer({ limit: 10 }).catch(() => null);
-  const featuredItems = featured?.items ?? [];
-  const allItems = all?.items ?? [];
-  const newReleaseItems = newReleases?.items ?? [];
+  const featuredItems = featuredResult.data?.items ?? [];
+  const allItems = allResult.data?.items ?? [];
+  const newReleaseItems = newReleasesResult.data?.items ?? [];
   const hero = featuredItems[0] ?? allItems[0];
 
   return (
@@ -48,14 +71,31 @@ export default async function HomePage(): Promise<JSX.Element> {
           </div>
         </section>
 
-        <DramaRail title={messages.drama.featured} dramas={featuredItems} />
+        <DramaRail
+          title={messages.drama.featured}
+          dramas={featuredItems}
+          emptyMessage={messages.drama.featuredEmpty}
+          errorMessage={featuredResult.error ? messages.drama.browseError : undefined}
+        />
 
-        <BookRail title={messages.home.newReleases} books={newReleaseItems} seeAllHref="/novels" />
+        <BookRail
+          title={messages.home.newReleases}
+          books={newReleaseItems}
+          seeAllHref="/novels"
+          emptyMessage={messages.home.railEmpty}
+          errorMessage={newReleasesResult.error ? messages.home.railError : undefined}
+        />
 
         <section className="mt-6 px-4">
           <h2 className="text-lg font-semibold tracking-tight">{messages.drama.all}</h2>
-          {allItems.length === 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">{messages.drama.empty}</p>
+          {allResult.error ? (
+            <p className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              {messages.drama.browseError}
+            </p>
+          ) : allItems.length === 0 ? (
+            <p className="mt-3 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">
+              {messages.drama.allEmpty}
+            </p>
           ) : (
             <div className="mt-3 grid grid-cols-2 gap-4">
               {allItems.map((drama, index) => (

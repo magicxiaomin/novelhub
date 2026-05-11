@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { AppShell } from '@/components/layout/app-shell';
@@ -31,8 +30,6 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function DramaDetailPage({ params }: Params): Promise<JSX.Element> {
   const drama = await fetchDramaServer(params.slug);
   if (!drama) notFound();
-  const continueEpisode = drama.episodes.find((episode) => episode.progress?.completedAt === null);
-  const firstEpisode = continueEpisode ?? drama.episodes[0];
 
   return (
     <AppShell>
@@ -60,13 +57,11 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
             </div>
           </div>
         </div>
-        {firstEpisode ? (
-          <Button asChild className="mt-5 w-full">
-            <Link href={`/dramas/${drama.slug}/watch/${firstEpisode.id}`}>
-              {continueEpisode ? messages.drama.continueWatching : messages.drama.watchNow}
-            </Link>
-          </Button>
-        ) : null}
+        <Button className="mt-5 w-full" disabled>
+          {drama.episodes.length > 0
+            ? messages.drama.playbackComingSoon
+            : messages.drama.episodesComingSoon}
+        </Button>
       </header>
 
       <section className="mt-6 px-4">
@@ -85,12 +80,12 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
         <h2 className="text-base font-semibold tracking-tight">{messages.drama.episodeList}</h2>
         <div className="mt-3 divide-y rounded-2xl border bg-card">
           {drama.episodes.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">{messages.drama.empty}</p>
+            <p className="p-4 text-sm text-muted-foreground">{messages.drama.episodesComingSoon}</p>
           ) : (
             drama.episodes.map((episode) => (
-              <Link
+              <div
                 key={episode.id}
-                href={`/dramas/${drama.slug}/watch/${episode.id}`}
+                id={`episode-${episode.episodeNumber}`}
                 className="flex items-center justify-between gap-3 p-4"
               >
                 <div className="min-w-0">
@@ -110,7 +105,7 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
                       ? messages.reader.unlocked
                       : messages.drama.locked}
                 </Badge>
-              </Link>
+              </div>
             ))
           )}
         </div>

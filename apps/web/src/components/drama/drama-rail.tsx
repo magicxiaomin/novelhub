@@ -6,12 +6,34 @@ import { DramaCard } from './drama-card';
 export function DramaRail({
   title,
   dramas,
+  emptyMessage = messages.drama.empty,
+  errorMessage,
 }: {
   title: string;
   dramas: DramaSummary[];
+  emptyMessage?: string;
+  errorMessage?: string;
 }): JSX.Element {
+  if (errorMessage) {
+    return (
+      <section className="mt-6 px-4">
+        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <p className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {errorMessage}
+        </p>
+      </section>
+    );
+  }
+
   if (dramas.length === 0) {
-    return <p className="px-4 py-6 text-sm text-muted-foreground">{messages.drama.empty}</p>;
+    return (
+      <section className="mt-6 px-4">
+        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <p className="mt-3 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">
+          {emptyMessage}
+        </p>
+      </section>
+    );
   }
   return (
     <section className="mt-6">
