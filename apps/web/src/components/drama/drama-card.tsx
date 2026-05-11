@@ -14,7 +14,7 @@ export function DramaCard({
 }): JSX.Element {
   return (
     <Link
-      href={`/drama/${drama.slug}`}
+      href={`/dramas/${drama.slug}`}
       className="group block min-w-0"
       aria-label={`${messages.drama.watchNow}: ${drama.title}`}
     >

@@ -31,7 +31,7 @@ export default async function HomePage(): Promise<JSX.Element> {
             <div className="mt-5 flex items-center gap-3">
               {hero ? (
                 <Button asChild>
-                  <Link href={`/drama/${hero.slug}`}>{messages.drama.watchNow}</Link>
+                  <Link href={`/dramas/${hero.slug}`}>{messages.drama.watchNow}</Link>
                 </Button>
               ) : null}
               <Button

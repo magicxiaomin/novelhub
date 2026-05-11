@@ -62,7 +62,7 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
         </div>
         {firstEpisode ? (
           <Button asChild className="mt-5 w-full">
-            <Link href={`/drama/${drama.slug}/watch/${firstEpisode.episodeNumber}`}>
+            <Link href={`/dramas/${drama.slug}/watch/${firstEpisode.id}`}>
               {continueEpisode ? messages.drama.continueWatching : messages.drama.watchNow}
             </Link>
           </Button>
@@ -90,7 +90,7 @@ export default async function DramaDetailPage({ params }: Params): Promise<JSX.E
             drama.episodes.map((episode) => (
               <Link
                 key={episode.id}
-                href={`/drama/${drama.slug}/watch/${episode.episodeNumber}`}
+                href={`/dramas/${drama.slug}/watch/${episode.id}`}
                 className="flex items-center justify-between gap-3 p-4"
               >
                 <div className="min-w-0">

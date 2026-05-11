@@ -33,9 +33,18 @@ def read(path: str) -> str:
     return full.read_text(encoding="utf-8") if full.exists() else ""
 
 
+def ticket_context(ticket_file: str) -> str:
+    if ticket_file and (REPO_ROOT / ticket_file).exists():
+        return read(ticket_file)
+    env_context = os.environ.get("TICKET_CONTEXT", "").strip()
+    if env_context:
+        return env_context
+    return "(No ticket file/context was available; judge against the PR description and diff.)"
+
+
 def build_prompt(ticket_num: str, ticket_file: str) -> str:
     agents_md = read("AGENTS.md")
-    ticket_md = read(ticket_file)
+    ticket_md = ticket_context(ticket_file)
     postmortem = read("docs/_postmortem.md")
     diff = Path("/tmp/pr.diff.trimmed").read_text(encoding="utf-8", errors="replace")
 
@@ -177,8 +186,50 @@ Cannot verify automatically while Claude is unavailable.
 ### Verdict: COMMENT"""
 
 
+def run_fallback_review(prompt: str, claude_error: str) -> tuple[str, str | None]:
+    """Fallback to the local Hermes/Codex reviewer when Claude CLI auth is unavailable."""
+    fallback = os.environ.get("REVIEW_FALLBACK_CMD", "/opt/hermes-runner/hermes-agent/runner-venv/bin/hermes")
+    if not fallback:
+        return ("", claude_error)
+    if not Path(fallback).exists() and fallback == "/opt/hermes-runner/hermes-agent/runner-venv/bin/hermes":
+        fallback = "hermes"
+
+    fallback_prompt = (
+        prompt
+        + "\n\n# Fallback execution note\n"
+        + "Claude CLI failed with: "
+        + claude_error
+        + "\nYou are running as the configured fallback reviewer. Preserve the required output format exactly. "
+        + "Do not edit files; only review the diff.\n"
+    )
+    env = os.environ.copy()
+    env.setdefault("HERMES_PROFILE", "novelhub-codex-feasibility")
+    cmd = [fallback, "-z", fallback_prompt, "-t", "terminal,file", "--skills", "codex,github-pr-workflow", "--yolo"]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_TIMEOUT_SECONDS,
+            check=False,
+            env=env,
+        )
+    except FileNotFoundError:
+        return ("", claude_error + f"; fallback `{fallback}` binary not on PATH.")
+    except subprocess.TimeoutExpired:
+        return ("", claude_error + f"; fallback `{fallback}` timed out after {CLAUDE_TIMEOUT_SECONDS}s.")
+    except OSError as exc:
+        return ("", claude_error + f"; fallback `{fallback}` could not be launched: {exc}")
+
+    if result.returncode != 0:
+        stderr_tail = (result.stderr or "").strip()[-500:]
+        return ("", claude_error + f"; fallback `{fallback}` exited {result.returncode}: {stderr_tail or 'no stderr'}")
+
+    return (result.stdout.strip(), None)
+
+
 def run_claude(prompt: str) -> tuple[str, str | None]:
-    """Invoke `claude -p` and return (stdout, error_reason_or_None)."""
+    """Invoke `claude -p`; if unavailable, fallback to Hermes/Codex review."""
     try:
         result = subprocess.run(
             [CLAUDE_BIN, "-p", "--output-format", "text"],
@@ -189,15 +240,15 @@ def run_claude(prompt: str) -> tuple[str, str | None]:
             check=False,
         )
     except FileNotFoundError:
-        return ("", f"`{CLAUDE_BIN}` binary not on PATH on the runner host.")
+        return run_fallback_review(prompt, f"`{CLAUDE_BIN}` binary not on PATH on the runner host.")
     except subprocess.TimeoutExpired:
-        return ("", f"`claude -p` timed out after {CLAUDE_TIMEOUT_SECONDS}s.")
+        return run_fallback_review(prompt, f"`claude -p` timed out after {CLAUDE_TIMEOUT_SECONDS}s.")
     except OSError as exc:
-        return ("", f"`claude -p` could not be launched: {exc}")
+        return run_fallback_review(prompt, f"`claude -p` could not be launched: {exc}")
 
     if result.returncode != 0:
         stderr_tail = (result.stderr or "").strip()[-500:]
-        return ("", f"`claude -p` exited {result.returncode}: {stderr_tail or 'no stderr'}")
+        return run_fallback_review(prompt, f"`claude -p` exited {result.returncode}: {stderr_tail or 'no stderr'}")
 
     return (result.stdout.strip(), None)
 
@@ -205,8 +256,11 @@ def run_claude(prompt: str) -> tuple[str, str | None]:
 def main() -> int:
     ticket_num = os.environ.get("TICKET_NUM", "")
     ticket_file = os.environ.get("TICKET_FILE", "")
-    if not ticket_num or not ticket_file:
-        print("ERROR: TICKET_NUM and TICKET_FILE env vars required", file=sys.stderr)
+    if not ticket_num:
+        print("ERROR: TICKET_NUM env var required", file=sys.stderr)
+        return 2
+    if not ticket_file and not os.environ.get("TICKET_CONTEXT", "").strip():
+        print("ERROR: TICKET_FILE or TICKET_CONTEXT env var required", file=sys.stderr)
         return 2
 
     prompt = build_prompt(ticket_num, ticket_file)

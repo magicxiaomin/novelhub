@@ -65,14 +65,21 @@ jobs:
           gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-review" || true
           exit 1
 
-      - name: Identify ticket from branch name
+      - name: Identify ticket from branch name or PR metadata
         id: ticket
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           BRANCH="${{ github.event.pull_request.head.ref }}"
-          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]{2}' | head -1 | cut -d/ -f2 || true)
+          PR="${{ github.event.pull_request.number }}"
+          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]+' | head -1 | cut -d/ -f2 || true)
           if [ -z "${TICKET_NUM:-}" ]; then
-            echo "Branch '$BRANCH' is not a feature/<NN>-* branch; skipping Claude review"
+            TICKET_NUM=$(gh pr view "$PR" --json body --jq '.body' \
+              | grep -oE '#[0-9]+' | tr -d '#' | head -1 || true)
+          fi
+          if [ -z "${TICKET_NUM:-}" ]; then
+            echo "Branch '$BRANCH' and PR body do not reference a ticket; skipping Claude review"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "num=" >> "$GITHUB_OUTPUT"
             echo "file=" >> "$GITHUB_OUTPUT"
@@ -80,16 +87,23 @@ jobs:
           fi
           TICKET_FILE=$(ls docs/tickets/${TICKET_NUM}-*.md 2>/dev/null | head -1 || true)
           if [ -z "${TICKET_FILE:-}" ]; then
-            echo "No docs/tickets/${TICKET_NUM}-*.md found; skipping"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
-            echo "file=" >> "$GITHUB_OUTPUT"
-            exit 0
+            ISSUE_BODY=$(gh issue view "$TICKET_NUM" --repo ${{ github.repository }} --json title,body --jq '"# " + .title + "\n\n" + (.body // "")' 2>/dev/null || true)
+            if [ -z "${ISSUE_BODY:-}" ]; then
+              echo "No docs/tickets/${TICKET_NUM}-*.md and issue #$TICKET_NUM not found; skipping"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
+              echo "file=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            printf '%s\n' "$ISSUE_BODY" > /tmp/ticket-context.md
+            echo "TICKET_CONTEXT<<EOF" >> "$GITHUB_ENV"
+            cat /tmp/ticket-context.md >> "$GITHUB_ENV"
+            echo "EOF" >> "$GITHUB_ENV"
           fi
           echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
           echo "file=$TICKET_FILE" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "Ticket: $TICKET_NUM ($TICKET_FILE)"
+          echo "Ticket: $TICKET_NUM (${TICKET_FILE:-GitHub issue context})"
 
       - name: Get PR diff
         if: steps.ticket.outputs.skip == 'false'
@@ -178,6 +192,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: read
     outputs:
       verdict: ${{ steps.parse.outputs.verdict }}
       skipped: ${{ steps.ticket.outputs.skip }}
@@ -187,13 +202,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Identify ticket from branch name
+      - name: Identify ticket from branch name or PR metadata
         id: ticket
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           BRANCH="${{ github.event.pull_request.head.ref }}"
-          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]{2}' | head -1 | cut -d/ -f2 || true)
+          PR="${{ github.event.pull_request.number }}"
+          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]+' | head -1 | cut -d/ -f2 || true)
           if [ -z "${TICKET_NUM:-}" ]; then
+            TICKET_NUM=$(gh pr view "$PR" --json body --jq '.body' \
+              | grep -oE '#[0-9]+' | tr -d '#' | head -1 || true)
+          fi
+          if [ -z "${TICKET_NUM:-}" ]; then
+            echo "Branch '$BRANCH' and PR body do not reference a ticket; skipping Claude review"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "num=" >> "$GITHUB_OUTPUT"
             echo "file=" >> "$GITHUB_OUTPUT"
@@ -201,14 +224,23 @@ jobs:
           fi
           TICKET_FILE=$(ls docs/tickets/${TICKET_NUM}-*.md 2>/dev/null | head -1 || true)
           if [ -z "${TICKET_FILE:-}" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
-            echo "file=" >> "$GITHUB_OUTPUT"
-            exit 0
+            ISSUE_BODY=$(gh issue view "$TICKET_NUM" --repo ${{ github.repository }} --json title,body --jq '"# " + .title + "\n\n" + (.body // "")' 2>/dev/null || true)
+            if [ -z "${ISSUE_BODY:-}" ]; then
+              echo "No docs/tickets/${TICKET_NUM}-*.md and issue #$TICKET_NUM not found; skipping"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
+              echo "file=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            printf '%s\n' "$ISSUE_BODY" > /tmp/ticket-context.md
+            echo "TICKET_CONTEXT<<EOF" >> "$GITHUB_ENV"
+            cat /tmp/ticket-context.md >> "$GITHUB_ENV"
+            echo "EOF" >> "$GITHUB_ENV"
           fi
           echo "num=$TICKET_NUM" >> "$GITHUB_OUTPUT"
           echo "file=$TICKET_FILE" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Ticket: $TICKET_NUM (${TICKET_FILE:-GitHub issue context})"
 
       - name: Get PR diff
         if: steps.ticket.outputs.skip == 'false'

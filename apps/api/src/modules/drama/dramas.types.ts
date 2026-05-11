@@ -22,6 +22,11 @@ export type EpisodeProgress = {
   lastWatchedAt: string;
 };
 
+export type WatchProgress = EpisodeProgress & {
+  episodeId: string;
+  dramaId: string;
+};
+
 export type EpisodeSummary = {
   id: string;
   episodeNumber: number;
@@ -36,6 +41,48 @@ export type EpisodeSummary = {
 
 export type DramaDetail = DramaSummary & {
   episodes: EpisodeSummary[];
+};
+
+export type EpisodePlaybackAccessReason = 'free' | 'unlocked' | 'subscription' | 'locked';
+
+export type EpisodePlaybackGranted = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  title: string;
+  durationSeconds: number | null;
+  access: 'granted';
+  accessReason: Exclude<EpisodePlaybackAccessReason, 'locked'>;
+  hlsUrl: string;
+  provider: string;
+  thumbnailUrl: string | null;
+};
+
+export type EpisodePlaybackDenied = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  title: string;
+  durationSeconds: number | null;
+  access: 'denied';
+  accessReason: 'locked';
+  coinPerEpisode: number;
+};
+
+export type EpisodePlayback = EpisodePlaybackGranted | EpisodePlaybackDenied;
+
+export type EpisodeUnlockResult = {
+  episodeId: string;
+  dramaId: string;
+  episodeNumber: number;
+  access: 'granted';
+  accessReason: 'unlocked' | 'subscription';
+  unlockId: string;
+  method: string;
+  coinCost: number;
+  balanceAfter: number | null;
+  transactionId: string | null;
+  unlockedAt: string;
 };
 
 export type PageInfo = {
@@ -55,4 +102,28 @@ export type ListDramasQuery = {
   featured?: boolean;
   page?: number;
   pageSize?: number;
+};
+
+export type SaveWatchProgressInput = {
+  episodeId: string;
+  positionSeconds: number;
+  durationSeconds?: number;
+  completed?: boolean;
+};
+
+export type ContinueWatching = {
+  items: Array<{
+    drama: {
+      id: string;
+      slug: string;
+      title: string;
+      posterUrl: string;
+    };
+    episode: {
+      id: string;
+      episodeNumber: number;
+      title: string;
+    };
+    progress: WatchProgress;
+  }>;
 };
