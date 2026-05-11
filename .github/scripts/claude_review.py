@@ -185,9 +185,11 @@ None.
 
 def run_fallback_review(prompt: str, claude_error: str) -> tuple[str, str | None]:
     """Fallback to the local Hermes/Codex reviewer when Claude CLI auth is unavailable."""
-    fallback = os.environ.get("REVIEW_FALLBACK_CMD", "hermes")
+    fallback = os.environ.get("REVIEW_FALLBACK_CMD", "/root/.hermes/hermes-agent/venv/bin/hermes")
     if not fallback:
         return ("", claude_error)
+    if not Path(fallback).exists() and fallback == "/root/.hermes/hermes-agent/venv/bin/hermes":
+        fallback = "hermes"
 
     fallback_prompt = (
         prompt
