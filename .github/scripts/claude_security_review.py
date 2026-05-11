@@ -254,8 +254,11 @@ def run_claude(prompt: str) -> tuple[str, str | None]:
 def main() -> int:
     ticket_num = os.environ.get("TICKET_NUM", "")
     ticket_file = os.environ.get("TICKET_FILE", "")
-    if not ticket_num or not ticket_file:
-        print("ERROR: TICKET_NUM and TICKET_FILE env vars required", file=sys.stderr)
+    if not ticket_num:
+        print("ERROR: TICKET_NUM env var required", file=sys.stderr)
+        return 2
+    if not ticket_file and not os.environ.get("TICKET_CONTEXT", "").strip():
+        print("ERROR: TICKET_FILE or TICKET_CONTEXT env var required", file=sys.stderr)
         return 2
 
     prompt = build_prompt(ticket_num, ticket_file)
