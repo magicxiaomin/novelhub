@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import { DomainError } from '../../common/domain.errors';
+import { dramaProgressRoutes } from './drama-progress';
 import { dramasRoutes } from './dramas';
 import { episodesRoutes } from './episodes';
 import { makeDramasService } from '../services/dramas-factory';
@@ -9,13 +10,20 @@ jest.mock('../services/dramas-factory', () => ({
   makeDramasService: jest.fn(),
 }));
 
-jest.mock('../middleware/auth', () => ({
-  optionalAuth: jest.fn(async (_c, next) => next()),
-  requireAuth: jest.fn(async (c, next) => {
+// Jest hoists mock factories before const/let initialization; var avoids TDZ here.
+// eslint-disable-next-line no-var
+var mockRequireAuth: jest.Mock;
+
+jest.mock('../middleware/auth', () => {
+  mockRequireAuth = jest.fn(async (c, next) => {
     c.set('user', { id: 'user-1', email: 'reader@example.com', isAdmin: false });
     await next();
-  }),
-}));
+  });
+  return {
+    optionalAuth: jest.fn(async (_c, next) => next()),
+    requireAuth: mockRequireAuth,
+  };
+});
 
 const makeDramasServiceMock = jest.mocked(makeDramasService);
 
@@ -69,6 +77,10 @@ const makeApp = () => {
     Bindings: Record<string, string | undefined>;
     Variables: { prisma: unknown; user?: { id: string; email: string; isAdmin: boolean } };
   }>();
+  app.use('/drama-progress/*', async (c, next) => {
+    c.set('prisma', { user: { findUnique: jest.fn() } });
+    await next();
+  });
   app.use('/dramas/*', async (c, next) => {
     c.set('prisma', { user: { findUnique: jest.fn() } });
     await next();
@@ -77,6 +89,7 @@ const makeApp = () => {
     c.set('prisma', { user: { findUnique: jest.fn() } });
     await next();
   });
+  app.route('/drama-progress', dramaProgressRoutes);
   app.route('/dramas', dramasRoutes);
   app.route('/episodes', episodesRoutes);
   app.onError((err, c) => {
@@ -94,6 +107,10 @@ const makeApp = () => {
 describe('dramasRoutes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRequireAuth.mockImplementation(async (c, next) => {
+      c.set('user', { id: 'user-1', email: 'reader@example.com', isAdmin: false });
+      await next();
+    });
   });
 
   it('serves GET /dramas without an /api prefix and forwards validated pagination filters', async () => {

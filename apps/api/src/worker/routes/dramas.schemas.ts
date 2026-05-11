@@ -31,3 +31,10 @@ export const dramaSlugParamSchema = z.object({
 export const episodeIdParamSchema = z.object({
   episodeId: z.string().uuid(),
 });
+
+export const saveDramaProgressBodySchema = z.object({
+  episodeId: z.string().uuid(),
+  positionSeconds: z.number().int().min(0),
+  durationSeconds: z.number().int().min(0).optional(),
+  completed: z.boolean().optional(),
+});

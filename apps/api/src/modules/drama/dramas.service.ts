@@ -5,6 +5,7 @@ import { SUBSCRIPTION_ACTIVE_STATUSES } from '../auth/auth.constants';
 import { CoinsService } from '../coins/coins.service';
 import { InsufficientBalanceError } from '../coins/insufficient-balance.exception';
 import type {
+  ContinueWatching,
   DramaDetail,
   DramaSummary,
   EpisodePlayback,
@@ -14,6 +15,8 @@ import type {
   EpisodeSummary,
   ListDramasQuery,
   Paginated,
+  SaveWatchProgressInput,
+  WatchProgress,
 } from './dramas.types';
 
 const DEFAULT_PAGE = 1;
@@ -59,6 +62,22 @@ const toDramaSummary = (drama: DramaRow): DramaSummary => ({
   freeEpisodeCount: drama.freeEpisodeCount,
   coinPerEpisode: drama.coinPerEpisode,
   publishedAt: toIso(drama.publishedAt),
+});
+
+const toWatchProgress = (p: {
+  episodeId: string;
+  dramaId: string;
+  positionSeconds: number;
+  durationSeconds: number | null;
+  completedAt: Date | null;
+  lastWatchedAt: Date;
+}): WatchProgress => ({
+  episodeId: p.episodeId,
+  dramaId: p.dramaId,
+  positionSeconds: p.positionSeconds,
+  durationSeconds: p.durationSeconds,
+  completedAt: toIso(p.completedAt),
+  lastWatchedAt: p.lastWatchedAt.toISOString(),
 });
 
 // `publishedAt <= now OR null` — the schema permits a published drama with a
@@ -432,6 +451,130 @@ export class DramasService {
     return {
       ...toDramaSummary(drama),
       episodes,
+    };
+  }
+
+  async saveProgress(userId: string, input: SaveWatchProgressInput): Promise<WatchProgress> {
+    if (
+      input.positionSeconds < 0 ||
+      (input.durationSeconds !== undefined && input.durationSeconds < 0)
+    ) {
+      throw DomainError.badRequest('Progress values must be non-negative');
+    }
+
+    const now = new Date();
+    const episode = await this.prisma.episode.findFirst({
+      where: {
+        id: input.episodeId,
+        isPublished: true,
+        deletedAt: null,
+        OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+        drama: {
+          status: PUBLISHED,
+          deletedAt: null,
+          OR: publishedAtVisible(now),
+        },
+      },
+      select: { id: true, dramaId: true, durationSeconds: true, isFree: true },
+    });
+    if (!episode) {
+      throw DomainError.notFound('Episode not found');
+    }
+
+    if (!episode.isFree) {
+      const [unlock, subscription] = await Promise.all([
+        this.prisma.episodeUnlock.findFirst({
+          where: { userId, episodeId: episode.id },
+          select: { id: true },
+        }),
+        this.prisma.subscription.findFirst({
+          where: {
+            userId,
+            status: { in: [...SUBSCRIPTION_ACTIVE_STATUSES] },
+            currentPeriodEnd: { gt: now },
+          },
+          select: { id: true },
+        }),
+      ]);
+      if (!unlock && !subscription) {
+        throw DomainError.forbidden('Episode is locked');
+      }
+    }
+
+    const durationSeconds =
+      episode.durationSeconds == null
+        ? (input.durationSeconds ?? null)
+        : Math.min(input.durationSeconds ?? episode.durationSeconds, episode.durationSeconds);
+    const positionSeconds =
+      durationSeconds === null
+        ? input.positionSeconds
+        : Math.min(input.positionSeconds, durationSeconds);
+    const existing = await this.prisma.watchProgress.findFirst({
+      where: { userId, episodeId: episode.id },
+      select: { id: true, positionSeconds: true, completedAt: true },
+    });
+    const data = {
+      positionSeconds: existing
+        ? Math.max(existing.positionSeconds ?? 0, positionSeconds)
+        : positionSeconds,
+      durationSeconds,
+      completedAt: input.completed ? now : (existing?.completedAt ?? null),
+      lastWatchedAt: now,
+    };
+
+    try {
+      const progress = existing
+        ? await this.prisma.watchProgress.update({
+            where: { id: existing.id },
+            data,
+          })
+        : await this.prisma.watchProgress.create({
+            data: {
+              userId,
+              guestId: null,
+              dramaId: episode.dramaId,
+              episodeId: episode.id,
+              ...data,
+            },
+          });
+      return toWatchProgress(progress);
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+
+      const raced = await this.prisma.watchProgress.findFirst({
+        where: { userId, episodeId: episode.id },
+        select: { id: true, positionSeconds: true, completedAt: true },
+      });
+      if (!raced) throw error;
+
+      const progress = await this.prisma.watchProgress.update({
+        where: { id: raced.id },
+        data: {
+          ...data,
+          positionSeconds: Math.max(raced.positionSeconds, positionSeconds),
+          completedAt: input.completed ? now : (raced.completedAt ?? null),
+        },
+      });
+      return toWatchProgress(progress);
+    }
+  }
+
+  async listContinueWatching(userId: string, limit = 10): Promise<ContinueWatching> {
+    const items = await this.prisma.watchProgress.findMany({
+      where: { userId },
+      orderBy: { lastWatchedAt: 'desc' },
+      take: limit,
+      include: {
+        drama: { select: { id: true, slug: true, title: true, posterUrl: true } },
+        episode: { select: { id: true, episodeNumber: true, title: true } },
+      },
+    });
+    return {
+      items: items.map((item) => ({
+        drama: item.drama,
+        episode: item.episode,
+        progress: toWatchProgress(item),
+      })),
     };
   }
 }
