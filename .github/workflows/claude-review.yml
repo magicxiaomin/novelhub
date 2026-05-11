@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           BRANCH="${{ github.event.pull_request.head.ref }}"
           PR="${{ github.event.pull_request.number }}"
-          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]+' | head -1 | cut -d/ -f2 || true)
+          TICKET_NUM=$(echo "$BRANCH" | grep -oE '(feature|fix|ci|chore)/[0-9]+' | head -1 | cut -d/ -f2 || true)
           if [ -z "${TICKET_NUM:-}" ]; then
             TICKET_NUM=$(gh pr view "$PR" --json body --jq '.body' \
               | grep -oE '#[0-9]+' | tr -d '#' | head -1 || true)
@@ -233,7 +233,7 @@ jobs:
           set -euo pipefail
           BRANCH="${{ github.event.pull_request.head.ref }}"
           PR="${{ github.event.pull_request.number }}"
-          TICKET_NUM=$(echo "$BRANCH" | grep -oE 'feature/[0-9]+' | head -1 | cut -d/ -f2 || true)
+          TICKET_NUM=$(echo "$BRANCH" | grep -oE '(feature|fix|ci|chore)/[0-9]+' | head -1 | cut -d/ -f2 || true)
           if [ -z "${TICKET_NUM:-}" ]; then
             TICKET_NUM=$(gh pr view "$PR" --json body --jq '.body' \
               | grep -oE '#[0-9]+' | tr -d '#' | head -1 || true)
@@ -495,6 +495,7 @@ jobs:
       needs.correctness_review.outputs.retry_count < '3'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
       issues: write
     steps:
