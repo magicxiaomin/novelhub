@@ -1,22 +1,19 @@
-import Link from 'next/link';
-
-import { BookCard } from '@/components/book/book-card';
-import type { BookSummary } from '@/lib/types';
+import type { DramaSummary } from '@/lib/types';
 import { messages } from '@novelhub/shared';
 
-export function BookRail({
+import { DramaCard } from './drama-card';
+
+export function DramaRail({
   title,
-  books,
-  seeAllHref,
-  emptyMessage,
+  dramas,
+  emptyMessage = messages.drama.empty,
   errorMessage,
 }: {
   title: string;
-  books: BookSummary[];
-  seeAllHref?: string;
+  dramas: DramaSummary[];
   emptyMessage?: string;
   errorMessage?: string;
-}): JSX.Element | null {
+}): JSX.Element {
   if (errorMessage) {
     return (
       <section className="mt-6 px-4">
@@ -28,8 +25,7 @@ export function BookRail({
     );
   }
 
-  if (books.length === 0) {
-    if (!emptyMessage) return null;
+  if (dramas.length === 0) {
     return (
       <section className="mt-6 px-4">
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
@@ -39,20 +35,14 @@ export function BookRail({
       </section>
     );
   }
-
   return (
     <section className="mt-6">
-      <div className="flex items-end justify-between px-4">
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        {seeAllHref ? (
-          <Link href={seeAllHref} className="text-sm font-medium text-brand">
-            {messages.home.seeAll}
-          </Link>
-        ) : null}
-      </div>
-      <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto scroll-smooth px-4">
-        {books.map((book) => (
-          <BookCard key={book.id} book={book} />
+      <h2 className="px-4 text-lg font-semibold tracking-tight">{title}</h2>
+      <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto px-4">
+        {dramas.map((drama, index) => (
+          <div key={drama.id} className="w-40 shrink-0">
+            <DramaCard drama={drama} priority={index < 2} />
+          </div>
         ))}
       </div>
     </section>

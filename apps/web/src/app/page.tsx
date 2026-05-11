@@ -1,88 +1,110 @@
-'use client';
+import Link from 'next/link';
 
-import { useQuery } from '@tanstack/react-query';
-
-import { AppShell } from '@/components/layout/app-shell';
 import { BookRail } from '@/components/home/book-rail';
-import { CategorySection } from '@/components/home/category-section';
-import { CheckinCard } from '@/components/home/checkin-card';
-import { ContinueReadingRail } from '@/components/home/continue-reading-rail';
-import { FeaturedCarousel } from '@/components/home/featured-carousel';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  fetchBooks,
-  fetchCategories,
-  fetchFeatured,
-  fetchTrending,
-  queryKeys,
-} from '@/lib/queries';
+import { DramaCard } from '@/components/drama/drama-card';
+import { DramaRail } from '@/components/drama/drama-rail';
+import { AppShell } from '@/components/layout/app-shell';
+import { Button } from '@/components/ui/button';
+import { fetchBooksServer, fetchDramasServer } from '@/lib/server-api';
 import { messages } from '@novelhub/shared';
 
-export default function HomePage(): JSX.Element {
-  const featured = useQuery({ queryKey: queryKeys.featured, queryFn: fetchFeatured });
-  const trending = useQuery({ queryKey: queryKeys.trending, queryFn: fetchTrending });
-  const categories = useQuery({ queryKey: queryKeys.categories, queryFn: fetchCategories });
-  const newReleases = useQuery({
-    queryKey: queryKeys.list({ limit: 10 }),
-    queryFn: () => fetchBooks({ limit: 10 }),
-  });
+export const runtime = 'edge';
+
+type DramaRailResult = Awaited<ReturnType<typeof fetchDramasServer>>;
+type BookRailResult = Awaited<ReturnType<typeof fetchBooksServer>>;
+
+async function safeFetchDramaRail(
+  query: Parameters<typeof fetchDramasServer>[0],
+): Promise<{ data: DramaRailResult | null; error: boolean }> {
+  try {
+    return { data: await fetchDramasServer(query), error: false };
+  } catch {
+    return { data: null, error: true };
+  }
+}
+
+async function safeFetchBookRail(
+  query: Parameters<typeof fetchBooksServer>[0],
+): Promise<{ data: BookRailResult | null; error: boolean }> {
+  try {
+    return { data: await fetchBooksServer(query), error: false };
+  } catch {
+    return { data: null, error: true };
+  }
+}
+
+export default async function HomePage(): Promise<JSX.Element> {
+  const [featuredResult, allResult, newReleasesResult] = await Promise.all([
+    safeFetchDramaRail({ featured: true, pageSize: 8 }),
+    safeFetchDramaRail({ pageSize: 12 }),
+    safeFetchBookRail({ limit: 10 }),
+  ]);
+  const featuredItems = featuredResult.data?.items ?? [];
+  const allItems = allResult.data?.items ?? [];
+  const newReleaseItems = newReleasesResult.data?.items ?? [];
+  const hero = featuredItems[0] ?? allItems[0];
 
   return (
     <AppShell>
-      <div className="pt-3">
-        <CheckinCard />
+      <div className="pt-4">
+        <section className="px-4">
+          <div className="rounded-3xl bg-gradient-to-br from-rose-600 via-fuchsia-600 to-slate-950 p-5 text-white shadow-lg">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/75">
+              {messages.drama.heroEyebrow}
+            </p>
+            <h1 className="mt-3 text-3xl font-black leading-tight">{messages.drama.heroTitle}</h1>
+            <p className="mt-3 text-sm leading-6 text-white/85">{messages.drama.heroBody}</p>
+            <div className="mt-5 flex items-center gap-3">
+              {hero ? (
+                <Button asChild>
+                  <Link href={`/dramas/${hero.slug}`}>{messages.drama.watchNow}</Link>
+                </Button>
+              ) : null}
+              <Button
+                asChild
+                variant="outline"
+                className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              >
+                <Link href="/novels">{messages.drama.novelsLink}</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
 
-        {featured.isLoading ? (
-          <Skeleton className="mx-4 aspect-[16/9] rounded-2xl" />
-        ) : (
-          <FeaturedCarousel books={featured.data ?? []} />
-        )}
+        <DramaRail
+          title={messages.drama.featured}
+          dramas={featuredItems}
+          emptyMessage={messages.drama.featuredEmpty}
+          errorMessage={featuredResult.error ? messages.drama.browseError : undefined}
+        />
 
-        <ContinueReadingRail />
+        <BookRail
+          title={messages.home.newReleases}
+          books={newReleaseItems}
+          seeAllHref="/novels"
+          emptyMessage={messages.home.railEmpty}
+          errorMessage={newReleasesResult.error ? messages.home.railError : undefined}
+        />
 
-        {trending.isLoading ? (
-          <RailSkeleton title={messages.home.trending} />
-        ) : (
-          <BookRail
-            title={messages.home.trending}
-            books={trending.data ?? []}
-            seeAllHref="/category/trending"
-          />
-        )}
-
-        {newReleases.isLoading ? (
-          <RailSkeleton title={messages.home.newReleases} />
-        ) : (
-          <BookRail
-            title={messages.home.newReleases}
-            books={newReleases.data?.items ?? []}
-            seeAllHref="/category/new"
-          />
-        )}
-
-        {categories.isLoading
-          ? Array.from({ length: 2 }).map((_, i) => <RailSkeleton key={i} title="" />)
-          : (categories.data ?? []).map((c) => (
-              <CategorySection key={c.category} category={c.category} />
-            ))}
+        <section className="mt-6 px-4">
+          <h2 className="text-lg font-semibold tracking-tight">{messages.drama.all}</h2>
+          {allResult.error ? (
+            <p className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              {messages.drama.browseError}
+            </p>
+          ) : allItems.length === 0 ? (
+            <p className="mt-3 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">
+              {messages.drama.allEmpty}
+            </p>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              {allItems.map((drama, index) => (
+                <DramaCard key={drama.id} drama={drama} priority={index < 2} />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </AppShell>
-  );
-}
-
-function RailSkeleton({ title }: { title: string }): JSX.Element {
-  return (
-    <section className="mt-6">
-      {title ? (
-        <h2 className="px-4 text-lg font-semibold tracking-tight">{title}</h2>
-      ) : (
-        <Skeleton className="mx-4 h-5 w-32" />
-      )}
-      <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto px-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-48 w-36 shrink-0 rounded-xl" />
-        ))}
-      </div>
-    </section>
   );
 }

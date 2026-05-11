@@ -13,8 +13,8 @@
     }
   },
   "metadata": {
-    "title": "NovelHub — Read More Stories",
-    "description": "Discover trending web novels. Read the first chapters free, then unlock the rest with coins or a subscription."
+    "title": "DramaVela \u2014 Watch Bite-Size Dramas",
+    "description": "Discover bingeable short dramas. Watch free episodes, then unlock the rest with coins or a subscription."
   },
   "nav": {
     "primary": "Primary",
@@ -47,7 +47,9 @@
     "newReleases": "New Releases",
     "continueReading": "Continue Reading",
     "seeAll": "See all",
-    "progress": "Chapter {chapterNumber} · {scrollPercent}%"
+    "progress": "Chapter {chapterNumber} \u00b7 {scrollPercent}%",
+    "railError": "This row could not be loaded. Please try again soon.",
+    "railEmpty": "More stories are coming soon."
   },
   "checkin": {
     "title": "Daily check-in",
@@ -308,7 +310,7 @@
   },
   "payment": {
     "confirming": "Confirming...",
-    "completed": "Coins added — back to reading",
+    "completed": "Coins added \u2014 back to reading",
     "failed": "Something went wrong",
     "retry": "Retry",
     "missingSession": "Missing checkout session",
@@ -362,7 +364,7 @@
     "cancelsOn": "Cancels on {date}",
     "portalError": "Subscription management could not be opened.",
     "readingHistory": "Reading History",
-    "historyProgress": "Chapter {chapterNumber} · {scrollPercent}%",
+    "historyProgress": "Chapter {chapterNumber} \u00b7 {scrollPercent}%",
     "emptyHistory": "No reading history yet.",
     "settings": "Settings",
     "notifications": "Notifications",
@@ -403,5 +405,36 @@
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
     "daysAgo": "{count}d ago"
+  },
+  "drama": {
+    "heroEyebrow": "DramaVela Shorts",
+    "heroTitle": "Binge emotional short dramas",
+    "heroBody": "Fast romance, revenge, fantasy, and CEO stories built for mobile watching. Start with free episodes today.",
+    "featured": "Featured dramas",
+    "all": "All dramas",
+    "episodes": "Episodes",
+    "freeEpisodes": "Free episodes",
+    "coins": "coins/episode",
+    "watchNow": "Watch now",
+    "continueWatching": "Continue watching",
+    "playbackComingSoon": "Playback coming soon",
+    "episodesComingSoon": "Episodes coming soon",
+    "browseError": "Dramas could not be loaded. Please try again soon.",
+    "featuredEmpty": "Featured dramas are coming soon.",
+    "allEmpty": "More dramas are coming soon.",
+    "browseTitle": "Browse dramas",
+    "browseBody": "Explore short dramas by newest releases and featured picks.",
+    "loading": "Loading dramas...",
+    "about": "About this drama",
+    "episodeList": "Episodes",
+    "free": "Free",
+    "locked": "Locked",
+    "empty": "No dramas are available yet.",
+    "notFound": "Drama not found",
+    "notFoundBody": "The drama you are looking for might have been removed.",
+    "backHome": "Back to dramas",
+    "status": "Status",
+    "category": "Category",
+    "novelsLink": "Read novels instead"
   }
 }

@@ -12,7 +12,16 @@
 import { cookies } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
-import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from './types';
+import type {
+  BookDetail,
+  BookSummary,
+  ChapterResponse,
+  ChapterSummary,
+  DramaDetail,
+  DramaPaginated,
+  DramaSummary,
+  Paginated,
+} from './types';
 
 const apiBase = (): string => {
   const base = publicApiBaseUrl();
@@ -47,7 +56,29 @@ export async function fetchBookServer(id: string): Promise<BookDetail | null> {
   return (await res.json()) as BookDetail;
 }
 
-const cookieHeader = (): string => cookies().toString();
+export async function fetchBooksServer(query?: {
+  category?: string;
+  status?: string;
+  featured?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<Paginated<BookSummary>> {
+  const res = await fetch(buildServerApiUrl('/books', query), {
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch books: ${res.status}`);
+  }
+  return (await res.json()) as Paginated<BookSummary>;
+}
+
+const cookieHeader = (): string => {
+  try {
+    return cookies().toString();
+  } catch {
+    return '';
+  }
+};
 
 export async function fetchBookChaptersServer(
   id: string,
@@ -78,4 +109,31 @@ export async function fetchChapterServer(id: string): Promise<ChapterResponse | 
     throw new Error(`Failed to fetch chapter ${id}: ${res.status}`);
   }
   return (await res.json()) as ChapterResponse;
+}
+
+export async function fetchDramasServer(query?: {
+  category?: string;
+  featured?: boolean;
+  page?: number;
+  pageSize?: number;
+}): Promise<DramaPaginated<DramaSummary>> {
+  const res = await fetch(buildServerApiUrl('/dramas', query), {
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch dramas: ${res.status}`);
+  }
+  return (await res.json()) as DramaPaginated<DramaSummary>;
+}
+
+export async function fetchDramaServer(slug: string): Promise<DramaDetail | null> {
+  const res = await fetch(buildServerApiUrl(`/dramas/${encodeURIComponent(slug)}`), {
+    cache: 'no-store',
+    headers: { cookie: cookieHeader() },
+  });
+  if (res.status === 404 || res.status === 401) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to fetch drama ${slug}: ${res.status}`);
+  }
+  return (await res.json()) as DramaDetail;
 }
