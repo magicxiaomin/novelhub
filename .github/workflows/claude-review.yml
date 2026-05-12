@@ -586,8 +586,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-human-merge"
-          gh pr comment ${{ github.event.pull_request.number }} --body "## Auto-merge blocked by ticket policy
+          gh pr edit ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --add-label "needs-human-merge"
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body "## Auto-merge blocked by ticket policy
 
           ${{ steps.policy.outputs.reason }}.
 
@@ -602,6 +602,7 @@ jobs:
           set -euo pipefail
           for attempt in {1..60}; do
             RUN_ID=$(gh run list \
+              --repo "${{ github.repository }}" \
               --workflow "Sanity Checks" \
               --commit "$HEAD_SHA" \
               --event pull_request \
@@ -615,8 +616,8 @@ jobs:
               continue
             fi
 
-            STATUS=$(gh run view "$RUN_ID" --json status --jq '.status')
-            CONCLUSION=$(gh run view "$RUN_ID" --json conclusion --jq '.conclusion // ""')
+            STATUS=$(gh run view "$RUN_ID" --repo "${{ github.repository }}" --json status --jq '.status')
+            CONCLUSION=$(gh run view "$RUN_ID" --repo "${{ github.repository }}" --json conclusion --jq '.conclusion // ""')
             echo "Sanity Checks run $RUN_ID: status=$STATUS conclusion=${CONCLUSION:-pending}"
 
             if [ "$STATUS" = "completed" ]; then
@@ -640,6 +641,8 @@ jobs:
         run: |
           set -euo pipefail
           gh pr merge ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
             --squash --delete-branch --auto || \
           gh pr merge ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
             --squash --delete-branch
