@@ -17,6 +17,24 @@ Use four pre-cut, per-episode HLS VOD assets for a single staging drama:
 
 This matches the Phase 4 architecture decision: four per-episode HLS assets, no progressive/shared clip enforcement in the player.
 
+## Smoke coverage mapping
+
+This pack is intended to exercise the Phase 4 staging drama smoke flows without touching production data:
+
+| Smoke flow     | Pack coverage                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browse/listing | The `suspense-1913` drama should appear in the staging browse response with four episodes and HLS-backed media metadata.                                                  |
+| Detail         | The drama detail view should show the staging title, episode order, free/locked split, and HLS playback URLs for each episode without requiring progressive clip offsets. |
+| Player         | Opening any episode should initialize the HLS player from that episode's `index.m3u8` URL under `<STAGING_DRAMA_MEDIA_BASE_URL>/dramas/suspense-1913/ep{n}/`.             |
+| Free playback  | Episodes 1 and 2 are free and should play for unauthenticated/eligible smoke users without an unlock purchase.                                                            |
+| Locked no-leak | Episodes 3 and 4 are locked; smoke checks should confirm locked responses do not expose playable signed or direct media URLs before entitlement.                          |
+| Unlock         | Unlocking a locked episode should grant access only through the reviewed staging entitlement path and then return the episode's HLS URL.                                  |
+| Progress       | Watching a free or unlocked episode should update the staging progress endpoint for the correct drama/episode without depending on shared progressive WebM clip offsets.  |
+
+If these fixtures are used by automated smoke tests, keep assertions scoped to
+staging identifiers and the access split above: episodes 1-2 free, episodes 3-4
+locked.
+
 ## Source and license evidence
 
 Primary source:
@@ -85,15 +103,23 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:no
 sha256sum "$PACK_DIR/src/suspense-1913.webm" > "$PACK_DIR/src/SHA256SUMS"
 ```
 
-Create the four source clips:
+Create the four source clips with exact sub-second boundaries by re-encoding the
+VP8 source. Do not use `-c copy` for these split points: stream-copy cuts can
+snap to nearby keyframes and are therefore not exact for the `00:02:32.500`,
+`00:05:05.000`, and `00:07:37.500` boundaries.
 
 ```bash
-ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:00:00.000 -to 00:02:32.500 -c copy "$PACK_DIR/src/ep1.webm"
-ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:02:32.500 -to 00:05:05.000 -c copy "$PACK_DIR/src/ep2.webm"
-ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:05:05.000 -to 00:07:37.500 -c copy "$PACK_DIR/src/ep3.webm"
-ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:07:37.500 -to 00:10:10.276 -c copy "$PACK_DIR/src/ep4.webm"
+ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:00:00.000 -to 00:02:32.500 -c:v libvpx-vp9 -b:v 0 -crf 32 -an "$PACK_DIR/src/ep1.webm"
+ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:02:32.500 -to 00:05:05.000 -c:v libvpx-vp9 -b:v 0 -crf 32 -an "$PACK_DIR/src/ep2.webm"
+ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:05:05.000 -to 00:07:37.500 -c:v libvpx-vp9 -b:v 0 -crf 32 -an "$PACK_DIR/src/ep3.webm"
+ffmpeg -y -i "$PACK_DIR/src/suspense-1913.webm" -ss 00:07:37.500 -to 00:10:10.276 -c:v libvpx-vp9 -b:v 0 -crf 32 -an "$PACK_DIR/src/ep4.webm"
 sha256sum "$PACK_DIR"/src/ep{1,2,3,4}.webm > "$PACK_DIR/src/CLIP_SHA256SUMS"
 ```
+
+If an operator intentionally chooses faster stream-copy clipping instead, record
+that the resulting clips are keyframe-snapped approximations, not exact
+sub-second cuts, and update the episode provenance with the observed
+`ffprobe` start/end times.
 
 Package each clip as a single-rendition HLS VOD asset. The output layout intentionally mirrors the app's HLS-shaped playback path: `index.m3u8` plus `.ts` segments per episode.
 
@@ -144,8 +170,8 @@ Required content types:
 
 Required cache/CORS behavior for browser playback:
 
-- `GET`, `HEAD`, and `OPTIONS` allowed from the staging web origin.
-- `Access-Control-Allow-Origin` must include the staging web origin. Use `*` only if no credentials/cookies are required for media objects.
+- `GET`, `HEAD`, and `OPTIONS` allowed from the explicit staging web origin.
+- `Access-Control-Allow-Origin` must allowlist the exact staging web origin; do not use wildcard `*` for the staging verification path.
 - `Access-Control-Allow-Methods: GET,HEAD,OPTIONS`.
 - Expose `Content-Length`, `Content-Range`, `Accept-Ranges`, `ETag`, and `Last-Modified` when supported.
 - Byte-range requests should be supported for segments/media delivery.
@@ -154,6 +180,9 @@ Required cache/CORS behavior for browser playback:
 ## Verification commands after upload
 
 Replace `STAGING_DRAMA_MEDIA_BASE_URL` with the approved staging media base URL.
+If verification requires signed URLs, generate fresh short-lived values for this
+run only, redact query strings before pasting evidence into GitHub, and do not
+reuse signed URLs from logs, CI output, review comments, or previous runs.
 
 ```bash
 BASE="$STAGING_DRAMA_MEDIA_BASE_URL/dramas/suspense-1913"
