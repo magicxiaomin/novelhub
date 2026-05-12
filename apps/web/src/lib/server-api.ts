@@ -12,13 +12,7 @@
 import { cookies } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
-import {
-  dramaE2eFixtureDetail,
-  dramaE2eFixtureList,
-  dramaE2eFixturePlayback,
-  dramaE2eFixtureSlug,
-  dramaE2eFixturesEnabled,
-} from './drama-e2e-fixtures';
+import { dramaE2eFixturesEnabled } from './drama-e2e-fixture-gate';
 import type {
   BookDetail,
   BookSummary,
@@ -30,6 +24,8 @@ import type {
   EpisodePlayback,
   Paginated,
 } from './types';
+
+type DramaE2eFixtures = typeof import('./drama-e2e-fixtures');
 
 const apiBase = (): string => {
   const base = publicApiBaseUrl();
@@ -88,6 +84,11 @@ const cookieHeader = (): string => {
   }
 };
 
+const loadDramaE2eFixtures = async (): Promise<DramaE2eFixtures | null> => {
+  if (!dramaE2eFixturesEnabled()) return null;
+  return import('./drama-e2e-fixtures');
+};
+
 export async function fetchBookChaptersServer(
   id: string,
   page = 1,
@@ -125,8 +126,9 @@ export async function fetchDramasServer(query?: {
   page?: number;
   pageSize?: number;
 }): Promise<DramaPaginated<DramaSummary>> {
-  if (dramaE2eFixturesEnabled()) {
-    const fixtures = dramaE2eFixtureList();
+  const e2eFixtures = await loadDramaE2eFixtures();
+  if (e2eFixtures) {
+    const fixtures = e2eFixtures.dramaE2eFixtureList();
     return {
       ...fixtures,
       items: query?.featured ? fixtures.items.filter((drama) => drama.isFeatured) : fixtures.items,
@@ -143,8 +145,9 @@ export async function fetchDramasServer(query?: {
 }
 
 export async function fetchDramaServer(slug: string): Promise<DramaDetail | null> {
-  if (dramaE2eFixturesEnabled()) {
-    return slug === dramaE2eFixtureSlug ? dramaE2eFixtureDetail : null;
+  const e2eFixtures = await loadDramaE2eFixtures();
+  if (e2eFixtures) {
+    return slug === e2eFixtures.dramaE2eFixtureSlug ? e2eFixtures.dramaE2eFixtureDetail : null;
   }
 
   const res = await fetch(buildServerApiUrl(`/dramas/${encodeURIComponent(slug)}`), {
@@ -161,8 +164,9 @@ export async function fetchDramaServer(slug: string): Promise<DramaDetail | null
 export async function fetchEpisodePlaybackServer(
   episodeId: string,
 ): Promise<EpisodePlayback | null> {
-  if (dramaE2eFixturesEnabled()) {
-    return dramaE2eFixturePlayback(episodeId);
+  const e2eFixtures = await loadDramaE2eFixtures();
+  if (e2eFixtures) {
+    return e2eFixtures.dramaE2eFixturePlayback(episodeId);
   }
 
   const res = await fetch(

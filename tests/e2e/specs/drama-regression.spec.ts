@@ -7,7 +7,7 @@ import {
   dramaE2eFixtureSlug,
   dramaE2eFreeEpisodeId,
   dramaE2eLockedEpisodeId,
-} from '../../../apps/web/src/lib/drama-e2e-fixtures';
+} from '../fixtures/drama';
 
 const dramaSlug = dramaE2eFixtureSlug;
 const freeEpisodeId = dramaE2eFreeEpisodeId;
@@ -79,6 +79,45 @@ async function mockAnonymousDramaBrowserApi(page: import('@playwright/test').Pag
   );
 }
 
+async function mockSignedInDramaResumeApi(page: import('@playwright/test').Page, email: string) {
+  let registered = false;
+  const user = {
+    id: '55555555-0000-4d00-8d00-000000000000',
+    email,
+    name: null,
+    role: 'USER',
+    coinBalance: 0,
+  };
+
+  await page.route('http://localhost:4000/auth/me', (route) =>
+    route.fulfill({
+      status: registered ? 200 : 401,
+      contentType: 'application/json',
+      body: registered ? JSON.stringify({ user }) : JSON.stringify({}),
+    }),
+  );
+
+  await page.route('http://localhost:4000/auth/register', (route) => {
+    registered = true;
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ user }),
+    });
+  });
+
+  await page.route('http://localhost:4000/drama-progress', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        episodeId: freeEpisodeId,
+        positionSeconds: 37,
+        durationSeconds: 80,
+        completed: false,
+      }),
+    }),
+  );
+}
+
 test('anonymous visitor can browse drama detail, open deterministic free playback, and hit locked paywall', async ({
   page,
 }) => {
@@ -108,14 +147,14 @@ test('anonymous visitor can browse drama detail, open deterministic free playbac
     page.getByRole('link', { name: /Watch now: Revenge in Red Heels/ }).first(),
   ).toBeVisible();
 
-  await page.goto(`/dramas/${dramaSlug}`, { waitUntil: 'domcontentloaded' });
+  await seededDramaLink.click();
   await expect(page).toHaveURL(new RegExp(`/dramas/${dramaSlug}$`));
   await expect(page.getByRole('heading', { name: 'The Billionaire Contract' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Episodes' })).toBeVisible();
   await expect(page.getByRole('link', { name: /1\. The Offer.*Free/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /4\. The Locked Penthouse.*Locked/ })).toBeVisible();
 
-  await page.goto(`/dramas/${dramaSlug}/watch/${freeEpisodeId}`, { waitUntil: 'domcontentloaded' });
+  await page.locator(`a[href="/dramas/${dramaSlug}/watch/${freeEpisodeId}"]`).first().click();
   await expect(page).toHaveURL(new RegExp(`/dramas/${dramaSlug}/watch/${freeEpisodeId}$`));
   await expect(page.getByRole('link', { name: 'Back to details' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'The Offer' })).toBeVisible();
@@ -136,6 +175,7 @@ test('anonymous visitor can browse drama detail, open deterministic free playbac
   await expect(
     page.getByText('Your watch progress resumes after access is restored.'),
   ).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
   expect(hlsRequests).toHaveLength(requestsBeforeLockedPlayback);
 });
 
@@ -146,6 +186,7 @@ test('signed-in viewer sees resume CTA and resume label for existing drama progr
   const password = 'password123';
 
   await mockDeterministicDramaHls(page);
+  await mockSignedInDramaResumeApi(page, email);
 
   await page.goto('/');
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -159,12 +200,7 @@ test('signed-in viewer sees resume CTA and resume label for existing drama progr
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByLabel('Confirm password').fill(password);
   await page.getByRole('button', { name: 'Create Account' }).click();
-  const accountLink = page.getByRole('link', { name: 'Account' });
-  await accountLink.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
-  test.skip(
-    (await accountLink.count()) === 0,
-    'Auth API is unavailable in this environment; skipping authenticated drama resume smoke.',
-  );
+  await expect(page.getByRole('link', { name: 'Account' })).toBeVisible();
 
   const apiBaseUrl =
     process.env.NEXT_PUBLIC_API_BASE_URL ??
@@ -208,5 +244,5 @@ test('signed-in viewer sees resume CTA and resume label for existing drama progr
 
   await page.getByRole('link', { name: 'Continue watching' }).click();
   await expect(page).toHaveURL(new RegExp(`/dramas/${dramaSlug}/watch/${freeEpisodeId}$`));
-  await expect(page.getByText(/Resume available: 0:37/)).toBeVisible();
+  await expect(page.getByText(/Resume available: Resume from 37s/)).toBeVisible();
 });

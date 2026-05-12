@@ -1,12 +1,10 @@
-import type { DramaDetail, DramaPaginated, DramaSummary, EpisodePlayback } from './types';
-
 export const dramaE2eFixtureSlug = 'the-billionaire-contract';
 export const dramaE2eFreeEpisodeId = '44444444-0001-4d00-8d00-000000000001';
 export const dramaE2eLockedEpisodeId = '44444444-0004-4d00-8d00-000000000004';
 
 const fixturePosterUrl = '/covers/pride-and-prejudice.svg';
 
-export const dramaE2eFixtureDetail: DramaDetail = {
+export const dramaE2eFixtureDetail = {
   id: '33333333-0000-4d00-8d00-000000000000',
   slug: dramaE2eFixtureSlug,
   title: 'The Billionaire Contract',
@@ -75,7 +73,7 @@ export const dramaE2eFixtureDetail: DramaDetail = {
   ],
 };
 
-const secondaryDrama: DramaSummary = {
+const secondaryDrama = {
   id: '33333333-0000-4d00-8d00-000000000001',
   slug: 'revenge-in-red-heels',
   title: 'Revenge in Red Heels',
@@ -92,7 +90,7 @@ const secondaryDrama: DramaSummary = {
   publishedAt: '2026-01-05T00:00:00.000Z',
 };
 
-export function dramaE2eFixtureList(): DramaPaginated<DramaSummary> {
+export function dramaE2eFixtureList() {
   return {
     items: [toSummary(dramaE2eFixtureDetail), secondaryDrama],
     pageInfo: {
@@ -104,7 +102,7 @@ export function dramaE2eFixtureList(): DramaPaginated<DramaSummary> {
   };
 }
 
-export function dramaE2eFixturePlayback(episodeId: string): EpisodePlayback | null {
+export function dramaE2eFixturePlayback(episodeId: string) {
   const episode = dramaE2eFixtureDetail.episodes.find((item) => item.id === episodeId);
   if (!episode) return null;
 
@@ -137,9 +135,7 @@ export function dramaE2eFixturePlayback(episodeId: string): EpisodePlayback | nu
   };
 }
 
-export { dramaE2eFixturesEnabled } from './drama-e2e-fixture-gate';
-
-function toSummary(detail: DramaDetail): DramaSummary {
+function toSummary(detail: typeof dramaE2eFixtureDetail) {
   return {
     id: detail.id,
     slug: detail.slug,
