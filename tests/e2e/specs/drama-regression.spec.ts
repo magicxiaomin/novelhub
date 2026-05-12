@@ -151,10 +151,20 @@ test('anonymous visitor can browse drama detail, open deterministic free playbac
   await expect(page).toHaveURL(new RegExp(`/dramas/${dramaSlug}$`));
   await expect(page.getByRole('heading', { name: 'The Billionaire Contract' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Episodes' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /1\. The Offer.*Free/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: /4\. The Locked Penthouse.*Locked/ })).toBeVisible();
+  const freeEpisodeLink = page
+    .locator(`a[href="/dramas/${dramaSlug}/watch/${freeEpisodeId}"]`)
+    .filter({ hasText: '1. The Offer' })
+    .first();
+  await expect(freeEpisodeLink).toContainText('1. The Offer');
+  await expect(freeEpisodeLink).toContainText('Free');
 
-  await page.locator(`a[href="/dramas/${dramaSlug}/watch/${freeEpisodeId}"]`).first().click();
+  const lockedEpisodeLink = page
+    .locator(`a[href="/dramas/${dramaSlug}/watch/${lockedEpisodeId}"]`)
+    .first();
+  await expect(lockedEpisodeLink).toContainText('4. The Locked Penthouse');
+  await expect(lockedEpisodeLink).toContainText('Locked');
+
+  await freeEpisodeLink.click();
   await expect(page).toHaveURL(new RegExp(`/dramas/${dramaSlug}/watch/${freeEpisodeId}$`));
   await expect(page.getByRole('link', { name: 'Back to details' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'The Offer' })).toBeVisible();
@@ -191,10 +201,7 @@ test('signed-in viewer sees resume CTA and resume label for existing drama progr
   await page.goto('/');
   await page.getByRole('button', { name: 'Sign in' }).click();
   const signUpButton = page.getByRole('button', { name: 'Sign Up' });
-  test.skip(
-    (await signUpButton.count()) === 0,
-    'Auth sign-up UI is unavailable in this environment; skipping authenticated drama resume smoke.',
-  );
+  await expect(signUpButton).toBeVisible();
   await signUpButton.click();
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -224,10 +231,6 @@ test('signed-in viewer sees resume CTA and resume label for existing drama progr
     },
     { episodeId: freeEpisodeId, url: progressUrl },
   );
-  test.skip(
-    progressResponse.status === 404,
-    `Drama progress endpoint is unavailable in this environment: ${JSON.stringify(progressResponse)}`,
-  );
   expect(
     progressResponse,
     `drama progress response: ${JSON.stringify(progressResponse)}`,
@@ -236,10 +239,7 @@ test('signed-in viewer sees resume CTA and resume label for existing drama progr
   });
 
   await page.goto(`/dramas/${dramaSlug}`);
-  test.skip(
-    (await page.getByRole('heading', { name: 'The Billionaire Contract' }).count()) === 0,
-    'Seeded drama detail data is unavailable in this environment; skipping resume CTA smoke.',
-  );
+  await expect(page.getByRole('heading', { name: 'The Billionaire Contract' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Continue watching' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Continue watching' }).click();
