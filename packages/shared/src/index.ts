@@ -4,6 +4,7 @@ export * from './consent';
 export * from './push-copy';
 export * from './routes';
 export * from './sentry-scrubber';
+export * from './drama-e2e-fixtures';
 
 import messagesJson from './messages/en.json';
 /**

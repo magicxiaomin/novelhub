@@ -90,6 +90,11 @@ jobs:
         env:
           PORT: '3000'
           HOSTNAME: '0.0.0.0'
+          # CI-only deterministic drama SSR fixtures for this Playwright job.
+          # Do not copy into production/staging deployment environments.
+          NODE_ENV: test
+          NOVELHUB_E2E_DRAMA_FIXTURES: '1'
+          NOVELHUB_RUNTIME_ENV: ci-e2e
         run: nohup node apps/web/.next/standalone/apps/web/server.js > /tmp/web.log 2>&1 &
 
       - name: Wait for services
@@ -111,6 +116,8 @@ jobs:
         run: pnpm --filter @novelhub/e2e install-browsers
 
       - name: Run e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
         run: pnpm --filter @novelhub/e2e test
 
       - name: Upload Playwright report (on failure)
