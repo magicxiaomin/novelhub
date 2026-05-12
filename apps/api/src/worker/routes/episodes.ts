@@ -9,6 +9,32 @@ import type { WorkerEnv } from '../services/auth-factory';
 import { makeDramasService } from '../services/dramas-factory';
 import { episodeIdParamSchema } from './dramas.schemas';
 
+const DENIED_PLAYBACK_ALLOWED_KEYS = new Set([
+  'episodeId',
+  'dramaId',
+  'episodeNumber',
+  'title',
+  'durationSeconds',
+  'access',
+  'accessReason',
+  'coinPerEpisode',
+]);
+
+type JsonObject = Record<string, unknown>;
+
+const isJsonObject = (value: unknown): value is JsonObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const allowDeniedPlaybackFields = (playback: JsonObject): JsonObject =>
+  Object.fromEntries(
+    Object.entries(playback).filter(([key]) => DENIED_PLAYBACK_ALLOWED_KEYS.has(key)),
+  );
+
+const sanitizePlaybackResponse = (playback: unknown): unknown => {
+  if (!isJsonObject(playback) || playback.access === 'granted') return playback;
+  return allowDeniedPlaybackFields(playback);
+};
+
 type Bindings = WorkerEnv;
 type Variables = PrismaVariables & Partial<AuthVariables>;
 
@@ -21,7 +47,10 @@ export const episodesRoutes = new Hono<{ Bindings: Bindings; Variables: Variable
       const { episodeId } = c.req.valid('param');
       const user = c.get('user');
       const dramas = makeDramasService(c.env, c.get('prisma'));
-      return c.json(await dramas.getPlayback(episodeId, user?.id ?? null), 200);
+      return c.json(
+        sanitizePlaybackResponse(await dramas.getPlayback(episodeId, user?.id ?? null)),
+        200,
+      );
     },
   )
   .post(

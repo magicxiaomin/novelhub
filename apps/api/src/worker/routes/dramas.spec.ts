@@ -44,6 +44,50 @@ const contractDramaSummary = {
   publishedAt: '2026-05-10T12:00:00.000Z',
 };
 
+const forbiddenPlayableMediaFields = [
+  'hlsUrl',
+  'playbackUrl',
+  'mediaUrl',
+  'signedUrl',
+  'manifestUrl',
+  'segmentUrl',
+  'sourceFileUrl',
+  'assetUrl',
+  'bucket',
+  'provider',
+];
+
+const forbiddenPlayableMediaValuePatterns = [
+  /\.m3u8(?:\?|$)/i,
+  /\.ts(?:\?|$)/i,
+  /signed\.example/i,
+  /cdn\.example/i,
+  /private-media/i,
+  /r2-bucket/i,
+  /external_hls/i,
+];
+
+const expectNoPlayableMediaLeak = (value: unknown) => {
+  if (typeof value === 'string') {
+    for (const pattern of forbiddenPlayableMediaValuePatterns) {
+      expect(value).not.toMatch(pattern);
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) expectNoPlayableMediaLeak(item);
+    return;
+  }
+
+  if (typeof value !== 'object' || value === null) return;
+
+  for (const [key, nested] of Object.entries(value)) {
+    expect(forbiddenPlayableMediaFields).not.toContain(key);
+    expectNoPlayableMediaLeak(nested);
+  }
+};
+
 const contractDramaDetail = {
   ...contractDramaSummary,
   episodes: [
@@ -173,6 +217,119 @@ describe('dramasRoutes', () => {
     });
   });
 
+  it('strips playable media fields from denied playback responses', async () => {
+    const getPlayback = jest.fn().mockResolvedValue({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'denied',
+      accessReason: 'locked',
+      coinPerEpisode: 5,
+      hlsUrl: 'https://cdn.example/drama/episode-2.m3u8',
+      playbackUrl: 'https://signed.example/episode-2.m3u8?token=sample',
+      provider: 'external_hls',
+      sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+      assetUrl: 'https://cdn.example/drama/episode-2.ts',
+      videoAsset: {
+        bucket: 'private-media',
+        manifestUrl: 'https://cdn.example/manifest.m3u8',
+        segmentUrl: 'https://cdn.example/segment-0001.ts',
+        renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
+      },
+    });
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp().request(
+      '/episodes/11111111-1111-4111-8111-111111111111/playback',
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'denied',
+      accessReason: 'locked',
+      coinPerEpisode: 5,
+    });
+    expectNoPlayableMediaLeak(body);
+  });
+
+  it('fails closed for unknown non-granted playback access states', async () => {
+    const getPlayback = jest.fn().mockResolvedValue({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'pending_review',
+      sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+      assetUrl: 'https://cdn.example/drama/episode-2.ts',
+      renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
+      videoAsset: {
+        provider: 'external_hls',
+        bucket: 'private-media',
+        manifestUrl: 'https://cdn.example/manifest.m3u8',
+      },
+    });
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp().request(
+      '/episodes/11111111-1111-4111-8111-111111111111/playback',
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'pending_review',
+    });
+    expectNoPlayableMediaLeak(body);
+  });
+
+  it('keeps playable HLS URL for granted free playback responses', async () => {
+    const getPlayback = jest.fn().mockResolvedValue({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 1,
+      title: 'The Trap',
+      durationSeconds: 60,
+      access: 'granted',
+      accessReason: 'free',
+      hlsUrl: 'https://cdn.example/drama/episode-1.m3u8',
+      provider: 'external_hls',
+      thumbnailUrl: 'https://cdn.example/thumb.jpg',
+    });
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp().request(
+      '/episodes/11111111-1111-4111-8111-111111111111/playback',
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 1,
+      title: 'The Trap',
+      durationSeconds: 60,
+      access: 'granted',
+      accessReason: 'free',
+      hlsUrl: 'https://cdn.example/drama/episode-1.m3u8',
+      provider: 'external_hls',
+      thumbnailUrl: 'https://cdn.example/thumb.jpg',
+    });
+  });
+
   it('rejects invalid playback episode ids before calling the service', async () => {
     const getPlayback = jest.fn();
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
@@ -192,6 +349,79 @@ describe('dramasRoutes', () => {
     expect(response.status).toBe(200);
     expect(getBySlug).toHaveBeenCalledWith('shadow-heiress', null);
     await expect(response.json()).resolves.toEqual(contractDramaDetail);
+  });
+
+  it('strips playable media fields from locked detail episode responses', async () => {
+    const getBySlug = jest.fn().mockResolvedValue({
+      ...contractDramaDetail,
+      episodes: [
+        {
+          ...contractDramaDetail.episodes[0],
+          isUnlocked: true,
+          hlsUrl: 'https://cdn.example/drama/free.m3u8',
+          provider: 'external_hls',
+        },
+        {
+          ...contractDramaDetail.episodes[1],
+          isUnlocked: false,
+          hlsUrl: 'https://cdn.example/drama/locked.m3u8',
+          playbackUrl: 'https://signed.example/locked.m3u8?token=sample',
+          provider: 'external_hls',
+          sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+          assetUrl: 'https://cdn.example/drama/locked.ts',
+          videoAsset: {
+            bucket: 'private-media',
+            signedUrl: 'https://signed.example/private.m3u8',
+            renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
+          },
+        },
+      ],
+    });
+    makeDramasServiceMock.mockReturnValue({ getBySlug } as never);
+
+    const response = await makeApp().request('/dramas/shadow-heiress');
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { episodes: Array<Record<string, unknown>> };
+    expect(body.episodes[0]).toMatchObject({
+      hlsUrl: 'https://cdn.example/drama/free.m3u8',
+      provider: 'external_hls',
+    });
+    expect(body.episodes[1]).toEqual(contractDramaDetail.episodes[1]);
+    expectNoPlayableMediaLeak(body.episodes[1]);
+  });
+
+  it('strips playable media fields from locked list episode responses', async () => {
+    const list = jest.fn().mockResolvedValue({
+      items: [
+        {
+          ...contractDramaSummary,
+          episodes: [
+            {
+              id: 'episode-2',
+              isUnlocked: false,
+              playbackUrl: 'https://signed.example/locked.m3u8?token=sample',
+              provider: 'external_hls',
+              sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+              assetUrl: 'https://cdn.example/drama/locked.ts',
+              renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
+            },
+          ],
+        },
+      ],
+      pageInfo: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+    });
+    makeDramasServiceMock.mockReturnValue({ list } as never);
+
+    const response = await makeApp().request('/dramas');
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: Array<{ episodes: Array<Record<string, unknown>> }>;
+    };
+    const lockedEpisode = body.items[0]?.episodes[0];
+    expect(lockedEpisode).toEqual({ id: 'episode-2', isUnlocked: false });
+    expectNoPlayableMediaLeak(lockedEpisode);
   });
 
   it('returns disabled list semantics instead of 500 when the drama table is not deployed', async () => {
