@@ -51,11 +51,30 @@ const forbiddenPlayableMediaFields = [
   'signedUrl',
   'manifestUrl',
   'segmentUrl',
+  'sourceFileUrl',
+  'assetUrl',
   'bucket',
   'provider',
 ];
 
+const forbiddenPlayableMediaValuePatterns = [
+  /\.m3u8(?:\?|$)/i,
+  /\.ts(?:\?|$)/i,
+  /signed\.example/i,
+  /cdn\.example/i,
+  /private-media/i,
+  /r2-bucket/i,
+  /external_hls/i,
+];
+
 const expectNoPlayableMediaLeak = (value: unknown) => {
+  if (typeof value === 'string') {
+    for (const pattern of forbiddenPlayableMediaValuePatterns) {
+      expect(value).not.toMatch(pattern);
+    }
+    return;
+  }
+
   if (Array.isArray(value)) {
     for (const item of value) expectNoPlayableMediaLeak(item);
     return;
@@ -211,10 +230,13 @@ describe('dramasRoutes', () => {
       hlsUrl: 'https://cdn.example/drama/episode-2.m3u8',
       playbackUrl: 'https://signed.example/episode-2.m3u8?token=sample',
       provider: 'external_hls',
+      sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+      assetUrl: 'https://cdn.example/drama/episode-2.ts',
       videoAsset: {
         bucket: 'private-media',
         manifestUrl: 'https://cdn.example/manifest.m3u8',
         segmentUrl: 'https://cdn.example/segment-0001.ts',
+        renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
       },
     });
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
@@ -234,6 +256,43 @@ describe('dramasRoutes', () => {
       access: 'denied',
       accessReason: 'locked',
       coinPerEpisode: 5,
+      videoAsset: {},
+    });
+    expectNoPlayableMediaLeak(body);
+  });
+
+  it('fails closed for unknown non-granted playback access states', async () => {
+    const getPlayback = jest.fn().mockResolvedValue({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'pending_review',
+      sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+      assetUrl: 'https://cdn.example/drama/episode-2.ts',
+      renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
+      videoAsset: {
+        provider: 'external_hls',
+        bucket: 'private-media',
+        manifestUrl: 'https://cdn.example/manifest.m3u8',
+      },
+    });
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp().request(
+      '/episodes/11111111-1111-4111-8111-111111111111/playback',
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      dramaId: 'drama-1',
+      episodeNumber: 2,
+      title: 'The Escape',
+      durationSeconds: 70,
+      access: 'pending_review',
       videoAsset: {},
     });
     expectNoPlayableMediaLeak(body);
@@ -310,9 +369,12 @@ describe('dramasRoutes', () => {
           hlsUrl: 'https://cdn.example/drama/locked.m3u8',
           playbackUrl: 'https://signed.example/locked.m3u8?token=sample',
           provider: 'external_hls',
+          sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+          assetUrl: 'https://cdn.example/drama/locked.ts',
           videoAsset: {
             bucket: 'private-media',
             signedUrl: 'https://signed.example/private.m3u8',
+            renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
           },
         },
       ],
@@ -345,6 +407,9 @@ describe('dramasRoutes', () => {
               isUnlocked: false,
               playbackUrl: 'https://signed.example/locked.m3u8?token=sample',
               provider: 'external_hls',
+              sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
+              assetUrl: 'https://cdn.example/drama/locked.ts',
+              renamedPlayableUrl: 'https://signed.example/renamed.m3u8',
             },
           ],
         },

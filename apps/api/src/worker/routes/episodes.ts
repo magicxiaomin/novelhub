@@ -16,14 +16,29 @@ const PLAYBACK_MEDIA_KEYS = new Set([
   'signedUrl',
   'manifestUrl',
   'segmentUrl',
+  'sourceFileUrl',
+  'assetUrl',
   'bucket',
   'provider',
 ]);
+
+const PLAYBACK_MEDIA_VALUE_PATTERNS = [
+  /\.m3u8(?:\?|$)/i,
+  /\.ts(?:\?|$)/i,
+  /signed\.example/i,
+  /cdn\.example/i,
+  /private-media/i,
+  /r2-bucket/i,
+  /external_hls/i,
+];
 
 type JsonObject = Record<string, unknown>;
 
 const isJsonObject = (value: unknown): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isPlayableMediaValue = (value: unknown): value is string =>
+  typeof value === 'string' && PLAYBACK_MEDIA_VALUE_PATTERNS.some((pattern) => pattern.test(value));
 
 const stripPlaybackMediaFields = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stripPlaybackMediaFields);
@@ -31,13 +46,13 @@ const stripPlaybackMediaFields = (value: unknown): unknown => {
 
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([key]) => !PLAYBACK_MEDIA_KEYS.has(key))
+      .filter(([key, nested]) => !PLAYBACK_MEDIA_KEYS.has(key) && !isPlayableMediaValue(nested))
       .map(([key, nested]) => [key, stripPlaybackMediaFields(nested)]),
   );
 };
 
 const sanitizePlaybackResponse = (playback: unknown): unknown => {
-  if (!isJsonObject(playback) || playback.access !== 'denied') return playback;
+  if (!isJsonObject(playback) || playback.access === 'granted') return playback;
   return stripPlaybackMediaFields(playback);
 };
 

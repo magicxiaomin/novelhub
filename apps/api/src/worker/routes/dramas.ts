@@ -17,14 +17,30 @@ const LOCKED_EPISODE_MEDIA_KEYS = new Set([
   'signedUrl',
   'manifestUrl',
   'segmentUrl',
+  'sourceFileUrl',
+  'assetUrl',
   'bucket',
   'provider',
 ]);
+
+const LOCKED_EPISODE_MEDIA_VALUE_PATTERNS = [
+  /\.m3u8(?:\?|$)/i,
+  /\.ts(?:\?|$)/i,
+  /signed\.example/i,
+  /cdn\.example/i,
+  /private-media/i,
+  /r2-bucket/i,
+  /external_hls/i,
+];
 
 type JsonObject = Record<string, unknown>;
 
 const isJsonObject = (value: unknown): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isPlayableMediaValue = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  LOCKED_EPISODE_MEDIA_VALUE_PATTERNS.some((pattern) => pattern.test(value));
 
 const stripLockedEpisodeMediaFields = (value: unknown, lockedContext = false): unknown => {
   if (Array.isArray(value))
@@ -35,7 +51,10 @@ const stripLockedEpisodeMediaFields = (value: unknown, lockedContext = false): u
 
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([key]) => !shouldStrip || !LOCKED_EPISODE_MEDIA_KEYS.has(key))
+      .filter(
+        ([key, nested]) =>
+          !shouldStrip || (!LOCKED_EPISODE_MEDIA_KEYS.has(key) && !isPlayableMediaValue(nested)),
+      )
       .map(([key, nested]) => [key, stripLockedEpisodeMediaFields(nested, shouldStrip)]),
   );
 };
