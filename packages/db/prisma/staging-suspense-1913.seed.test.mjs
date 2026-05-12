@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
   buildSuspense1913SeedRows,
+  createSuspense1913ProductionSeed,
   createSuspense1913StagingSeed,
+  validateSuspense1913ProductionSeedEnvironment,
   validateSuspense1913SeedEnvironment,
 } from './staging-suspense-1913.seed.mjs';
 
@@ -69,6 +71,89 @@ test('staging Suspense seed requires safe staging media hosts', () => {
       STAGING_DRAMA_MEDIA_BASE_URL: 'https://staging.dramavela.com/root/',
     }),
     { mediaBaseUrl: 'https://staging.dramavela.com/root' },
+  );
+});
+
+test('production Suspense seed requires explicit production approval and production env', () => {
+  const baseEnv = {
+    NODE_ENV: 'production',
+    PRODUCTION_DRAMA_MEDIA_BASE_URL: 'https://media.dramavela.com/root',
+  };
+
+  assert.throws(
+    () => validateSuspense1913ProductionSeedEnvironment(baseEnv),
+    /SEED_DRAMA_PRODUCTION_PACK=1/,
+  );
+
+  assert.throws(
+    () =>
+      validateSuspense1913ProductionSeedEnvironment({
+        ...baseEnv,
+        SEED_DRAMA_STAGING_PACK: '1',
+        SEED_DRAMA_PRODUCTION_PACK: '1',
+      }),
+    /Refusing staging approval flag/i,
+  );
+
+  assert.throws(
+    () =>
+      validateSuspense1913ProductionSeedEnvironment({
+        SEED_DRAMA_PRODUCTION_PACK: '1',
+        NODE_ENV: 'staging',
+        PRODUCTION_DRAMA_MEDIA_BASE_URL: 'https://media.dramavela.com/root',
+      }),
+    /must explicitly be production\/prod/i,
+  );
+
+  assert.deepEqual(
+    validateSuspense1913ProductionSeedEnvironment({
+      ...baseEnv,
+      SEED_DRAMA_PRODUCTION_PACK: '1',
+    }),
+    { mediaBaseUrl: 'https://media.dramavela.com/root' },
+  );
+});
+
+test('production Suspense seed requires https production media URL', () => {
+  assert.throws(
+    () =>
+      validateSuspense1913ProductionSeedEnvironment({
+        SEED_DRAMA_PRODUCTION_PACK: '1',
+        APP_ENV: 'prod',
+        PRODUCTION_DRAMA_MEDIA_BASE_URL: 'http://media.dramavela.com/root',
+      }),
+    /must use https/i,
+  );
+});
+
+test('production seed execution builds playback URLs from PRODUCTION_DRAMA_MEDIA_BASE_URL', async () => {
+  const calls = [];
+  const prisma = {
+    drama: { upsert: async (args) => calls.push(['drama.upsert', args]) },
+    episode: { upsert: async (args) => calls.push(['episode.upsert', args]) },
+    videoAsset: { upsert: async (args) => calls.push(['videoAsset.upsert', args]) },
+    $transaction: async (callback) => callback(prisma),
+  };
+
+  await createSuspense1913ProductionSeed({
+    env: {
+      SEED_DRAMA_PRODUCTION_PACK: '1',
+      VERCEL_ENV: 'production',
+      PRODUCTION_DRAMA_MEDIA_BASE_URL: 'https://prod-media.example.test/base/',
+    },
+    prisma,
+  }).run();
+
+  assert.deepEqual(
+    calls
+      .filter(([name]) => name === 'videoAsset.upsert')
+      .map(([, args]) => args.create.playbackUrl),
+    [
+      'https://prod-media.example.test/base/dramas/suspense-1913/ep1/index.m3u8',
+      'https://prod-media.example.test/base/dramas/suspense-1913/ep2/index.m3u8',
+      'https://prod-media.example.test/base/dramas/suspense-1913/ep3/index.m3u8',
+      'https://prod-media.example.test/base/dramas/suspense-1913/ep4/index.m3u8',
+    ],
   );
 });
 
