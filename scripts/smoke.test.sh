@@ -45,7 +45,7 @@ case "$url" in
   */episodes/free-episode/playback) body='{"hlsUrl":"https://fixtures.example/free.m3u8"}' ;;
   */episodes/free-episode/unlock|*/drama-progress) status=401; body='{"message":"Unauthorized"}' ;;
   */reading-progress) if [ "$has_cookie" = true ]; then body='{}'; else status=401; body='{"message":"Unauthorized"}'; fi ;;
-  */episodes/locked-episode/playback) status=402; body='{"locked":true,"reason":"payment_required"}' ;;
+  */episodes/locked-episode/playback) body='{"episodeId":"locked-episode","access":"denied","accessReason":"locked","coinPerEpisode":5}' ;;
   */auth/login) body='{"ok":true}' ;;
   */auth/me|*/unlocks|*/coins/balance|*/payments/subscription|*/admin/books) body='{}' ;;
   *) body='{}' ;;

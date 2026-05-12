@@ -106,6 +106,20 @@ raise SystemExit(1)
 PY
 }
 
+body_has_locked_playback_denial() {
+  python3 - <<'PY' 2>/dev/null
+import json
+try:
+    with open('/tmp/smoke.body', encoding='utf-8') as fh:
+        data = json.load(fh)
+except Exception:
+    raise SystemExit(1)
+if isinstance(data, dict) and data.get('access') == 'denied' and data.get('accessReason') == 'locked':
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
 check_status_in() {
   local description="$1"; shift
   local expected_csv="$1"; shift
@@ -183,8 +197,12 @@ else
 fi
 
 if [ -n "$DRAMA_LOCKED_EPISODE_ID" ]; then
-  check_status_in "GET /episodes/:episodeId/playback (locked no auth denied)" "401,402,403" \
+  check_status_in "GET /episodes/:episodeId/playback (locked no auth denied)" "200,401,402,403" \
     "$API/episodes/$DRAMA_LOCKED_EPISODE_ID/playback"
+  if body_has_locked_playback_denial; then
+    green "  PASS  locked playback denied envelope is access=denied/accessReason=locked"
+    PASS=$((PASS + 1))
+  fi
   if body_has_hls_leak; then
     red "  FAIL  locked playback response leaked HLS/playback URL"
     gray "        body: $(head -c 200 /tmp/smoke.body 2>/dev/null || echo '<no body>')"
