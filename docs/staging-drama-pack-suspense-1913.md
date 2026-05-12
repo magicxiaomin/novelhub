@@ -238,6 +238,43 @@ The staging seed implementation should create one `Drama`, four `Episode` rows, 
 
 Per-episode `clip.startSec`, `clip.endSec`, and checksum values must be updated to the concrete values generated during packaging.
 
+## Staging seed script
+
+The code seed for this pack lives at `packages/db/prisma/staging-suspense-1913.seed.mjs` and is intentionally separate from the default development seed. It only runs when explicitly enabled and refuses production-like environments.
+
+Required environment:
+
+```bash
+SEED_DRAMA_STAGING_PACK=1
+NODE_ENV=staging # or APP_ENV/VERCEL_ENV set to development, staging, or test; production/prod and unset envs are refused
+STAGING_DRAMA_MEDIA_BASE_URL=https://<approved-staging-media-host>
+DATABASE_URL=<staging database URL>
+```
+
+Run command after the staging schema migration is deployed and the approved HLS media origin is reachable:
+
+```bash
+pnpm --filter @novelhub/db seed:staging:suspense-1913
+```
+
+The seed upserts by stable slug/episode/video identifiers, so repeated runs should leave exactly one `suspense-1913` drama, four episodes, and four episode video assets. Current access semantics are explicit in both `Drama.freeEpisodeCount` and `Episode.isFree`: episodes 1-2 are free (`freeEpisodeCount=2`), episodes 3-4 are locked.
+
+Local validation commands:
+
+```bash
+pnpm --filter @novelhub/db test:staging:suspense-1913
+SEED_DRAMA_STAGING_PACK=1 NODE_ENV=staging STAGING_DRAMA_MEDIA_BASE_URL=https://staging-media.example.test pnpm --filter @novelhub/db seed:staging:suspense-1913
+# Repeat the seed command once against a scratch/staging-like DB to confirm idempotency.
+```
+
+Count check after a scratch/staging seed run:
+
+```sql
+SELECT slug, total_episodes, free_episode_count FROM dramas WHERE slug = 'suspense-1913';
+SELECT episode_number, is_free FROM episodes WHERE drama_id = (SELECT id FROM dramas WHERE slug = 'suspense-1913') ORDER BY episode_number;
+SELECT COUNT(*) FROM video_assets WHERE episode_id IN (SELECT id FROM episodes WHERE drama_id = (SELECT id FROM dramas WHERE slug = 'suspense-1913'));
+```
+
 ## Rollback and delete instructions
 
 Media rollback:
@@ -253,9 +290,27 @@ Media rollback:
 
 Data rollback for the seed task:
 
-- Delete the staging drama by slug `suspense-1913` using the reviewed teardown path from the seed PR.
-- Confirm cascades/relations remove the four episodes and four video assets, or delete child rows explicitly if cascade is not configured.
-- Do not delete any production objects or rows.
+```sql
+DELETE FROM dramas WHERE slug = 'suspense-1913';
+```
+
+The `episodes` and `video_assets` rows cascade from `dramas` / `episodes` via the short-drama migration relations. If a staging database has drifted from the reviewed migration, delete children explicitly before deleting the drama:
+
+```sql
+DELETE FROM video_assets WHERE episode_id IN (SELECT id FROM episodes WHERE drama_id = (SELECT id FROM dramas WHERE slug = 'suspense-1913'));
+DELETE FROM episodes WHERE drama_id = (SELECT id FROM dramas WHERE slug = 'suspense-1913');
+DELETE FROM dramas WHERE slug = 'suspense-1913';
+```
+
+Confirm teardown:
+
+```sql
+SELECT COUNT(*) FROM dramas WHERE slug = 'suspense-1913';
+SELECT COUNT(*) FROM episodes WHERE drama_id = '66666666-6666-4666-8666-666666666666';
+SELECT COUNT(*) FROM video_assets WHERE episode_id IN ('66666666-0001-4d00-8d00-000000000001', '66666666-0002-4d00-8d00-000000000002', '66666666-0003-4d00-8d00-000000000003', '66666666-0004-4d00-8d00-000000000004');
+```
+
+Do not delete any production objects or rows.
 
 ## Runbook evidence to paste back to #179
 
