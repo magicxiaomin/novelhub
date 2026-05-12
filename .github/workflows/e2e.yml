@@ -92,6 +92,7 @@ jobs:
           HOSTNAME: '0.0.0.0'
           # CI-only deterministic drama SSR fixtures for this Playwright job.
           # Do not copy into production/staging deployment environments.
+          NODE_ENV: test
           NOVELHUB_E2E_DRAMA_FIXTURES: '1'
           NOVELHUB_RUNTIME_ENV: ci-e2e
         run: nohup node apps/web/.next/standalone/apps/web/server.js > /tmp/web.log 2>&1 &
