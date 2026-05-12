@@ -114,10 +114,10 @@ The feasibility challenge is adopted as a sequencing change: do not spend mobile
 
 ### 5.1 Smoke checks
 
-- QA-AC-1: `API=https://api-staging.whoryou.club bash scripts/smoke.sh` passes with zero failures for baseline app/novel health.
+- QA-AC-1: `API=https://api-staging.whoryou.club bash scripts/smoke.sh` passes with zero failures for baseline app/novel health plus the non-skippable `/dramas` hard gate. Add `DRAMA_SLUG=<slug> DRAMA_EPISODE_ID=<free-or-demo-episode-id> DRAMA_LOCKED_EPISODE_ID=<locked-episode-id>` when deterministic demo content is configured to enable detail, playback, unlock/progress, and locked no-leak checks.
 - QA-AC-2: `API=https://api.dramavela.com bash scripts/smoke.sh` passes with zero failures against current production/test-mode configuration before any alpha exposure.
 - QA-AC-3: `/dramas` 500 diagnosis is complete before mobile/admin/demo QA starts. If `GET /dramas` returns any 5xx on staging, stop and create/fix a blocker defect; do not proceed to browser QA.
-- QA-AC-4: Hard-fail drama smoke covers `GET /dramas`, `GET /dramas/:slug`, `GET /episodes/:episodeId/playback`, `POST /episodes/:episodeId/unlock`, `GET/POST /drama-progress`, locked playback denial/no-leak, and admin auth gating.
+- QA-AC-4: Hard-fail drama smoke covers `GET /dramas`, recognizes the controlled `disabled=true` / `reason=drama_schema_unavailable` fallback as non-500, and covers `GET /dramas/:slug`, `GET /episodes/:episodeId/playback`, `POST /episodes/:episodeId/unlock`, `POST /drama-progress`, locked playback denial/no-leak, and admin auth gating when optional demo identifiers are supplied.
 - QA-AC-5: Locked playback responses do not expose HLS URLs or other playable metadata before access is granted.
 - QA-AC-6: Existing novel browse/read/paywall/unlock smoke remains green.
 - QA-AC-7: Smoke output records the final expected pass count after drama checks are added and exits non-zero on every drama blocker, without skip-based false greens.
