@@ -9,16 +9,24 @@ first review. Auto-merge requires BOTH reviewers to APPROVE.
 Reads:
   $TICKET_FILE - path to ticket markdown (e.g. docs/tickets/03-auth-module.md)
   $TICKET_NUM  - two-digit ticket number
-  /tmp/pr.diff.trimmed - unified diff (capped at ~200KB upstream)
+  $PR_DIFF_PATH - optional path to capped unified diff (defaults to /tmp/pr.diff.trimmed)
   AGENTS.md, the ticket file, docs/_postmortem.md (when present)
 
 Writes:
   Markdown review to stdout. The verdict heading must end with one of
   APPROVE / REQUEST_CHANGES / COMMENT (parsed by the workflow).
+
+Exit codes:
+  0 - a review (or an "unavailable" COMMENT notice) was written to stdout.
+  2 - missing required environment variables.
+  3 - the model/CLI produced empty or structurally-invalid output. This is an
+      infrastructure failure (infra/model-empty), NOT a reason to post a
+      REQUEST_CHANGES verdict; the workflow must fail rather than post anything.
 """
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +34,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 CLAUDE_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_TIMEOUT_SECONDS", "300"))
+
+# A usable review must contain this heading, an explicit verdict line, and at
+# least this many characters of body. Anything less means the model/CLI
+# misbehaved (empty or truncated output) and we must fail loudly instead of
+# emitting a bogus REQUEST_CHANGES verdict.
+REVIEW_HEADING = "## Claude Security Review"
+VERDICT_LINE_RE = re.compile(r"(?im)^###\s*Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)\b")
+MIN_REVIEW_CHARS = 200
 
 
 def read(path: str) -> str:
@@ -46,7 +62,8 @@ def build_prompt(ticket_num: str, ticket_file: str) -> str:
     agents_md = read("AGENTS.md")
     ticket_md = ticket_context(ticket_file)
     postmortem = read("docs/_postmortem.md")
-    diff = Path("/tmp/pr.diff.trimmed").read_text(encoding="utf-8", errors="replace")
+    diff_path = Path(os.environ.get("PR_DIFF_PATH", "/tmp/pr.diff.trimmed"))
+    diff = diff_path.read_text(encoding="utf-8", errors="replace")
 
     return f"""You are an INDEPENDENT security reviewer for the NovelHub project. A separate correctness reviewer is examining functional correctness; your job is exclusively security and operational risk. Do not duplicate their checks. Be paranoid but specific - cite file paths and line numbers from the diff for every finding.
 
@@ -186,6 +203,25 @@ Cannot verify automatically while Claude is unavailable.
 ### Verdict: COMMENT"""
 
 
+def validate_review(review: str) -> str | None:
+    """Return an error string if `review` is not a usable model review, else None.
+
+    Empty or structurally-broken output means the model/CLI misbehaved, which is
+    an infrastructure problem — callers must surface it as a failure rather than
+    posting it as a REQUEST_CHANGES verdict.
+    """
+    text = (review or "").strip()
+    if not text:
+        return "infra/model-empty: Claude produced no output"
+    if REVIEW_HEADING not in text:
+        return f"infra/model-malformed: output is missing the required '{REVIEW_HEADING}' heading"
+    if not VERDICT_LINE_RE.search(text):
+        return "infra/model-malformed: output has no '### Verdict: APPROVE|REQUEST_CHANGES|COMMENT' line"
+    if len(text) < MIN_REVIEW_CHARS:
+        return f"infra/model-empty: output is too short to be a real review ({len(text)} chars)"
+    return None
+
+
 def run_fallback_review(prompt: str, claude_error: str) -> tuple[str, str | None]:
     """Fallback to the local Hermes/Codex reviewer when Claude CLI auth is unavailable."""
     fallback = os.environ.get("REVIEW_FALLBACK_CMD", "/opt/hermes-runner/hermes-agent/runner-venv/bin/hermes")
@@ -266,11 +302,16 @@ def main() -> int:
     prompt = build_prompt(ticket_num, ticket_file)
     review, error = run_claude(prompt)
     if error:
+        # Reviewer (and Hermes fallback) unavailable: degrade to a COMMENT-verdict
+        # notice instead of blocking the PR. Deliberately distinct from the model
+        # returning empty/garbage, which is handled just below.
         print(build_unavailable_review(error))
         return 0
 
-    if not review:
-        review = "## Claude Security Review\n\n(Empty response from model.)\n\n### Verdict: REQUEST_CHANGES"
+    problem = validate_review(review)
+    if problem:
+        print(f"ERROR: {problem}", file=sys.stderr)
+        return 3
 
     print(review)
     return 0
