@@ -10,37 +10,32 @@ import type { WorkerEnv } from '../services/auth-factory';
 import { makeDramasService } from '../services/dramas-factory';
 import { dramaSlugParamSchema, listDramasQuerySchema } from './dramas.schemas';
 
-const LOCKED_EPISODE_MEDIA_KEYS = new Set([
-  'hlsUrl',
-  'playbackUrl',
-  'mediaUrl',
-  'signedUrl',
-  'manifestUrl',
-  'segmentUrl',
-  'sourceFileUrl',
-  'assetUrl',
-  'bucket',
-  'provider',
+const LOCKED_EPISODE_ALLOWED_KEYS = new Set([
+  'id',
+  'episodeId',
+  'dramaId',
+  'episodeNumber',
+  'title',
+  'synopsis',
+  'durationSeconds',
+  'isFree',
+  'publishedAt',
+  'isUnlocked',
+  'progress',
+  'access',
+  'accessReason',
+  'coinPerEpisode',
 ]);
-
-const LOCKED_EPISODE_MEDIA_VALUE_PATTERNS = [
-  /\.m3u8(?:\?|$)/i,
-  /\.ts(?:\?|$)/i,
-  /signed\.example/i,
-  /cdn\.example/i,
-  /private-media/i,
-  /r2-bucket/i,
-  /external_hls/i,
-];
 
 type JsonObject = Record<string, unknown>;
 
 const isJsonObject = (value: unknown): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const isPlayableMediaValue = (value: unknown): value is string =>
-  typeof value === 'string' &&
-  LOCKED_EPISODE_MEDIA_VALUE_PATTERNS.some((pattern) => pattern.test(value));
+const sanitizeLockedEpisode = (episode: JsonObject): JsonObject =>
+  Object.fromEntries(
+    Object.entries(episode).filter(([key]) => LOCKED_EPISODE_ALLOWED_KEYS.has(key)),
+  );
 
 const stripLockedEpisodeMediaFields = (value: unknown, lockedContext = false): unknown => {
   if (Array.isArray(value))
@@ -48,14 +43,13 @@ const stripLockedEpisodeMediaFields = (value: unknown, lockedContext = false): u
   if (!isJsonObject(value)) return value;
 
   const shouldStrip = lockedContext || value.isUnlocked === false || value.access === 'denied';
+  if (shouldStrip) return sanitizeLockedEpisode(value);
 
   return Object.fromEntries(
-    Object.entries(value)
-      .filter(
-        ([key, nested]) =>
-          !shouldStrip || (!LOCKED_EPISODE_MEDIA_KEYS.has(key) && !isPlayableMediaValue(nested)),
-      )
-      .map(([key, nested]) => [key, stripLockedEpisodeMediaFields(nested, shouldStrip)]),
+    Object.entries(value).map(([key, nested]) => [
+      key,
+      stripLockedEpisodeMediaFields(nested, false),
+    ]),
   );
 };
 

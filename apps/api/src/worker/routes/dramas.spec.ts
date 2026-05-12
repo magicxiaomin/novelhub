@@ -256,7 +256,6 @@ describe('dramasRoutes', () => {
       access: 'denied',
       accessReason: 'locked',
       coinPerEpisode: 5,
-      videoAsset: {},
     });
     expectNoPlayableMediaLeak(body);
   });
@@ -293,7 +292,6 @@ describe('dramasRoutes', () => {
       title: 'The Escape',
       durationSeconds: 70,
       access: 'pending_review',
-      videoAsset: {},
     });
     expectNoPlayableMediaLeak(body);
   });
@@ -389,10 +387,7 @@ describe('dramasRoutes', () => {
       hlsUrl: 'https://cdn.example/drama/free.m3u8',
       provider: 'external_hls',
     });
-    expect(body.episodes[1]).toEqual({
-      ...contractDramaDetail.episodes[1],
-      videoAsset: {},
-    });
+    expect(body.episodes[1]).toEqual(contractDramaDetail.episodes[1]);
     expectNoPlayableMediaLeak(body.episodes[1]);
   });
 

@@ -9,51 +9,30 @@ import type { WorkerEnv } from '../services/auth-factory';
 import { makeDramasService } from '../services/dramas-factory';
 import { episodeIdParamSchema } from './dramas.schemas';
 
-const PLAYBACK_MEDIA_KEYS = new Set([
-  'hlsUrl',
-  'playbackUrl',
-  'mediaUrl',
-  'signedUrl',
-  'manifestUrl',
-  'segmentUrl',
-  'sourceFileUrl',
-  'assetUrl',
-  'bucket',
-  'provider',
+const DENIED_PLAYBACK_ALLOWED_KEYS = new Set([
+  'episodeId',
+  'dramaId',
+  'episodeNumber',
+  'title',
+  'durationSeconds',
+  'access',
+  'accessReason',
+  'coinPerEpisode',
 ]);
-
-const PLAYBACK_MEDIA_VALUE_PATTERNS = [
-  /\.m3u8(?:\?|$)/i,
-  /\.ts(?:\?|$)/i,
-  /signed\.example/i,
-  /cdn\.example/i,
-  /private-media/i,
-  /r2-bucket/i,
-  /external_hls/i,
-];
 
 type JsonObject = Record<string, unknown>;
 
 const isJsonObject = (value: unknown): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const isPlayableMediaValue = (value: unknown): value is string =>
-  typeof value === 'string' && PLAYBACK_MEDIA_VALUE_PATTERNS.some((pattern) => pattern.test(value));
-
-const stripPlaybackMediaFields = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(stripPlaybackMediaFields);
-  if (!isJsonObject(value)) return value;
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key, nested]) => !PLAYBACK_MEDIA_KEYS.has(key) && !isPlayableMediaValue(nested))
-      .map(([key, nested]) => [key, stripPlaybackMediaFields(nested)]),
+const allowDeniedPlaybackFields = (playback: JsonObject): JsonObject =>
+  Object.fromEntries(
+    Object.entries(playback).filter(([key]) => DENIED_PLAYBACK_ALLOWED_KEYS.has(key)),
   );
-};
 
 const sanitizePlaybackResponse = (playback: unknown): unknown => {
   if (!isJsonObject(playback) || playback.access === 'granted') return playback;
-  return stripPlaybackMediaFields(playback);
+  return allowDeniedPlaybackFields(playback);
 };
 
 type Bindings = WorkerEnv;
