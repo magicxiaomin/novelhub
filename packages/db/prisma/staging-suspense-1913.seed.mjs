@@ -65,6 +65,32 @@ function withoutId(row) {
   return rest;
 }
 
+function environmentValues(env) {
+  const nodeEnv = String(env.NODE_ENV ?? '').toLowerCase();
+  const appEnv = String(env.APP_ENV ?? env.RAILWAY_ENVIRONMENT_NAME ?? '').toLowerCase();
+  const vercelEnv = String(env.VERCEL_ENV ?? '').toLowerCase();
+  return [nodeEnv, appEnv, vercelEnv].filter(Boolean);
+}
+
+function requireHttpsUrl(envName, value) {
+  if (!value || value.trim().length === 0) {
+    throw new Error(`[suspense-1913 seed] ${envName} is required.`);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`[suspense-1913 seed] ${envName} must be an absolute URL.`);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`[suspense-1913 seed] ${envName} must use https.`);
+  }
+
+  return parsed;
+}
+
 export function validateSuspense1913SeedEnvironment(env = process.env) {
   if (env.SEED_DRAMA_STAGING_PACK !== '1') {
     throw new Error(
@@ -72,44 +98,54 @@ export function validateSuspense1913SeedEnvironment(env = process.env) {
     );
   }
 
-  const nodeEnv = String(env.NODE_ENV ?? '').toLowerCase();
-  const appEnv = String(env.APP_ENV ?? env.RAILWAY_ENVIRONMENT_NAME ?? '').toLowerCase();
-  const vercelEnv = String(env.VERCEL_ENV ?? '').toLowerCase();
+  const values = environmentValues(env);
   const allowedEnvironmentValues = new Set(['development', 'dev', 'staging', 'test']);
-  const environmentValues = [nodeEnv, appEnv, vercelEnv].filter(Boolean);
   const unsafeValues = new Set(['production', 'prod']);
 
-  if (environmentValues.some((value) => unsafeValues.has(value))) {
+  if (values.some((value) => unsafeValues.has(value))) {
     throw new Error('[suspense-1913 seed] Refuses production/prod environments.');
   }
 
-  if (!environmentValues.some((value) => allowedEnvironmentValues.has(value))) {
+  if (!values.some((value) => allowedEnvironmentValues.has(value))) {
     throw new Error(
       '[suspense-1913 seed] APP_ENV, NODE_ENV, or VERCEL_ENV must explicitly be one of development, staging, or test.',
     );
   }
 
   const baseUrl = env.STAGING_DRAMA_MEDIA_BASE_URL;
-  if (!baseUrl || baseUrl.trim().length === 0) {
-    throw new Error('[suspense-1913 seed] STAGING_DRAMA_MEDIA_BASE_URL is required.');
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(baseUrl);
-  } catch {
-    throw new Error('[suspense-1913 seed] STAGING_DRAMA_MEDIA_BASE_URL must be an absolute URL.');
-  }
-
-  if (parsed.protocol !== 'https:') {
-    throw new Error('[suspense-1913 seed] STAGING_DRAMA_MEDIA_BASE_URL must use https.');
-  }
-
+  const parsed = requireHttpsUrl('STAGING_DRAMA_MEDIA_BASE_URL', baseUrl);
   const hostname = parsed.hostname.toLowerCase();
   const allowedDramavelaHosts = new Set(['staging.dramavela.com']);
   if (hostname.includes('dramavela.com') && !allowedDramavelaHosts.has(hostname)) {
     throw new Error('[suspense-1913 seed] Refusing non-staging dramavela.com media host.');
   }
+
+  return {
+    mediaBaseUrl: normalizeBaseUrl(baseUrl),
+  };
+}
+
+export function validateSuspense1913ProductionSeedEnvironment(env = process.env) {
+  if (env.SEED_DRAMA_PRODUCTION_PACK !== '1') {
+    throw new Error(
+      '[suspense-1913 seed] Refusing to run: set SEED_DRAMA_PRODUCTION_PACK=1 explicitly.',
+    );
+  }
+
+  if (env.SEED_DRAMA_STAGING_PACK === '1') {
+    throw new Error('[suspense-1913 seed] Refusing staging approval flag for production seed.');
+  }
+
+  const values = environmentValues(env);
+  const productionValues = new Set(['production', 'prod']);
+  if (!values.some((value) => productionValues.has(value))) {
+    throw new Error(
+      '[suspense-1913 seed] APP_ENV, NODE_ENV, or VERCEL_ENV must explicitly be production/prod.',
+    );
+  }
+
+  const baseUrl = env.PRODUCTION_DRAMA_MEDIA_BASE_URL;
+  requireHttpsUrl('PRODUCTION_DRAMA_MEDIA_BASE_URL', baseUrl);
 
   return {
     mediaBaseUrl: normalizeBaseUrl(baseUrl),
@@ -184,14 +220,14 @@ export function buildSuspense1913SeedRows(mediaBaseUrl) {
   return { drama, episodes, videoAssets };
 }
 
-export function createSuspense1913StagingSeed({ env = process.env, prisma }) {
+function createSuspense1913Seed({ env, prisma, validateEnvironment }) {
   if (!prisma) {
     throw new Error('[suspense-1913 seed] prisma client is required.');
   }
 
   return {
     async run() {
-      const { mediaBaseUrl } = validateSuspense1913SeedEnvironment(env);
+      const { mediaBaseUrl } = validateEnvironment(env);
       const { drama, episodes, videoAssets } = buildSuspense1913SeedRows(mediaBaseUrl);
 
       await prisma.$transaction(async (tx) => {
@@ -234,6 +270,22 @@ export function createSuspense1913StagingSeed({ env = process.env, prisma }) {
       };
     },
   };
+}
+
+export function createSuspense1913StagingSeed({ env = process.env, prisma }) {
+  return createSuspense1913Seed({
+    env,
+    prisma,
+    validateEnvironment: validateSuspense1913SeedEnvironment,
+  });
+}
+
+export function createSuspense1913ProductionSeed({ env = process.env, prisma }) {
+  return createSuspense1913Seed({
+    env,
+    prisma,
+    validateEnvironment: validateSuspense1913ProductionSeedEnvironment,
+  });
 }
 
 async function main() {
