@@ -36,10 +36,51 @@ async function mockDeterministicDramaHls(page: import('@playwright/test').Page) 
   return requestedUrls;
 }
 
+async function mockAnonymousDramaBrowserApi(page: import('@playwright/test').Page) {
+  await page.route('http://localhost:4000/auth/me', (route) =>
+    route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({}) }),
+  );
+
+  await page.route(`http://localhost:4000/episodes/${freeEpisodeId}/playback`, (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        episodeId: freeEpisodeId,
+        dramaId: '33333333-0000-4d00-8d00-000000000000',
+        episodeNumber: 1,
+        title: 'The Offer',
+        durationSeconds: 80,
+        access: 'granted',
+        accessReason: 'free',
+        hlsUrl: `https://media.dramavela.test/hls/${dramaSlug}/episode-01.m3u8`,
+        provider: 'e2e-fixture-hls',
+        thumbnailUrl: '/covers/pride-and-prejudice.svg',
+      }),
+    }),
+  );
+
+  await page.route(`http://localhost:4000/episodes/${lockedEpisodeId}/playback`, (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        episodeId: lockedEpisodeId,
+        dramaId: '33333333-0000-4d00-8d00-000000000000',
+        episodeNumber: 4,
+        title: 'The Locked Penthouse',
+        durationSeconds: 92,
+        access: 'denied',
+        accessReason: 'locked',
+        coinPerEpisode: 25,
+      }),
+    }),
+  );
+}
+
 test('anonymous visitor can browse drama detail, open deterministic free playback, and hit locked paywall', async ({
   page,
 }) => {
   const hlsRequests = await mockDeterministicDramaHls(page);
+  await mockAnonymousDramaBrowserApi(page);
 
   const browseResponse = await page.goto('/dramas');
   test.skip(
@@ -79,6 +120,7 @@ test('anonymous visitor can browse drama detail, open deterministic free playbac
     .toBe(true);
   expect(hlsRequests.every((url) => !/[?&](token|signature|expires|key)=/i.test(url))).toBe(true);
 
+  const requestsBeforeLockedPlayback = hlsRequests.length;
   await page.goto(`/dramas/${dramaSlug}/watch/${lockedEpisodeId}`);
   await expect(page.getByRole('heading', { name: 'Episode locked' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in to unlock' })).toBeVisible();
@@ -86,6 +128,7 @@ test('anonymous visitor can browse drama detail, open deterministic free playbac
   await expect(
     page.getByText('Your watch progress resumes after access is restored.'),
   ).toBeVisible();
+  expect(hlsRequests).toHaveLength(requestsBeforeLockedPlayback);
 });
 
 test('signed-in viewer sees resume CTA and resume label for existing drama progress', async ({

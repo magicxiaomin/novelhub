@@ -10,6 +10,19 @@ export default defineConfig({
   expect: {
     timeout: 15_000,
   },
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: 'pnpm --filter @novelhub/web dev',
+        cwd: '../..',
+        env: {
+          ...process.env,
+          NOVELHUB_E2E_DRAMA_FIXTURES: '1',
+        },
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+        url: 'http://localhost:3000',
+      },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     headless: true,

@@ -12,6 +12,13 @@
 import { cookies } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
+import {
+  dramaE2eFixtureDetail,
+  dramaE2eFixtureList,
+  dramaE2eFixturePlayback,
+  dramaE2eFixtureSlug,
+  dramaE2eFixturesEnabled,
+} from './drama-e2e-fixtures';
 import type {
   BookDetail,
   BookSummary,
@@ -118,6 +125,14 @@ export async function fetchDramasServer(query?: {
   page?: number;
   pageSize?: number;
 }): Promise<DramaPaginated<DramaSummary>> {
+  if (dramaE2eFixturesEnabled()) {
+    const fixtures = dramaE2eFixtureList();
+    return {
+      ...fixtures,
+      items: query?.featured ? fixtures.items.filter((drama) => drama.isFeatured) : fixtures.items,
+    };
+  }
+
   const res = await fetch(buildServerApiUrl('/dramas', query), {
     cache: 'no-store',
   });
@@ -128,6 +143,10 @@ export async function fetchDramasServer(query?: {
 }
 
 export async function fetchDramaServer(slug: string): Promise<DramaDetail | null> {
+  if (dramaE2eFixturesEnabled()) {
+    return slug === dramaE2eFixtureSlug ? dramaE2eFixtureDetail : null;
+  }
+
   const res = await fetch(buildServerApiUrl(`/dramas/${encodeURIComponent(slug)}`), {
     cache: 'no-store',
     headers: { cookie: cookieHeader() },
@@ -142,6 +161,10 @@ export async function fetchDramaServer(slug: string): Promise<DramaDetail | null
 export async function fetchEpisodePlaybackServer(
   episodeId: string,
 ): Promise<EpisodePlayback | null> {
+  if (dramaE2eFixturesEnabled()) {
+    return dramaE2eFixturePlayback(episodeId);
+  }
+
   const res = await fetch(
     buildServerApiUrl(`/episodes/${encodeURIComponent(episodeId)}/playback`),
     {
