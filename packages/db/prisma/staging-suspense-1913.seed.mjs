@@ -75,10 +75,18 @@ export function validateSuspense1913SeedEnvironment(env = process.env) {
   const nodeEnv = String(env.NODE_ENV ?? '').toLowerCase();
   const appEnv = String(env.APP_ENV ?? env.RAILWAY_ENVIRONMENT_NAME ?? '').toLowerCase();
   const vercelEnv = String(env.VERCEL_ENV ?? '').toLowerCase();
+  const allowedEnvironmentValues = new Set(['development', 'dev', 'staging', 'test']);
+  const environmentValues = [nodeEnv, appEnv, vercelEnv].filter(Boolean);
   const unsafeValues = new Set(['production', 'prod']);
 
-  if ([nodeEnv, appEnv, vercelEnv].some((value) => unsafeValues.has(value))) {
+  if (environmentValues.some((value) => unsafeValues.has(value))) {
     throw new Error('[suspense-1913 seed] Refuses production/prod environments.');
+  }
+
+  if (!environmentValues.some((value) => allowedEnvironmentValues.has(value))) {
+    throw new Error(
+      '[suspense-1913 seed] APP_ENV, NODE_ENV, or VERCEL_ENV must explicitly be one of development, staging, or test.',
+    );
   }
 
   const baseUrl = env.STAGING_DRAMA_MEDIA_BASE_URL;
@@ -93,12 +101,13 @@ export function validateSuspense1913SeedEnvironment(env = process.env) {
     throw new Error('[suspense-1913 seed] STAGING_DRAMA_MEDIA_BASE_URL must be an absolute URL.');
   }
 
-  if (!['https:', 'http:'].includes(parsed.protocol)) {
-    throw new Error('[suspense-1913 seed] STAGING_DRAMA_MEDIA_BASE_URL must use http(s).');
+  if (parsed.protocol !== 'https:') {
+    throw new Error('[suspense-1913 seed] STAGING_DRAMA_MEDIA_BASE_URL must use https.');
   }
 
   const hostname = parsed.hostname.toLowerCase();
-  if (hostname.includes('dramavela.com') && !hostname.includes('staging')) {
+  const allowedDramavelaHosts = new Set(['staging.dramavela.com']);
+  if (hostname.includes('dramavela.com') && !allowedDramavelaHosts.has(hostname)) {
     throw new Error('[suspense-1913 seed] Refusing non-staging dramavela.com media host.');
   }
 
@@ -185,35 +194,37 @@ export function createSuspense1913StagingSeed({ env = process.env, prisma }) {
       const { mediaBaseUrl } = validateSuspense1913SeedEnvironment(env);
       const { drama, episodes, videoAssets } = buildSuspense1913SeedRows(mediaBaseUrl);
 
-      const dramaUpdate = withoutId(drama);
-      await prisma.drama.upsert({
-        where: { slug: DRAMA_SLUG },
-        update: dramaUpdate,
-        create: drama,
-      });
+      await prisma.$transaction(async (tx) => {
+        const dramaUpdate = withoutId(drama);
+        await tx.drama.upsert({
+          where: { slug: DRAMA_SLUG },
+          update: dramaUpdate,
+          create: drama,
+        });
 
-      for (const episode of episodes) {
-        const episodeUpdate = withoutId(episode);
-        await prisma.episode.upsert({
-          where: {
-            dramaId_episodeNumber: {
-              dramaId: DRAMA_ID,
-              episodeNumber: episode.episodeNumber,
+        for (const episode of episodes) {
+          const episodeUpdate = withoutId(episode);
+          await tx.episode.upsert({
+            where: {
+              dramaId_episodeNumber: {
+                dramaId: DRAMA_ID,
+                episodeNumber: episode.episodeNumber,
+              },
             },
-          },
-          update: episodeUpdate,
-          create: episode,
-        });
-      }
+            update: episodeUpdate,
+            create: episode,
+          });
+        }
 
-      for (const videoAsset of videoAssets) {
-        const videoAssetUpdate = withoutId(videoAsset);
-        await prisma.videoAsset.upsert({
-          where: { episodeId: videoAsset.episodeId },
-          update: videoAssetUpdate,
-          create: videoAsset,
-        });
-      }
+        for (const videoAsset of videoAssets) {
+          const videoAssetUpdate = withoutId(videoAsset);
+          await tx.videoAsset.upsert({
+            where: { episodeId: videoAsset.episodeId },
+            update: videoAssetUpdate,
+            create: videoAsset,
+          });
+        }
+      });
 
       return {
         dramaSlug: DRAMA_SLUG,

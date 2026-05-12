@@ -246,7 +246,7 @@ Required environment:
 
 ```bash
 SEED_DRAMA_STAGING_PACK=1
-NODE_ENV=staging # or another non-production value
+NODE_ENV=staging # or APP_ENV/VERCEL_ENV set to development, staging, or test; production/prod and unset envs are refused
 STAGING_DRAMA_MEDIA_BASE_URL=https://<approved-staging-media-host>
 DATABASE_URL=<staging database URL>
 ```

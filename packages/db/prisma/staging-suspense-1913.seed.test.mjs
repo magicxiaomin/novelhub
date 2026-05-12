@@ -10,6 +10,15 @@ import {
 test('staging Suspense seed refuses default and production-like environments', () => {
   assert.throws(() => validateSuspense1913SeedEnvironment({}), /SEED_DRAMA_STAGING_PACK=1/);
 
+  assert.throws(
+    () =>
+      validateSuspense1913SeedEnvironment({
+        SEED_DRAMA_STAGING_PACK: '1',
+        STAGING_DRAMA_MEDIA_BASE_URL: 'https://staging-media.example.test',
+      }),
+    /APP_ENV, NODE_ENV, or VERCEL_ENV must explicitly be one of/i,
+  );
+
   for (const nodeEnv of ['production', 'prod']) {
     assert.throws(
       () =>
@@ -29,6 +38,37 @@ test('staging Suspense seed refuses default and production-like environments', (
         NODE_ENV: 'staging',
       }),
     /STAGING_DRAMA_MEDIA_BASE_URL/,
+  );
+});
+
+test('staging Suspense seed requires safe staging media hosts', () => {
+  assert.throws(
+    () =>
+      validateSuspense1913SeedEnvironment({
+        SEED_DRAMA_STAGING_PACK: '1',
+        NODE_ENV: 'staging',
+        STAGING_DRAMA_MEDIA_BASE_URL: 'http://media.example.test',
+      }),
+    /must use https/i,
+  );
+
+  assert.throws(
+    () =>
+      validateSuspense1913SeedEnvironment({
+        SEED_DRAMA_STAGING_PACK: '1',
+        NODE_ENV: 'staging',
+        STAGING_DRAMA_MEDIA_BASE_URL: 'https://staging.dramavela.com.attacker.example',
+      }),
+    /Refusing non-staging dramavela.com media host/i,
+  );
+
+  assert.deepEqual(
+    validateSuspense1913SeedEnvironment({
+      SEED_DRAMA_STAGING_PACK: '1',
+      NODE_ENV: 'staging',
+      STAGING_DRAMA_MEDIA_BASE_URL: 'https://staging.dramavela.com/root/',
+    }),
+    { mediaBaseUrl: 'https://staging.dramavela.com/root' },
   );
 });
 
@@ -109,6 +149,7 @@ test('seed execution is idempotent by slug, episode number, and episode video as
         return { id: args.update.id ?? args.create.id };
       },
     },
+    $transaction: async (callback) => callback(prisma),
   };
 
   const seed = createSuspense1913StagingSeed({
@@ -186,4 +227,30 @@ test('seed execution is idempotent by slug, episode number, and episode video as
   for (const [, args] of calls.filter(([name]) => name === 'videoAsset.upsert')) {
     assert.deepEqual(args.where, { episodeId: args.create.episodeId });
   }
+});
+
+test('seed execution uses a transaction for atomic idempotent upserts', async () => {
+  let transactionCalls = 0;
+  const prisma = {
+    drama: { upsert: async () => ({}) },
+    episode: { upsert: async () => ({}) },
+    videoAsset: { upsert: async () => ({}) },
+    $transaction: async (callback) => {
+      transactionCalls += 1;
+      return callback(prisma);
+    },
+  };
+
+  const seed = createSuspense1913StagingSeed({
+    env: {
+      SEED_DRAMA_STAGING_PACK: '1',
+      NODE_ENV: 'staging',
+      STAGING_DRAMA_MEDIA_BASE_URL: 'https://staging-media.example.test',
+    },
+    prisma,
+  });
+
+  await seed.run();
+
+  assert.equal(transactionCalls, 1);
 });
