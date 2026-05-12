@@ -394,12 +394,12 @@ GitHub traceability note: `gh issue view 169` is available in the orchestrator e
 
 ## 11. Review resolution
 
-Claude and Codex agreed this artifact should not be committed on the already-merged `pr-171` branch. The reviewed resolution is to persist it as a docs-only PR from latest `main`, keep product/code changes out of scope, and treat the follow-up items below as separate execution tasks.
+Claude and Codex agreed this artifact should not be committed on the already-merged drama fallback bugfix branch. The reviewed resolution is to persist it as a docs-only PR from latest `main`, keep product/code changes out of scope, and treat the follow-up items below as separate execution tasks.
 
 Current blocker updates as of review:
 
-- PR #171 has resolved the immediate `/dramas` 500 blocker by returning a non-500 disabled fallback when the drama schema is unavailable. This plan still keeps future `/dramas` 5xx responses as a hard stop before mobile/admin/demo QA.
-- PR #173 covers Claude auto-review workflow reliability and is not part of this docs artifact. Its merge remains subject to repository/path-policy approval.
+- The merged drama fallback fix has resolved the immediate `/dramas` 500 blocker by returning a non-500 disabled fallback when the drama schema is unavailable. This plan still keeps future `/dramas` 5xx responses as a hard stop before mobile/admin/demo QA.
+- The Claude auto-review workflow reliability fix is separate from this docs artifact.
 - Hard-fail drama smoke, deterministic fixtures, no-secret admin/editor provisioning, staging demo seed/import, and final go/no-go evidence remain separate follow-up tasks.
 
 ## 12. Proposal v1 for Codex feasibility review
