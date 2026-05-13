@@ -116,7 +116,7 @@ const contractDramaDetail = {
   ],
 };
 
-const makeApp = () => {
+const makeApp = (env: Record<string, string | undefined> = {}) => {
   const app = new Hono<{
     Bindings: Record<string, string | undefined>;
     Variables: { prisma: unknown; user?: { id: string; email: string; isAdmin: boolean } };
@@ -150,7 +150,11 @@ const makeApp = () => {
     }
     throw err;
   });
-  return app;
+  type AppRequestArgs = Parameters<typeof app.request>;
+  return {
+    request: (input: AppRequestArgs[0], requestInit?: AppRequestArgs[1]) =>
+      app.request(input, requestInit, env),
+  };
 };
 
 describe('dramasRoutes', () => {
@@ -457,6 +461,109 @@ describe('dramasRoutes', () => {
       disabled: true,
       reason: 'drama_schema_unavailable',
     });
+  });
+
+  it('serves flag-gated Suspense demo list fallback when the drama table is not deployed', async () => {
+    const list = jest
+      .fn()
+      .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
+    makeDramasServiceMock.mockReturnValue({ list } as never);
+
+    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request('/dramas');
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      processValidationFallback: true,
+      reason: 'drama_schema_unavailable',
+      items: [
+        {
+          id: '66666666-6666-4666-8666-666666666666',
+          slug: 'suspense-1913',
+          title: 'Suspense',
+          totalEpisodes: 4,
+          freeEpisodeCount: 2,
+        },
+      ],
+      pageInfo: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+    });
+  });
+
+  it('serves flag-gated Suspense demo detail fallback with locked episodes sanitized', async () => {
+    const getBySlug = jest
+      .fn()
+      .mockRejectedValue({ code: 'P2022', message: 'Column `dramas.deleted_at` does not exist' });
+    makeDramasServiceMock.mockReturnValue({ getBySlug } as never);
+
+    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
+      '/dramas/suspense-1913',
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { episodes: Array<Record<string, unknown>> };
+    expect(body).toMatchObject({
+      id: '66666666-6666-4666-8666-666666666666',
+      slug: 'suspense-1913',
+      processValidationFallback: true,
+      reason: 'drama_schema_unavailable',
+    });
+    expect(body.episodes).toHaveLength(4);
+    expect(body.episodes[0]).toMatchObject({ episodeNumber: 1, isFree: true, isUnlocked: true });
+    expect(body.episodes[1]).toMatchObject({ episodeNumber: 2, isFree: true, isUnlocked: true });
+    expect(body.episodes[2]).toMatchObject({ episodeNumber: 3, isFree: false, isUnlocked: false });
+    expectNoPlayableMediaLeak(body.episodes[2]);
+    expectNoPlayableMediaLeak(body.episodes[3]);
+  });
+
+  it('serves flag-gated Suspense demo free playback fallback when the drama table is not deployed', async () => {
+    const getPlayback = jest
+      .fn()
+      .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
+      '/episodes/66666666-6666-4666-8666-666666666601/playback',
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      episodeId: '66666666-6666-4666-8666-666666666601',
+      dramaId: '66666666-6666-4666-8666-666666666666',
+      episodeNumber: 1,
+      access: 'granted',
+      accessReason: 'free',
+      hlsUrl:
+        'https://pub-d0269fafaaac404b9b9e88602dfeaa49.r2.dev/dramas/suspense-1913/ep1/index.m3u8',
+      processValidationFallback: true,
+      reason: 'drama_schema_unavailable',
+    });
+  });
+
+  it('serves flag-gated Suspense demo locked playback fallback without leaking HLS', async () => {
+    const getPlayback = jest
+      .fn()
+      .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
+    makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
+
+    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
+      '/episodes/66666666-6666-4666-8666-666666666603/playback',
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      episodeId: '66666666-6666-4666-8666-666666666603',
+      dramaId: '66666666-6666-4666-8666-666666666666',
+      episodeNumber: 3,
+      title: 'Episode 3',
+      durationSeconds: 600,
+      access: 'denied',
+      accessReason: 'locked',
+      coinPerEpisode: 5,
+      processValidationFallback: true,
+      reason: 'drama_schema_unavailable',
+    });
+    expectNoPlayableMediaLeak(body);
   });
 
   it('rejects invalid list query parameters before calling the service', async () => {

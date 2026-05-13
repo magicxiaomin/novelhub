@@ -61,6 +61,10 @@ export type WorkerEnv = {
   // Sentry (Task 10). Read off env so `withSentry` can build per-request
   // options; middleware reads it via `setSentryUser` / `captureWorkerException`.
   SENTRY_DSN?: string;
+  // Emergency process-validation/demo-only fallback for production drama routes
+  // while the drama database schema is unavailable. Keep unset by default.
+  DRAMA_PROCESS_VALIDATION_FALLBACK?: string;
+  PRODUCTION_DRAMA_DEMO_FALLBACK?: string;
 };
 
 export function makeAuthService(env: WorkerEnv, prisma: PrismaClient): AuthService {
