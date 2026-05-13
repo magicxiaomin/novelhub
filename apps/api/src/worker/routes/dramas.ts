@@ -8,6 +8,11 @@ import { optionalAuth } from '../middleware/auth';
 import { validationHook } from '../middleware/validator';
 import type { WorkerEnv } from '../services/auth-factory';
 import { makeDramasService } from '../services/dramas-factory';
+import {
+  isDramaProcessValidationFallbackEnabled,
+  makeSuspenseFallbackDetail,
+  makeSuspenseFallbackList,
+} from './drama-process-validation-fallback';
 import { dramaSlugParamSchema, listDramasQuerySchema } from './dramas.schemas';
 
 const LOCKED_EPISODE_ALLOWED_KEYS = new Set([
@@ -79,6 +84,9 @@ export const dramasRoutes = new Hono<{ Bindings: Bindings; Variables: Variables 
       return c.json(stripLockedEpisodeMediaFields(await dramas.list(query)), 200);
     } catch (error) {
       if (!isDramaSchemaUnavailable(error)) throw error;
+      if (isDramaProcessValidationFallbackEnabled(c.env)) {
+        return c.json(makeSuspenseFallbackList(page, pageSize), 200);
+      }
       return c.json(
         {
           items: [],
@@ -101,6 +109,10 @@ export const dramasRoutes = new Hono<{ Bindings: Bindings; Variables: Variables 
       );
     } catch (error) {
       if (!isDramaSchemaUnavailable(error)) throw error;
+      if (isDramaProcessValidationFallbackEnabled(c.env)) {
+        const fallback = makeSuspenseFallbackDetail(slug);
+        if (fallback) return c.json(stripLockedEpisodeMediaFields(fallback), 200);
+      }
       throw new DomainError(404, 'Drama catalog is temporarily unavailable', {
         disabled: true,
         reason: DRAMA_SCHEMA_UNAVAILABLE_REASON,
