@@ -508,9 +508,27 @@ describe('dramasRoutes', () => {
       reason: 'drama_schema_unavailable',
     });
     expect(body.episodes).toHaveLength(4);
-    expect(body.episodes[0]).toMatchObject({ episodeNumber: 1, isFree: true, isUnlocked: true });
-    expect(body.episodes[1]).toMatchObject({ episodeNumber: 2, isFree: true, isUnlocked: true });
-    expect(body.episodes[2]).toMatchObject({ episodeNumber: 3, isFree: false, isUnlocked: false });
+    expect(body.episodes[0]).toMatchObject({
+      id: '66666666-0001-4d00-8d00-000000000001',
+      episodeId: '66666666-0001-4d00-8d00-000000000001',
+      episodeNumber: 1,
+      isFree: true,
+      isUnlocked: true,
+    });
+    expect(body.episodes[1]).toMatchObject({
+      id: '66666666-0002-4d00-8d00-000000000002',
+      episodeId: '66666666-0002-4d00-8d00-000000000002',
+      episodeNumber: 2,
+      isFree: true,
+      isUnlocked: true,
+    });
+    expect(body.episodes[2]).toMatchObject({
+      id: '66666666-0003-4d00-8d00-000000000003',
+      episodeId: '66666666-0003-4d00-8d00-000000000003',
+      episodeNumber: 3,
+      isFree: false,
+      isUnlocked: false,
+    });
     expectNoPlayableMediaLeak(body.episodes[2]);
     expectNoPlayableMediaLeak(body.episodes[3]);
   });
@@ -522,12 +540,12 @@ describe('dramasRoutes', () => {
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
     const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
-      '/episodes/66666666-6666-4666-8666-666666666601/playback',
+      '/episodes/66666666-0001-4d00-8d00-000000000001/playback',
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      episodeId: '66666666-6666-4666-8666-666666666601',
+      episodeId: '66666666-0001-4d00-8d00-000000000001',
       dramaId: '66666666-6666-4666-8666-666666666666',
       episodeNumber: 1,
       access: 'granted',
@@ -546,13 +564,13 @@ describe('dramasRoutes', () => {
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
     const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
-      '/episodes/66666666-6666-4666-8666-666666666603/playback',
+      '/episodes/66666666-0003-4d00-8d00-000000000003/playback',
     );
 
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toEqual({
-      episodeId: '66666666-6666-4666-8666-666666666603',
+      episodeId: '66666666-0003-4d00-8d00-000000000003',
       dramaId: '66666666-6666-4666-8666-666666666666',
       episodeNumber: 3,
       title: 'Episode 3',

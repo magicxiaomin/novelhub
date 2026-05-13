@@ -2,7 +2,8 @@ const DRAMA_ID = '66666666-6666-4666-8666-666666666666';
 const MEDIA_BASE = 'https://pub-d0269fafaaac404b9b9e88602dfeaa49.r2.dev';
 const REASON = 'drama_schema_unavailable';
 
-const episodeId = (episodeNumber: number) => `66666666-6666-4666-8666-66666666660${episodeNumber}`;
+const episodeId = (episodeNumber: number) =>
+  `66666666-000${episodeNumber}-4d00-8d00-00000000000${episodeNumber}`;
 
 const hlsUrl = (episodeNumber: number) =>
   `${MEDIA_BASE}/dramas/suspense-1913/ep${episodeNumber}/index.m3u8`;
