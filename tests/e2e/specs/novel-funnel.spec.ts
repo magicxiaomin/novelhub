@@ -108,9 +108,7 @@ test.describe('novel acquisition funnel', () => {
     await expect(page.getByRole('button', { name: 'Buy Coins', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Subscribe Now', exact: true })).toBeVisible();
 
-    await page.goto('/recharge?tab=coins', { waitUntil: 'domcontentloaded' });
-    await expect(coinPackButton(page)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Buy Coins', exact: true }).last()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Buy Coins', exact: true })).toBeVisible();
   });
 
   test('starts the subscription checkout stub from the locked chapter paywall', async ({

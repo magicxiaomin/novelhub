@@ -29,7 +29,8 @@ import type {
 type DramaE2eFixtures = typeof import('./drama-e2e-fixtures');
 type LoadedNovelE2eFixtures = typeof NovelE2eFixtures;
 
-const novelE2eFixturesEnabled = (): boolean => process.env.NOVELHUB_E2E_NOVEL_FIXTURES === '1';
+const novelE2eFixturesEnabled = (): boolean =>
+  process.env.NOVELHUB_E2E_NOVEL_FIXTURES === '1' || process.env.NOVELHUB_RUNTIME_ENV === 'ci-e2e';
 
 const loadNovelE2eFixtures = async (): Promise<LoadedNovelE2eFixtures | null> => {
   if (!novelE2eFixturesEnabled()) return null;
