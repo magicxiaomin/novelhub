@@ -28,7 +28,7 @@ Disposition values:
 | `apps/web/src/components/drama/drama-rail.tsx`                 | retain      | Component can remain as quarantined implementation history.                                                     |
 | `apps/web/src/components/drama/drama-player.tsx`               | retain      | Component can remain for rollback/reference; no active route exposure in novels-only mode.                      |
 | `apps/web/src/lib/drama-player.ts`                             | retain      | Utility can remain with existing unit tests while routes are gated.                                             |
-| `apps/web/src/lib/drama-e2e-fixtures.ts`                       | retain      | Deterministic fixtures are useful for quarantined tests.                                                        |
+| `apps/web/src/lib/drama-e2e-fixtures.ts`                       | removed     | Removed by #218 with other drama runtime/test fixtures; keep only historical references in docs.                |
 | Drama strings in `packages/shared/src/messages/en.json`        | hide        | Do not surface in active UI; retain until product-mode cleanup decides whether to split/delete copy.            |
 
 ## Worker/API routes and services
@@ -61,22 +61,22 @@ Disposition values:
 | Prisma drama models/tables in `packages/db/prisma/schema.prisma`                              | propose-later | Do not drop schema/tables in this wave; requires separate DB/data/schema proposal gate.                       |
 | Migration `packages/db/prisma/migrations/20260510000000_add_short_drama_domain/migration.sql` | retain        | Historical migration must remain immutable.                                                                   |
 | Drama seed data in `packages/db/prisma/seed.mjs`                                              | gate          | Seed behavior should not make drama active by default in novels-only development unless explicitly requested. |
-| `packages/db/prisma/staging-suspense-1913.seed.mjs`                                           | retain        | Staging fixture seed is reference/test material, not active launch data.                                      |
-| `packages/db/prisma/production-suspense-1913.seed.mjs`                                        | propose-later | Production drama seed path must not run without a separate approval gate.                                     |
-| `packages/db/prisma/staging-suspense-1913.seed.test.mjs`                                      | retain        | Retain as evidence for seed behavior while quarantined.                                                       |
+| `packages/db/prisma/staging-suspense-1913.seed.mjs`                                           | removed       | Removed by #218; historical docs may mention the deleted staging seed, but no runnable seed-pack remains.     |
+| `packages/db/prisma/production-suspense-1913.seed.mjs`                                        | removed       | Removed by #218; no production drama seed command remains in the active workspace.                            |
+| `packages/db/prisma/staging-suspense-1913.seed.test.mjs`                                      | removed       | Removed by #218 with the seed script it covered.                                                              |
 
 ## Tests, scripts, and fixtures
 
-| Artifact                                    | Disposition | Rationale / follow-up note                                                             |
-| ------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- |
-| `tests/e2e/specs/drama-regression.spec.ts`  | retain      | Keep as quarantined regression coverage; later ticket may skip/gate under novels mode. |
-| `tests/e2e/fixtures/drama.ts`               | retain      | Fixture supports quarantined tests.                                                    |
-| `packages/shared/src/drama-e2e-fixtures.ts` | retain      | Shared deterministic data supports tests and fallback validation.                      |
-| `scripts/smoke.sh` drama checks             | gate        | Production smoke should not require drama endpoints for novels-only launch.            |
-| `scripts/smoke.test.sh` drama cases         | retain      | Keep script self-tests, updating expectations only in implementation tickets.          |
-| `docs/staging-drama-pack-suspense-1913.md`  | retain      | Operational history/reference; not part of active launch path.                         |
-| `docs/phase3-short-drama-*.md`              | retain      | Historical planning/spec docs; superseded by ADR 0001 for active direction.            |
-| `docs/adr/drama-*.md`                       | retain      | Prior ADRs remain historical context; superseded for current launch by ADR 0001.       |
+| Artifact                                    | Disposition | Rationale / follow-up note                                                         |
+| ------------------------------------------- | ----------- | ---------------------------------------------------------------------------------- |
+| `tests/e2e/specs/drama-regression.spec.ts`  | removed     | Removed by #218; novels-only e2e coverage remains in `specs/novel-funnel.spec.ts`. |
+| `tests/e2e/fixtures/drama.ts`               | removed     | Removed by #218 with the drama Playwright specs that consumed it.                  |
+| `packages/shared/src/drama-e2e-fixtures.ts` | removed     | Removed by #218; shared package no longer exports drama e2e fixtures.              |
+| `scripts/smoke.sh` drama checks             | gate        | Production smoke should not require drama endpoints for novels-only launch.        |
+| `scripts/smoke.test.sh` drama cases         | removed     | Removed by #218; smoke self-test now asserts novel/admin smoke output only.        |
+| `docs/staging-drama-pack-suspense-1913.md`  | retain      | Operational history/reference; not part of active launch path.                     |
+| `docs/phase3-short-drama-*.md`              | retain      | Historical planning/spec docs; superseded by ADR 0001 for active direction.        |
+| `docs/adr/drama-*.md`                       | retain      | Prior ADRs remain historical context; superseded for current launch by ADR 0001.   |
 
 ## Media/assets
 

@@ -30,13 +30,3 @@ pnpm --filter @novelhub/e2e test
 ```
 
 Set `PLAYWRIGHT_BASE_URL` to target a non-default web origin.
-
-## Drama HLS Regression
-
-The deterministic drama HLS smoke can be run directly with:
-
-```sh
-NOVELHUB_E2E_DRAMA_FIXTURES=1 pnpm --filter @novelhub/e2e test -- --project=chromium tests/e2e/specs/drama-regression.spec.ts
-```
-
-`NOVELHUB_E2E_DRAMA_FIXTURES=1` is for local/CI Playwright runs only. It enables SSR-safe deterministic drama fixture data and is guarded off when `NODE_ENV=production`; do not add it to production deployment guidance or hosted runtime environments.

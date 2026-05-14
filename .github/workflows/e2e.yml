@@ -94,10 +94,7 @@ jobs:
         env:
           PORT: '3000'
           HOSTNAME: '0.0.0.0'
-          # CI-only deterministic drama SSR fixtures for this Playwright job.
-          # Do not copy into production/staging deployment environments.
           NODE_ENV: test
-          NOVELHUB_E2E_DRAMA_FIXTURES: '1'
           NOVELHUB_E2E_NOVEL_FIXTURES: '1'
           NOVELHUB_RUNTIME_ENV: ci-e2e
           NEXT_PUBLIC_R2_PUBLIC_HOST: novel-e2e-content.test

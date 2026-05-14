@@ -21,10 +21,6 @@ set -uo pipefail
 API="${API:-http://localhost:4000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@novelhub.local}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin12345}"
-DRAMA_SLUG="${DRAMA_SLUG:-}"
-DRAMA_EPISODE_ID="${DRAMA_EPISODE_ID:-}"
-DRAMA_LOCKED_EPISODE_ID="${DRAMA_LOCKED_EPISODE_ID:-}"
-DRAMA_ADMIN_PATH="${DRAMA_ADMIN_PATH:-/admin/dramas}"
 
 PASS=0
 FAIL=0
@@ -68,95 +64,6 @@ check_not_5xx() {
   fi
 }
 
-body_has_disabled_schema_fallback() {
-  python3 - <<'PY' 2>/dev/null
-import json
-try:
-    with open('/tmp/smoke.body', encoding='utf-8') as fh:
-        data = json.load(fh)
-except Exception:
-    raise SystemExit(1)
-if data.get('disabled') is True and data.get('reason') == 'drama_schema_unavailable':
-    raise SystemExit(0)
-raise SystemExit(1)
-PY
-}
-
-body_has_hls_leak() {
-  python3 - <<'PY' 2>/dev/null
-import json
-try:
-    with open('/tmp/smoke.body', encoding='utf-8') as fh:
-        data = json.load(fh)
-except Exception:
-    text = open('/tmp/smoke.body', encoding='utf-8', errors='ignore').read()
-    raise SystemExit(0 if '.m3u8' in text else 1)
-stack = [data]
-while stack:
-    item = stack.pop()
-    if isinstance(item, dict):
-        stack.extend(item.values())
-    elif isinstance(item, list):
-        stack.extend(item)
-    elif isinstance(item, str):
-        lower = item.lower()
-        if '.m3u8' in lower or 'hls' in lower or 'playbackurl' in lower:
-            raise SystemExit(0)
-raise SystemExit(1)
-PY
-}
-
-body_has_locked_playback_denial() {
-  python3 - <<'PY' 2>/dev/null
-import json
-try:
-    with open('/tmp/smoke.body', encoding='utf-8') as fh:
-        data = json.load(fh)
-except Exception:
-    raise SystemExit(1)
-if isinstance(data, dict) and data.get('access') == 'denied' and data.get('accessReason') == 'locked':
-    raise SystemExit(0)
-raise SystemExit(1)
-PY
-}
-
-check_status_in() {
-  local description="$1"; shift
-  local expected_csv="$1"; shift
-  local response
-  : >/tmp/smoke.body
-  response=$(curl -s -o /tmp/smoke.body -w '%{http_code}' "$@" 2>/dev/null)
-  : "${response:=000}"
-  if [[ ",$expected_csv," == *",$response,"* ]]; then
-    green "  PASS  $description (HTTP $response)"
-    PASS=$((PASS + 1))
-  else
-    red "  FAIL  $description (expected one of $expected_csv, got $response)"
-    gray "        body: $(head -c 200 /tmp/smoke.body 2>/dev/null || echo '<no body>')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-check_dramas_base_gate() {
-  local response
-  : >/tmp/smoke.body
-  response=$(curl -s -o /tmp/smoke.body -w '%{http_code}' "$API/dramas" 2>/dev/null)
-  : "${response:=000}"
-  if [[ "$response" =~ ^5[0-9][0-9]$ ]] || [ "$response" = "000" ]; then
-    red "  FAIL  GET /dramas hard gate (expected non-5xx, got $response)"
-    gray "        body: $(head -c 200 /tmp/smoke.body 2>/dev/null || echo '<no body>')"
-    FAIL=$((FAIL + 1))
-    return
-  fi
-
-  if body_has_disabled_schema_fallback; then
-    green "  PASS  GET /dramas hard gate (HTTP $response, disabled schema fallback recognized)"
-  else
-    green "  PASS  GET /dramas hard gate (HTTP $response, drama browse response)"
-  fi
-  PASS=$((PASS + 1))
-}
-
 echo "Smoke testing $API"
 echo
 
@@ -167,55 +74,10 @@ check "GET /books (catalog)"          200 "$API/books"
 check "GET /books/categories"         200 "$API/books/categories"
 check "GET /books/featured"           200 "$API/books/featured"
 check "GET /books/trending"           200 "$API/books/trending"
-check_dramas_base_gate
 check "GET /reading-progress (no auth, 401)" 401 "$API/reading-progress"
 check "POST /reading-progress (no auth, 401)" 401 -X POST -H 'Content-Type: application/json' \
   -d '{"chapterId":"00000000-0000-4000-8000-000000000000","scrollPercent":10}' \
   "$API/reading-progress"
-
-# Drama-specific checks. The base /dramas gate above is mandatory and never
-# skipped. Content-specific checks run only when deterministic demo identifiers
-# are supplied so staging/prod smoke can stay read-only and non-destructive.
-gray "Drama"
-if [ -n "$DRAMA_SLUG" ]; then
-  check "GET /dramas/:slug (demo detail)" 200 "$API/dramas/$DRAMA_SLUG"
-else
-  gray "  SKIP  DRAMA_SLUG not set; skipping demo drama detail check"
-fi
-
-if [ -n "$DRAMA_EPISODE_ID" ]; then
-  check_status_in "GET /episodes/:episodeId/playback (demo playback)" "200,401,402,403" \
-    "$API/episodes/$DRAMA_EPISODE_ID/playback"
-  check_status_in "POST /episodes/:episodeId/unlock (no auth gate)" "401,403" \
-    -X POST -H 'Content-Type: application/json' "$API/episodes/$DRAMA_EPISODE_ID/unlock"
-  check_status_in "POST /drama-progress (no auth gate)" "401,403" \
-    -X POST -H 'Content-Type: application/json' \
-    -d "{\"episodeId\":\"$DRAMA_EPISODE_ID\",\"positionSeconds\":1}" \
-    "$API/drama-progress"
-else
-  gray "  SKIP  DRAMA_EPISODE_ID not set; skipping demo playback/unlock/progress checks"
-fi
-
-if [ -n "$DRAMA_LOCKED_EPISODE_ID" ]; then
-  check_status_in "GET /episodes/:episodeId/playback (locked no auth denied)" "200,401,402,403" \
-    "$API/episodes/$DRAMA_LOCKED_EPISODE_ID/playback"
-  if body_has_locked_playback_denial; then
-    green "  PASS  locked playback denied envelope is access=denied/accessReason=locked"
-    PASS=$((PASS + 1))
-  fi
-  if body_has_hls_leak; then
-    red "  FAIL  locked playback response leaked HLS/playback URL"
-    gray "        body: $(head -c 200 /tmp/smoke.body 2>/dev/null || echo '<no body>')"
-    FAIL=$((FAIL + 1))
-  else
-    green "  PASS  locked playback response did not leak HLS/playback URL"
-    PASS=$((PASS + 1))
-  fi
-else
-  gray "  SKIP  DRAMA_LOCKED_EPISODE_ID not set; skipping locked playback no-leak check"
-fi
-
-check_status_in "GET ${DRAMA_ADMIN_PATH} (no auth admin gate)" "401,403" "$API$DRAMA_ADMIN_PATH"
 
 # Pull a free chapter id from the seeded catalog so the next checks aren't
 # tied to a particular UUID.

@@ -11,9 +11,6 @@
     "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:migrate-deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:seed": "node prisma/seed.mjs",
-    "seed:staging:suspense-1913": "node prisma/staging-suspense-1913.seed.mjs",
-    "seed:production:suspense-1913": "node prisma/production-suspense-1913.seed.mjs",
-    "test:staging:suspense-1913": "node --test prisma/staging-suspense-1913.seed.test.mjs",
     "prisma:studio": "prisma studio --schema prisma/schema.prisma",
     "typecheck": "node scripts/validate-prisma.mjs"
   },

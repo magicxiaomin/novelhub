@@ -240,9 +240,11 @@ Per-episode `clip.startSec`, `clip.endSec`, and checksum values must be updated 
 
 ## Staging seed script
 
-The code seed for this pack lives at `packages/db/prisma/staging-suspense-1913.seed.mjs` and is intentionally separate from the default development seed. It only runs when explicitly enabled and refuses production-like environments.
+Deletion note (#218): the former code seed at `packages/db/prisma/staging-suspense-1913.seed.mjs` was removed during the novels-only pivot cleanup. This document is retained only as historical packaging/reference material; there is no active staging Suspense seed script or `seed:staging:suspense-1913` command in the workspace.
 
-Required environment:
+Before #218, the code seed for this pack lived at `packages/db/prisma/staging-suspense-1913.seed.mjs` and was intentionally separate from the default development seed. It only ran when explicitly enabled and refused production-like environments.
+
+Historical required environment before deletion:
 
 ```bash
 SEED_DRAMA_STAGING_PACK=1
@@ -251,7 +253,7 @@ STAGING_DRAMA_MEDIA_BASE_URL=https://<approved-staging-media-host>
 DATABASE_URL=<staging database URL>
 ```
 
-Run command after the staging schema migration is deployed and the approved HLS media origin is reachable:
+Historical run command before deletion:
 
 ```bash
 pnpm --filter @novelhub/db seed:staging:suspense-1913
