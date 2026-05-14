@@ -13,6 +13,7 @@ import { cookies } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
 import { dramaE2eFixturesEnabled } from './drama-e2e-fixture-gate';
+import type * as NovelE2eFixtures from './novel-e2e-fixtures';
 import type {
   BookDetail,
   BookSummary,
@@ -26,6 +27,24 @@ import type {
 } from './types';
 
 type DramaE2eFixtures = typeof import('./drama-e2e-fixtures');
+type LoadedNovelE2eFixtures = typeof NovelE2eFixtures;
+
+const allowedNovelFixtureRuntimeEnvironments = ['development', 'test', 'ci', 'ci-e2e'];
+
+const novelE2eFixturesEnabled = (): boolean => {
+  const runtimeEnvironment = process.env.NOVELHUB_RUNTIME_ENV ?? process.env.NODE_ENV;
+  // Production deployments must not enable fixtures; the ci-e2e runtime is set only
+  // by the Playwright workflow for its standalone smoke-test server.
+  if (process.env.NODE_ENV === 'production' && runtimeEnvironment !== 'ci-e2e') return false;
+  if (process.env.NOVELHUB_E2E_NOVEL_FIXTURES !== '1') return false;
+
+  return allowedNovelFixtureRuntimeEnvironments.some((allowed) => allowed === runtimeEnvironment);
+};
+
+const loadNovelE2eFixtures = async (): Promise<LoadedNovelE2eFixtures | null> => {
+  if (!novelE2eFixturesEnabled()) return null;
+  return import('./novel-e2e-fixtures');
+};
 
 const apiBase = (): string => {
   const base = publicApiBaseUrl();
@@ -48,6 +67,11 @@ export const buildServerApiUrl = (
 };
 
 export async function fetchBookServer(id: string): Promise<BookDetail | null> {
+  const novelFixtures = await loadNovelE2eFixtures();
+  if (novelFixtures && id === novelFixtures.novelE2eFixtureBookId) {
+    return novelFixtures.novelE2eFixtureBook;
+  }
+
   const res = await fetch(buildServerApiUrl(`/books/${encodeURIComponent(id)}`), {
     // Avoid Next's default fetch caching — book detail can change as
     // chapters land. ISR could be added later if traffic warrants.
@@ -94,6 +118,13 @@ export async function fetchBookChaptersServer(
   page = 1,
   limit = 200,
 ): Promise<Paginated<ChapterSummary> | null> {
+  const novelFixtures = await loadNovelE2eFixtures();
+  if (novelFixtures) {
+    if (id === novelFixtures.novelE2eFixtureBookId) {
+      return { ...novelFixtures.novelE2eFixtureChapterList, page, limit };
+    }
+  }
+
   const res = await fetch(
     buildServerApiUrl(`/books/${encodeURIComponent(id)}/chapters`, { page, limit }),
     {
@@ -109,6 +140,10 @@ export async function fetchBookChaptersServer(
 }
 
 export async function fetchChapterServer(id: string): Promise<ChapterResponse | null> {
+  const novelFixtures = await loadNovelE2eFixtures();
+  const novelFixtureChapter = novelFixtures?.novelE2eFixtureChapter(id);
+  if (novelFixtureChapter) return novelFixtureChapter;
+
   const res = await fetch(buildServerApiUrl(`/chapters/${encodeURIComponent(id)}`), {
     cache: 'no-store',
     headers: { cookie: cookieHeader() },

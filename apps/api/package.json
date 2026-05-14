@@ -9,6 +9,7 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "test": "jest --runInBand",
+    "test:contract": "jest --runInBand src/worker/routes/novel.contract.spec.ts",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json",
     "typecheck:worker": "tsc --noEmit -p tsconfig.worker.json",
