@@ -20,7 +20,7 @@ export const createBookBodySchema = z.object({
   tags: z.array(z.string()).optional(),
   status: bookStatusEnum.optional(),
   isFeatured: z.boolean().optional(),
-  freeChapterCount: z.coerce.number().int().min(0).optional(),
+  freeChapterCount: z.coerce.number().int().min(1).max(3).optional(),
   coinPerChapter: z.coerce.number().int().min(0).optional(),
 });
 

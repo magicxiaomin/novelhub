@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  Max,
   Min,
   MinLength,
 } from 'class-validator';
@@ -65,10 +66,11 @@ export class CreateBookDto implements CreateBookType {
   @IsBoolean()
   isFeatured?: boolean;
 
-  @ApiPropertyOptional({ default: 3 })
+  @ApiPropertyOptional({ default: 3, minimum: 1, maximum: 3 })
   @IsOptional()
   @IsInt()
-  @Min(0)
+  @Min(1)
+  @Max(3)
   freeChapterCount?: number;
 
   @ApiPropertyOptional({ default: 5 })
