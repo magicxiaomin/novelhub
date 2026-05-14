@@ -127,9 +127,9 @@ test.describe('novel acquisition funnel', () => {
       .toMatchObject({ plan: 'weekly' });
   });
 
-  test('starts the coin checkout stub from the coins recharge option', async ({ page }) => {
+  test('starts the coin checkout stub from the locked chapter paywall', async ({ page }) => {
     await gotoLockedChapter(page);
-    await page.goto('/recharge?tab=coins', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'Buy Coins', exact: true }).click();
     await expect(coinPackButton(page)).toBeVisible();
 
     const coinCheckout = page.waitForRequest('**/payments/checkout/coins');

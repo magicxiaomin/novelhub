@@ -58,8 +58,8 @@ export const buildServerApiUrl = (
 
 export async function fetchBookServer(id: string): Promise<BookDetail | null> {
   const novelFixtures = await loadNovelE2eFixtures();
-  if (novelFixtures) {
-    return id === novelFixtures.novelE2eFixtureBookId ? novelFixtures.novelE2eFixtureBook : null;
+  if (novelFixtures && id === novelFixtures.novelE2eFixtureBookId) {
+    return novelFixtures.novelE2eFixtureBook;
   }
 
   const res = await fetch(buildServerApiUrl(`/books/${encodeURIComponent(id)}`), {

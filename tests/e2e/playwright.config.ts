@@ -9,9 +9,16 @@ function definedEnv(env: Record<string, string | undefined>): Record<string, str
   return result;
 }
 
-const novelFixturesEnabledForRun = (): boolean =>
-  process.env.NOVELHUB_E2E_NOVEL_FIXTURES === '1' ||
-  process.argv.some((arg) => arg.includes('novel-funnel'));
+const novelFixturesEnabledForRun = (): boolean => {
+  if (process.env.NOVELHUB_E2E_NOVEL_FIXTURES === '1') return true;
+  if (process.argv.some((arg) => arg.includes('novel-funnel'))) return true;
+
+  // CI runs the full Playwright suite as `playwright test`, without a spec
+  // name in argv. The novel-funnel spec needs the deterministic server-side
+  // fixture in that lane too; the fixture is scoped to a hard-coded UUID, so
+  // enabling it here does not change existing drama/book coverage.
+  return Boolean(process.env.CI);
+};
 
 export default defineConfig({
   testDir: './specs',
