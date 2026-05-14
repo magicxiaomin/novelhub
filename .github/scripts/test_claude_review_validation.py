@@ -148,19 +148,58 @@ class ClaudeReviewValidationTest(unittest.TestCase):
         self.assertIn("output is too short", fallback.call_args.args[1])
 
     def test_security_short_primary_and_invalid_fallback_fails_closed(self) -> None:
-        with mock.patch.dict(os.environ, {"TICKET_NUM": "207", "TICKET_CONTEXT": "ticket"}, clear=False), \
-            mock.patch.object(claude_security_review, "build_prompt", return_value="prompt"), \
-            mock.patch.object(claude_security_review, "run_claude", return_value=("", None)), \
-            mock.patch.object(claude_security_review, "run_fallback_review", return_value=("still bad", None)):
-            stdout = io.StringIO()
-            stderr = io.StringIO()
-            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                exit_code = claude_security_review.main()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            diff_path = Path(tmpdir) / "pr.diff.trimmed"
+            diff_path.write_text("diff --git a/apps/api/src/auth.ts b/apps/api/src/auth.ts\n+code change\n", encoding="utf-8")
+            with mock.patch.dict(
+                os.environ,
+                {"TICKET_NUM": "207", "TICKET_CONTEXT": "ticket", "PR_DIFF_PATH": str(diff_path)},
+                clear=False,
+            ), \
+                mock.patch.object(claude_security_review, "build_prompt", return_value="prompt"), \
+                mock.patch.object(claude_security_review, "run_claude", return_value=("", None)), \
+                mock.patch.object(claude_security_review, "run_fallback_review", return_value=("still bad", None)):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    exit_code = claude_security_review.main()
 
         self.assertEqual(exit_code, 3)
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("fallback invalid", stderr.getvalue())
         self.assertNotIn("APPROVE", stdout.getvalue())
+
+    def test_security_docs_only_invalid_primary_and_fallback_gets_deterministic_approve(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            diff_path = Path(tmpdir) / "pr.diff.trimmed"
+            diff_path.write_text(
+                "diff --git a/docs/runbooks/drama-delete.md b/docs/runbooks/drama-delete.md\n"
+                "+operator docs update\n",
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ,
+                {"TICKET_NUM": "223", "TICKET_CONTEXT": "ticket", "PR_DIFF_PATH": str(diff_path)},
+                clear=False,
+            ), \
+                mock.patch.object(claude_security_review, "build_prompt", return_value="prompt"), \
+                mock.patch.object(claude_security_review, "run_claude", return_value=("", None)), \
+                mock.patch.object(claude_security_review, "run_fallback_review", return_value=("still bad", None)):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    exit_code = claude_security_review.main()
+
+        output = stdout.getvalue()
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertIn("### Verdict: APPROVE", output)
+        self.assertIn("documentation-only", output)
+        self.assertIsNone(claude_security_review.validate_review(output))
+
+    def test_security_docs_only_policy_rejects_workflow_changes(self) -> None:
+        diff = "diff --git a/.github/workflows/review.yml b/.github/workflows/review.yml\n+workflow change\n"
+        self.assertFalse(claude_security_review.is_docs_only_diff(diff))
 
     def test_review_scripts_read_configured_diff_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
