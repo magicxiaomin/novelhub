@@ -9,12 +9,6 @@ import { type StorageClient } from '../storage/storage.constants';
 
 import type { CreateBookDto, UpdateBookDto } from './dto/book.types';
 import type { BulkChapterDto, BulkImportOptionsDto, UpdateChapterDto } from './dto/chapter.types';
-import type {
-  CreateDramaDto,
-  CreateEpisodeDto,
-  UpdateDramaDto,
-  UpdateEpisodeDto,
-} from './dto/drama.types';
 import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './dto/query.types';
 import { clampFreeChapterLimit, configuredFreeChapterLimit } from './free-chapter-limit';
 
@@ -30,9 +24,6 @@ const COIN_REVENUE_CENTS = Math.round(
 // arbitrary R2 keys (e.g. chapter content) and exfiltrate via the public
 // cover URL. Mirrors the keys produced by AdminService.coverUploadUrl.
 const COVER_IMAGE_KEY_RE = /^covers\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const TOKEN_QUERY_RE =
-  /(^|[_-])(token|signature|sig|key|access[_-]?key|expires|policy)($|[_-])|^x-amz-/i;
-
 const wordCount = (text: string): number =>
   text.trim().length === 0 ? 0 : text.trim().split(/\s+/).length;
 
@@ -61,8 +52,6 @@ export type AdminServiceDeps = {
   // and doesn't supply coverUrl explicitly (matches the previous
   // R2_PUBLIC_HOST / NEXT_PUBLIC_R2_PUBLIC_HOST env-fallback).
   publicR2Host: string | undefined;
-  hlsAllowedHosts?: string;
-  nodeEnv?: string;
 };
 
 // `id-generator` ports the Node `crypto.randomUUID()` call to a runtime-
@@ -82,8 +71,6 @@ export class AdminService {
   private readonly cache: CacheClient;
   private readonly books: BooksService;
   private readonly publicR2Host: string | undefined;
-  private readonly hlsAllowedHosts: Set<string>;
-  private readonly nodeEnv: string | undefined;
   // Default to the global crypto.randomUUID; both Node 19+ and Workers
   // expose it on the global `crypto` object, so no factory plumbing
   // needed for the typical case.
@@ -95,61 +82,6 @@ export class AdminService {
     this.cache = deps.cache;
     this.books = deps.books;
     this.publicR2Host = deps.publicR2Host;
-    this.hlsAllowedHosts = new Set(
-      (deps.hlsAllowedHosts ?? '')
-        .split(',')
-        .map((host) => host.trim().toLowerCase())
-        .filter(Boolean),
-    );
-    this.nodeEnv = deps.nodeEnv;
-  }
-
-  private validateExternalUrl(value: string | undefined, field: string): void {
-    if (!value) return;
-    let url: URL;
-    try {
-      url = new URL(value);
-    } catch {
-      throw DomainError.badRequest(`${field} must be an absolute URL`);
-    }
-    if (!['https:', 'http:'].includes(url.protocol)) {
-      throw DomainError.badRequest(`${field} must use http or https`);
-    }
-    if (this.nodeEnv === 'production' && url.protocol !== 'https:') {
-      throw DomainError.badRequest(`${field} must use HTTPS in production`);
-    }
-    if (url.username || url.password) {
-      throw DomainError.badRequest(`${field} must not include userinfo`);
-    }
-    if (this.hlsAllowedHosts.size > 0 && !this.hlsAllowedHosts.has(url.hostname.toLowerCase())) {
-      throw DomainError.badRequest(`${field} host is not allowed`);
-    }
-    for (const key of url.searchParams.keys()) {
-      if (TOKEN_QUERY_RE.test(key)) {
-        throw DomainError.badRequest(`${field} must not include token-like query parameters`);
-      }
-    }
-  }
-
-  private validateEpisodeVideo(video: CreateEpisodeDto['video'] | UpdateEpisodeDto['video']): void {
-    if (!video) return;
-    if (video.provider !== 'external_hls') {
-      throw DomainError.badRequest('Only provider=external_hls is supported');
-    }
-    this.validateExternalUrl(video.playbackUrl, 'playbackUrl');
-    this.validateExternalUrl(video.thumbnailUrl, 'thumbnailUrl');
-  }
-
-  private episodeVideoData(
-    video: NonNullable<CreateEpisodeDto['video']>,
-  ): Prisma.VideoAssetCreateWithoutEpisodeInput {
-    return {
-      provider: video.provider,
-      playbackUrl: video.playbackUrl,
-      thumbnailUrl: video.thumbnailUrl,
-      durationSeconds: video.durationSeconds,
-      metadata: video.metadata as Prisma.InputJsonValue | undefined,
-    };
   }
 
   async createBook(dto: CreateBookDto): Promise<{ id: string }> {
@@ -561,232 +493,6 @@ export class AdminService {
       data: { deletedAt: new Date() },
     });
     await this.cache.del(`chapter:preview:${id}`);
-    return { id };
-  }
-
-  async createDrama(dto: CreateDramaDto): Promise<{ id: string }> {
-    this.validateExternalUrl(dto.posterUrl, 'posterUrl');
-    const drama = await this.prisma.drama.create({
-      data: {
-        slug: dto.slug,
-        title: dto.title,
-        description: dto.description,
-        posterUrl: dto.posterUrl,
-        category: dto.category,
-        tags: dto.tags ?? [],
-        status: dto.status ?? 'DRAFT',
-        isFeatured: dto.isFeatured ?? false,
-        sortOrder: dto.sortOrder ?? 0,
-        freeEpisodeCount: dto.freeEpisodeCount ?? 3,
-        coinPerEpisode: dto.coinPerEpisode ?? 5,
-      },
-      select: { id: true },
-    });
-    return { id: drama.id };
-  }
-
-  async listDramas(
-    query: AdminSearchDto,
-  ): Promise<{ items: unknown[]; total: number; page: number; limit: number }> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const where = {
-      deletedAt: null,
-      ...(query.search ? { title: { contains: query.search, mode: 'insensitive' as const } } : {}),
-    };
-    const [items, total] = await Promise.all([
-      this.prisma.drama.findMany({
-        where,
-        orderBy: { updatedAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.drama.count({ where }),
-    ]);
-    return { items, total, page, limit };
-  }
-
-  async getDrama(id: string): Promise<unknown> {
-    const drama = await this.prisma.drama.findFirst({
-      where: { id, deletedAt: null },
-      include: {
-        episodes: {
-          where: { deletedAt: null },
-          orderBy: { episodeNumber: 'asc' },
-          include: { videoAsset: true },
-        },
-      },
-    });
-    if (!drama) throw DomainError.notFound('Drama not found');
-    return drama;
-  }
-
-  async updateDrama(id: string, dto: UpdateDramaDto): Promise<{ id: string }> {
-    const drama = await this.prisma.drama.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!drama) throw DomainError.notFound('Drama not found');
-    this.validateExternalUrl(dto.posterUrl, 'posterUrl');
-    await this.prisma.drama.update({ where: { id }, data: { ...dto } });
-    return { id };
-  }
-
-  async softDeleteDrama(id: string): Promise<{ id: string }> {
-    const drama = await this.prisma.drama.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!drama) throw DomainError.notFound('Drama not found');
-    await this.prisma.drama.update({ where: { id }, data: { deletedAt: new Date() } });
-    return { id };
-  }
-
-  async publishDrama(id: string): Promise<{ id: string }> {
-    const drama = await this.prisma.drama.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!drama) throw DomainError.notFound('Drama not found');
-    await this.prisma.drama.update({
-      where: { id },
-      data: { status: 'PUBLISHED', publishedAt: new Date() },
-    });
-    return { id };
-  }
-
-  async unpublishDrama(id: string): Promise<{ id: string }> {
-    const drama = await this.prisma.drama.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!drama) throw DomainError.notFound('Drama not found');
-    await this.prisma.drama.update({
-      where: { id },
-      data: { status: 'UNPUBLISHED', publishedAt: null },
-    });
-    return { id };
-  }
-
-  async createEpisode(dto: CreateEpisodeDto): Promise<{ id: string }> {
-    this.validateEpisodeVideo(dto.video);
-    const drama = await this.prisma.drama.findFirst({
-      where: { id: dto.dramaId, deletedAt: null },
-      select: { id: true, totalEpisodes: true },
-    });
-    if (!drama) throw DomainError.notFound('Drama not found');
-    const episode = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.episode.create({
-        data: {
-          dramaId: dto.dramaId,
-          episodeNumber: dto.episodeNumber,
-          title: dto.title,
-          synopsis: dto.synopsis,
-          durationSeconds: dto.durationSeconds,
-          isFree: dto.isFree ?? false,
-          isPublished: dto.isPublished ?? false,
-          publishedAt: dto.isPublished ? new Date() : null,
-          videoAsset: dto.video ? { create: this.episodeVideoData(dto.video) } : undefined,
-        },
-        select: { id: true },
-      });
-      await tx.drama.update({
-        where: { id: dto.dramaId },
-        data: { totalEpisodes: Math.max(drama.totalEpisodes, dto.episodeNumber) },
-      });
-      return row;
-    });
-    return { id: episode.id };
-  }
-
-  async listEpisodes(
-    query: AdminChapterListDto & { dramaId?: string },
-  ): Promise<{ items: unknown[]; total: number; page: number; limit: number }> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const where = { deletedAt: null, ...(query.dramaId ? { dramaId: query.dramaId } : {}) };
-    const [items, total] = await Promise.all([
-      this.prisma.episode.findMany({
-        where,
-        orderBy: [{ dramaId: 'asc' }, { episodeNumber: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-        include: { videoAsset: true },
-      }),
-      this.prisma.episode.count({ where }),
-    ]);
-    return { items, total, page, limit };
-  }
-
-  async getEpisode(id: string): Promise<unknown> {
-    const episode = await this.prisma.episode.findFirst({
-      where: { id, deletedAt: null },
-      include: { videoAsset: true },
-    });
-    if (!episode) throw DomainError.notFound('Episode not found');
-    return episode;
-  }
-
-  async updateEpisode(id: string, dto: UpdateEpisodeDto): Promise<{ id: string }> {
-    const episode = await this.prisma.episode.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!episode) throw DomainError.notFound('Episode not found');
-    this.validateEpisodeVideo(dto.video);
-    const { video, ...data } = dto;
-    await this.prisma.episode.update({
-      where: { id },
-      data: {
-        ...data,
-        publishedAt:
-          dto.isPublished === true ? new Date() : dto.isPublished === false ? null : undefined,
-        videoAsset: video
-          ? {
-              upsert: {
-                create: this.episodeVideoData(video),
-                update: this.episodeVideoData(video),
-              },
-            }
-          : undefined,
-      },
-    });
-    return { id };
-  }
-
-  async softDeleteEpisode(id: string): Promise<{ id: string }> {
-    const episode = await this.prisma.episode.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!episode) throw DomainError.notFound('Episode not found');
-    await this.prisma.episode.update({ where: { id }, data: { deletedAt: new Date() } });
-    return { id };
-  }
-
-  async publishEpisode(id: string): Promise<{ id: string }> {
-    const episode = await this.prisma.episode.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!episode) throw DomainError.notFound('Episode not found');
-    await this.prisma.episode.update({
-      where: { id },
-      data: { isPublished: true, publishedAt: new Date() },
-    });
-    return { id };
-  }
-
-  async unpublishEpisode(id: string): Promise<{ id: string }> {
-    const episode = await this.prisma.episode.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!episode) throw DomainError.notFound('Episode not found');
-    await this.prisma.episode.update({
-      where: { id },
-      data: { isPublished: false, publishedAt: null },
-    });
     return { id };
   }
 

@@ -31,8 +31,6 @@ import { AdminService } from './admin.service';
           cache,
           books,
           publicR2Host: process.env.R2_PUBLIC_HOST ?? process.env.NEXT_PUBLIC_R2_PUBLIC_HOST,
-          hlsAllowedHosts: process.env.HLS_ALLOWED_HOSTS,
-          nodeEnv: process.env.NODE_ENV,
         }),
       inject: [PRISMA, STORAGE_CLIENT, CACHE_CLIENT, BooksService],
     },
