@@ -9,6 +9,10 @@ function definedEnv(env: Record<string, string | undefined>): Record<string, str
   return result;
 }
 
+const novelFixturesEnabledForRun = (): boolean =>
+  process.env.NOVELHUB_E2E_NOVEL_FIXTURES === '1' ||
+  process.argv.some((arg) => arg.includes('novel-funnel'));
+
 export default defineConfig({
   testDir: './specs',
   fullyParallel: true,
@@ -29,6 +33,10 @@ export default defineConfig({
           HOME: process.env.HOME,
           PATH: process.env.PATH,
           NOVELHUB_E2E_DRAMA_FIXTURES: '1',
+          NOVELHUB_E2E_NOVEL_FIXTURES: novelFixturesEnabledForRun() ? '1' : undefined,
+          NEXT_PUBLIC_R2_PUBLIC_HOST: novelFixturesEnabledForRun()
+            ? 'novel-e2e-content.test'
+            : undefined,
           NOVELHUB_RUNTIME_ENV: 'ci-e2e',
         }),
         reuseExistingServer: !process.env.CI,

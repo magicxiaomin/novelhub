@@ -180,7 +180,7 @@ export function Paywall({
           <Button
             type="button"
             onClick={tab === 'subscribe' ? startSubscriptionCheckout : startCoinCheckout}
-            disabled={submitting}
+            disabled={submitting || authLoading}
             className="h-12 w-full bg-brand text-base font-semibold text-brand-foreground hover:bg-brand/90"
           >
             {tab === 'subscribe' ? messages.paywall.subscribeNow : messages.paywall.buyCoinsNow}
