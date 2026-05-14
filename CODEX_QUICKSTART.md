@@ -2,6 +2,8 @@
 
 How to drive this project with OpenAI Codex (or Claude Code / Cursor).
 
+Post-pivot note (#219): the active product direction is novels-only. The original 14-ticket plan remains historical foundation material; current work should be driven from approved GitHub issues/Kanban tasks and the pivot references in `AGENTS.md`, `docs/adr/0001-novels-only-pivot.md`, `docs/pivot/funnel.md`, and `docs/pivot/quarantine-register.md`. Do not perform live DNS/domain/cert/CDN/secrets/R2/DB teardown or revive drama surfaces from this quickstart; those require separate approved tasks.
+
 ## 1. Initial Setup
 
 1. Unzip this skeleton into an empty directory
@@ -51,13 +53,13 @@ If anything is wrong, give specific feedback and ask for a fix. Don't move to th
 
 ## 3. Recommended Ticket Cadence
 
-| Phase | Tickets | Days |
-|-------|---------|------|
-| Foundation | 01–02 | 1 |
-| Backend core | 03–06 | 6 |
-| Frontend core | 07–09 | 5–6 |
-| Retention & growth | 10–12 | 4 |
-| Polish | 13–14 | 4 |
+| Phase              | Tickets | Days |
+| ------------------ | ------- | ---- |
+| Foundation         | 01–02   | 1    |
+| Backend core       | 03–06   | 6    |
+| Frontend core      | 07–09   | 5–6  |
+| Retention & growth | 10–12   | 4    |
+| Polish             | 13–14   | 4    |
 
 **Total: ~20 working days for a full-stack engineer**, longer if working part-time.
 

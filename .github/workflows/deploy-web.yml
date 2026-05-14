@@ -6,8 +6,10 @@ name: Deploy Web (Cloudflare Pages)
 # (Worker + Pages) share trigger semantics.
 #
 # Architecture (post 2026-05-10 staging-isolation split):
-#   - novelhub-web         → serves dramavela.com / www.dramavela.com
-#                            bundle calls https://api.dramavela.com
+#   - novelhub-web         → serves the existing production web domain
+#                            as the novels-only surface; live DNS/domain/cert/CDN
+#                            teardown is out of scope for #219
+#                            bundle calls the existing production API origin
 #   - novelhub-web-staging → serves staging.whoryou.club
 #                            bundle calls https://api-staging.whoryou.club
 #
@@ -26,7 +28,8 @@ name: Deploy Web (Cloudflare Pages)
 #
 # Required repo variables (used in smoke gates):
 #   STAGING_WEB_URL        - https://staging.whoryou.club
-#   PRODUCTION_WEB_URL     - https://dramavela.com
+#   PRODUCTION_WEB_URL     - existing production web URL (novels-only surface)
+#   PRODUCTION_API_URL     - existing production API URL (novels-only API surface)
 #
 # Optional repo variable:
 #   PRODUCTION_LIVE=true   - Once production is cut over and healthy,
@@ -238,7 +241,7 @@ jobs:
       - name: Build Pages bundle (production API URL inlined at build time)
         if: steps.gate.outputs.deploy == 'true'
         env:
-          NEXT_PUBLIC_API_URL: https://api.dramavela.com
+          NEXT_PUBLIC_API_URL: ${{ vars.PRODUCTION_API_URL }}
           NEXT_PUBLIC_R2_PUBLIC_HOST: 0ead643bec90bb38a1f209ec3cec02bb.r2.cloudflarestorage.com
           NEXT_PUBLIC_DEV_ALLOW_API_CONTENT: 'true'
         run: pnpm --filter @novelhub/web pages:build

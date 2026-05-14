@@ -2,6 +2,8 @@
 
 Mobile-first English web novel PWA for paid acquisition via Facebook Ads. All 14 implementation tickets have shipped; the codebase is feature-complete pending operational launch.
 
+Current product direction is novels-only. The prior short-drama Phase 3 work is superseded for launch by the pivot tracked in #195/#204/#219, with runtime/code/test/seed removal work completed through #215-#218. Live DNS/domain/cert/CDN/secret/R2/DB teardown is explicitly out of scope for docs/env cleanup and remains tracked separately.
+
 ## For AI Coding Agents
 
 Start by reading `AGENTS.md` for the project standards, tech stack rules, and definition of done. The original ticket plan lives in `docs/tickets/`; the production runbook is `docs/runbook.md`.

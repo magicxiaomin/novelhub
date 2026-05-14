@@ -1,6 +1,6 @@
 # Novels-only funnel
 
-Linked issues: #195, #196
+Linked issues: #195, #196, #204, #215, #216, #217, #218, #219
 
 This document defines the active NovelHub acquisition funnel after the novels-only pivot. It is the reference path for product copy, routing, QA, telemetry, and launch readiness until a later ADR changes direction.
 
@@ -42,3 +42,7 @@ Drama browse, drama detail, episode playback, drama progress, drama admin, drama
 - Locked chapter paywall still offers subscription and coin unlock paths.
 - Purchase/unlock completion returns the user to the chapter or library.
 - Library/account surfaces do not advertise drama content while the pivot is active.
+
+## Environment/config note
+
+Docs and env examples should describe the active novels-only surface. Legacy drama domains, HLS fixtures, episode terminology, and drama flags may appear only as superseded historical references or deprecated-route assertions. Live DNS/domain/cert/CDN/secrets/R2/DB teardown is out of scope for #219 and tracked separately.

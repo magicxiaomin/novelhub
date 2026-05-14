@@ -1,5 +1,7 @@
 # ADR: Drama domain routing auth/CORS foundation
 
+> Superseded for active launch direction (#219): this short-drama artifact is retained only as historical/reference material after the novels-only pivot (#195/#204) and the drama cutoff/removal sequence (#215-#218). Do not use it to launch, seed, QA, or configure active drama surfaces. True-delete/data/media/schema/live DNS/domain/cert/CDN/secrets/R2/DB teardown is out of scope here and tracked separately by #220 / `docs/pivot/drama-true-delete-runbook.md`.
+
 ## Context
 
 Phase 3 introduces a drama-first web variant at `dramavela.com` / `www.dramavela.com` and preserves the existing novel experience at `novel.dramavela.com`. Browser calls include HTTP-only auth cookies, so API CORS must be an explicit credentialed allowlist; wildcard origins are not valid with cookies.
