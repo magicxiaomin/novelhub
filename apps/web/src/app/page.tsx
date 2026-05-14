@@ -1,10 +1,12 @@
 import Link from 'next/link';
 
 import { BookRail } from '@/components/home/book-rail';
+import { NovelHomePage } from '@/components/home/novel-home-page';
 import { DramaCard } from '@/components/drama/drama-card';
 import { DramaRail } from '@/components/drama/drama-rail';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
+import { isNovelsOnlyProductMode } from '@/lib/productMode';
 import { fetchBooksServer, fetchDramasServer } from '@/lib/server-api';
 import { messages } from '@novelhub/shared';
 
@@ -34,6 +36,10 @@ async function safeFetchBookRail(
 }
 
 export default async function HomePage(): Promise<JSX.Element> {
+  if (isNovelsOnlyProductMode()) {
+    return <NovelHomePage />;
+  }
+
   const [featuredResult, allResult, newReleasesResult] = await Promise.all([
     safeFetchDramaRail({ featured: true, pageSize: 8 }),
     safeFetchDramaRail({ pageSize: 12 }),
