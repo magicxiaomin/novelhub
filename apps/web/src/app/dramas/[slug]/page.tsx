@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { isNovelsOnlyProductMode } from '@/lib/productMode';
 import { fetchDramaServer } from '@/lib/server-api';
 import type { EpisodeSummary } from '@/lib/types';
 import { messages } from '@novelhub/shared';
@@ -15,6 +16,8 @@ export const runtime = 'edge';
 type Params = { params: { slug: string } };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  if (isNovelsOnlyProductMode()) return { title: messages.drama.notFound };
+
   const drama = await fetchDramaServer(params.slug).catch(() => null);
   if (!drama) return { title: messages.drama.notFound };
   return {
@@ -30,6 +33,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 export default async function DramaDetailPage({ params }: Params): Promise<JSX.Element> {
+  if (isNovelsOnlyProductMode()) {
+    notFound();
+  }
+
   const drama = await fetchDramaServer(params.slug);
   if (!drama) notFound();
 

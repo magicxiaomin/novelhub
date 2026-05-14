@@ -119,6 +119,9 @@ const devApiProxy =
 const nextConfig = {
   output: isPagesBuild ? undefined : 'standalone',
   reactStrictMode: true,
+  env: {
+    PRODUCT_MODE: process.env.PRODUCT_MODE ?? 'mixed',
+  },
   ...(devApiProxy && {
     async rewrites() {
       return [

@@ -1,8 +1,10 @@
 import { DramaCard } from '@/components/drama/drama-card';
 import { DramaRail } from '@/components/drama/drama-rail';
 import { AppShell } from '@/components/layout/app-shell';
+import { isNovelsOnlyProductMode } from '@/lib/productMode';
 import { fetchDramasServer } from '@/lib/server-api';
 import { messages } from '@novelhub/shared';
+import { notFound } from 'next/navigation';
 
 export const runtime = 'edge';
 
@@ -19,6 +21,10 @@ async function safeFetchDramas(
 }
 
 export default async function DramasPage(): Promise<JSX.Element> {
+  if (isNovelsOnlyProductMode()) {
+    notFound();
+  }
+
   const [featuredResult, allResult] = await Promise.all([
     safeFetchDramas({ featured: true, pageSize: 10 }),
     safeFetchDramas({ pageSize: 24 }),

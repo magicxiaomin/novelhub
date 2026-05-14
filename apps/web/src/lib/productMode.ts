@@ -2,16 +2,10 @@ export type ProductMode = 'mixed' | 'novels';
 
 const DEFAULT_PRODUCT_MODE: ProductMode = 'mixed';
 
-type ProductModeEnv = {
-  process?: {
-    env?: {
-      PRODUCT_MODE?: string;
-    };
-  };
-};
+declare const process: { env?: { PRODUCT_MODE?: string } } | undefined;
 
 function readRuntimeProductMode(): string | undefined {
-  return (globalThis as ProductModeEnv).process?.env?.PRODUCT_MODE;
+  return process?.env?.PRODUCT_MODE;
 }
 
 export function getProductMode(value = readRuntimeProductMode()): ProductMode {

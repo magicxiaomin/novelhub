@@ -30,6 +30,7 @@ export default defineConfig({
           PATH: process.env.PATH,
           NOVELHUB_E2E_DRAMA_FIXTURES: '1',
           NOVELHUB_RUNTIME_ENV: 'ci-e2e',
+          PRODUCT_MODE: process.env.PRODUCT_MODE,
         }),
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
