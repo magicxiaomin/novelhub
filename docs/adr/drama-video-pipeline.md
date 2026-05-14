@@ -1,5 +1,7 @@
 # ADR: Phase 3 Video Pipeline — External/Mock HLS First
 
+> Superseded for active launch direction (#219): this short-drama artifact is retained only as historical/reference material after the novels-only pivot (#195/#204) and the drama cutoff/removal sequence (#215-#218). Do not use it to launch, seed, QA, or configure active drama surfaces. True-delete/data/media/schema/live DNS/domain/cert/CDN/secrets/R2/DB teardown is out of scope here and tracked separately by #220 / `docs/pivot/drama-true-delete-runbook.md`.
+
 Status: DRAFT FOR HUMAN APPROVAL — DRAMA-006 revised
 Date: 2026-05-10
 Related spec: `docs/phase3-short-drama-mvp-spec.md`

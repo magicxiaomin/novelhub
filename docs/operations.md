@@ -1,19 +1,21 @@
 # NovelHub Operations Runbook
 
-Last verified: 2026-05-10. Update this file as the topology changes.
+Last verified: 2026-05-10; novels-only pivot notes updated for #219. Update this file as the topology changes.
+
+Novels-only pivot note (#195/#204/#219): launch and QA should target the novel reading funnel. Prior short-drama launch docs/specs are superseded for active direction by `docs/adr/0001-novels-only-pivot.md`, and true-delete/data/media teardown is staged separately via `docs/pivot/drama-true-delete-runbook.md` / #220. Do not perform live DNS/domain/cert/CDN/secrets/R2/DB teardown from this runbook without a separately approved task.
 
 ## Environments at a glance
 
-|               | Staging                                  | Production                                  |
-| ------------- | ---------------------------------------- | ------------------------------------------- |
-| Frontend      | https://staging.whoryou.club             | https://dramavela.com (+ www.dramavela.com) |
-| API           | https://api-staging.whoryou.club         | https://api.dramavela.com                   |
-| Pages project | `novelhub-web-staging`                   | `novelhub-web`                              |
-| Worker name   | `novelhub-api-staging`                   | `novelhub-api`                              |
-| Hyperdrive    | `ee7db7e85d78487796c06ba032a8c469`       | `7598b12e346d473b99d2e9ca4f64d054`          |
-| R2 bucket     | `novelhub-content-staging`               | `novelhub-content`                          |
-| Postgres      | Supabase Singapore (Session pooler 5432) | Supabase Sydney (Session pooler 5432)       |
-| Stripe mode   | test                                     | test (live mode pending)                    |
+|               | Staging                                  | Production                                                  |
+| ------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| Frontend      | https://staging.whoryou.club             | Existing production web domain; novels-only product surface |
+| API           | https://api-staging.whoryou.club         | Existing production API domain; novels-only APIs            |
+| Pages project | `novelhub-web-staging`                   | `novelhub-web`                                              |
+| Worker name   | `novelhub-api-staging`                   | `novelhub-api`                                              |
+| Hyperdrive    | `ee7db7e85d78487796c06ba032a8c469`       | `7598b12e346d473b99d2e9ca4f64d054`                          |
+| R2 bucket     | `novelhub-content-staging`               | `novelhub-content`                                          |
+| Postgres      | Supabase Singapore (Session pooler 5432) | Supabase Sydney (Session pooler 5432)                       |
+| Stripe mode   | test                                     | test (live mode pending)                                    |
 
 KV namespace `6a22d526fa6841439f4b5517fe821730` is shared across both Workers — rate-limit keys are IP+email-scoped, no cross-env collision risk.
 
@@ -41,12 +43,12 @@ KV namespace `6a22d526fa6841439f4b5517fe821730` is shared across both Workers �
    - Deploy API (Cloudflare Workers): staging deploy auto-fires
    - Deploy Web (Cloudflare Pages): staging deploy auto-fires after PR Checks completes
 10. Verify on staging:
-    - Browse https://staging.whoryou.club
+    - Browse https://staging.whoryou.club and exercise the novels-only funnel
     - API=https://api-staging.whoryou.club bash scripts/smoke.sh   → expect 16/16
 11. Promote to production (manual):
     - GitHub → Actions → Deploy Web → Run workflow → environment: production-only
     - GitHub → Actions → Deploy API → Run workflow → environment: production-only
-    - API=https://api.dramavela.com bash scripts/smoke.sh   → expect 16/16
+    - API=<production-api-origin> bash scripts/smoke.sh   → expect novels-only smoke PASS
 ```
 
 Production deploy is intentionally manual — staging is the gate.

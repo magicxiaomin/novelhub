@@ -1,5 +1,9 @@
 name: E2E (Playwright)
 
+# Novels-only pivot (#219): this workflow seeds and verifies the active novel funnel.
+# Removed drama regression/fixture coverage stays removed; live DNS/CDN/secret/R2/DB
+# teardown is not part of CI.
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]

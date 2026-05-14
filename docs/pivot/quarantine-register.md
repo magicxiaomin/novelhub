@@ -1,8 +1,8 @@
 # Drama quarantine register
 
-Linked issues: #195, #196
+Linked issues: #195, #196, #204, #215, #216, #217, #218, #219, #220
 
-This register classifies known short-drama artifacts for the novels-only pivot. The intent is safe quarantine, not destructive cleanup.
+This register classifies known short-drama artifacts for the novels-only pivot. The intent is safe quarantine and documentation of completed cutoff/removal work, not destructive live teardown. True-delete/data/media/schema cleanup is staged separately under #220; do not mutate live DNS/domain/cert/CDN/secrets/R2/DB resources from this register.
 
 Disposition values:
 
@@ -85,6 +85,10 @@ Disposition values:
 | HLS URLs and poster URLs in drama fixtures            | retain        | Test/demo references only; do not delete media in this wave.                                   |
 | Cloudflare R2 drama media packs                       | propose-later | No bucket deletion/rewrite under #196; handle only under a future approved media cleanup plan. |
 | Drama thumbnails/posters referenced by seeds/fixtures | propose-later | Preserve until data/media inventory confirms ownership and rollback requirements.              |
+
+## Post-#218 status
+
+The public/web/admin drama cutoff and drama test/seed/fixture removal work has landed through #215, #216, #217, and #218. Residual mentions in historical docs, immutable migrations, deprecated route shims, DTO/type definitions, and tests that assert HTTP 410/deprecated behavior are intentional unless a later true-delete ticket explicitly names them.
 
 ## Hard stops for quarantine work
 

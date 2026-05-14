@@ -1,12 +1,12 @@
 # Phase 4 — Alpha QA and Launch Readiness Plan
 
-Status: REVIEWED — docs-only; implementation tasks tracked separately
+Status: SUPERSEDED FOR ACTIVE LAUNCH — historical short-drama alpha plan; implementation tasks tracked separately
 Owner: NovelHub QA / Release / Requirements
 Created: 2026-05-11
 Reviewed: 2026-05-12
-Related: GitHub #169 / PHASE4-001 / PHASE4-003; `docs/phase3-short-drama-mvp-spec.md`; `docs/phase3-short-drama-ux-spec.md`; `docs/operations.md`; `docs/admin-guide.md`
+Related: GitHub #169 / PHASE4-001 / PHASE4-003; superseded for active direction by #195/#204/#219; `docs/adr/0001-novels-only-pivot.md`; `docs/pivot/funnel.md`; `docs/pivot/drama-true-delete-runbook.md`; historical refs: `docs/phase3-short-drama-mvp-spec.md`, `docs/phase3-short-drama-ux-spec.md`
 
-This plan validates the completed short-drama MVP for alpha readiness. It does not implement product code and does not authorize production DNS changes, Stripe live payment changes, production secret changes, real external credentials, or irreversible data operations.
+This historical plan validated the completed short-drama MVP for alpha readiness before the novels-only pivot. For active launch work, use the novels-only funnel and quarantine docs instead. This document must not be used to authorize public drama QA/launch, production DNS changes, Stripe live payment changes, production secret changes, real external credentials, R2/media deletion, DB/schema/data teardown, or other irreversible operations; those require separately approved tasks (#220 for true-delete staging).
 
 ## 1. Restated requirement
 
@@ -45,21 +45,20 @@ The output is a documentation artifact only. Any defects, missing automation, co
 - Stripe remains in test mode; alpha validates coin unlocks and subscription-bypass behavior, not live payment acceptance.
 - All demo content is mock/demo content with no real licensed video, no PII, and no real external credentials.
 
-
 ## 2A. PHASE4-002 feasibility challenge resolution
 
 The feasibility challenge is adopted as a sequencing change: do not spend mobile/admin/demo QA time while `/dramas` is returning HTTP 500 or while drama smoke coverage is missing. The revised plan turns drama API health into the first hard gate after baseline app health.
 
-| Feasibility finding / challenge | Decision | Final resolution |
-| --- | --- | --- |
-| `/dramas` currently may return HTTP 500, so browser QA can produce misleading failures. | Adopt | Diagnose and fix-or-escalate `/dramas` 500 before mobile browse/detail/player, admin workflow, demo content, accessibility, analytics, or rollback QA. A green `GET /dramas` smoke is the first drama-specific hard gate. |
-| Existing `scripts/smoke.sh` is novel/base-app oriented and lacks drama coverage. | Adopt | Add hard-fail drama smoke as a foundation task. It must fail the run on `/dramas` 5xx, bad detail, bad playback entitlement, leaking locked HLS URLs, missing auth on unlock/progress/admin, or novel regression failures. |
-| API path examples in PHASE4-001 used nested drama playback URLs, but current Worker routes expose playback/unlock under `/episodes`. | Modify | Use current shipped route shape for API smoke: `GET /dramas`, `GET /dramas/:slug`, `GET /episodes/:episodeId/playback`, `POST /episodes/:episodeId/unlock`, and `GET/POST /drama-progress`. Keep web URLs as `/dramas/:slug/watch/:episodeId`. |
-| E2E drama regression exists but can skip when routes/seed data are unavailable. | Modify | Treat Playwright drama regression as a later confidence gate, not as the first blocker. Hard-fail API smoke must come first because it cannot silently skip `/dramas` 500. |
-| Deterministic HLS/poster fixtures are required to avoid third-party flake. | Adopt | Require a deterministic allowlisted fixture host or checked-in mocked fixture strategy before mobile/player QA sign-off. Staging/prod alpha must not depend on fragile or credentialed streams. |
-| Feature flag names and no-secret admin/editor provisioning are unresolved. | Adopt | Keep as human approval gates before admin/prod-mirroring QA. Do not read/change production secrets or real credentials to unblock QA. |
-| Production data state and demo mirroring are unknown. | Adopt | Production checks stay read-only except explicitly approved reversible demo admin operations; no wipes, hard deletes, raw schema edits, or blind replacement of existing content. |
-| Some checklist items are broad and should be execution ordered. | Adopt | Split work into ordered foundation, smoke, QA, and decision tasks below; mobile/admin/demo work is blocked until `/dramas` diagnosis and hard-fail drama smoke pass. |
+| Feasibility finding / challenge                                                                                                      | Decision | Final resolution                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/dramas` currently may return HTTP 500, so browser QA can produce misleading failures.                                              | Adopt    | Diagnose and fix-or-escalate `/dramas` 500 before mobile browse/detail/player, admin workflow, demo content, accessibility, analytics, or rollback QA. A green `GET /dramas` smoke is the first drama-specific hard gate.                      |
+| Existing `scripts/smoke.sh` is novel/base-app oriented and lacks drama coverage.                                                     | Adopt    | Add hard-fail drama smoke as a foundation task. It must fail the run on `/dramas` 5xx, bad detail, bad playback entitlement, leaking locked HLS URLs, missing auth on unlock/progress/admin, or novel regression failures.                     |
+| API path examples in PHASE4-001 used nested drama playback URLs, but current Worker routes expose playback/unlock under `/episodes`. | Modify   | Use current shipped route shape for API smoke: `GET /dramas`, `GET /dramas/:slug`, `GET /episodes/:episodeId/playback`, `POST /episodes/:episodeId/unlock`, and `GET/POST /drama-progress`. Keep web URLs as `/dramas/:slug/watch/:episodeId`. |
+| E2E drama regression exists but can skip when routes/seed data are unavailable.                                                      | Modify   | Treat Playwright drama regression as a later confidence gate, not as the first blocker. Hard-fail API smoke must come first because it cannot silently skip `/dramas` 500.                                                                     |
+| Deterministic HLS/poster fixtures are required to avoid third-party flake.                                                           | Adopt    | Require a deterministic allowlisted fixture host or checked-in mocked fixture strategy before mobile/player QA sign-off. Staging/prod alpha must not depend on fragile or credentialed streams.                                                |
+| Feature flag names and no-secret admin/editor provisioning are unresolved.                                                           | Adopt    | Keep as human approval gates before admin/prod-mirroring QA. Do not read/change production secrets or real credentials to unblock QA.                                                                                                          |
+| Production data state and demo mirroring are unknown.                                                                                | Adopt    | Production checks stay read-only except explicitly approved reversible demo admin operations; no wipes, hard deletes, raw schema edits, or blind replacement of existing content.                                                              |
+| Some checklist items are broad and should be execution ordered.                                                                      | Adopt    | Split work into ordered foundation, smoke, QA, and decision tasks below; mobile/admin/demo work is blocked until `/dramas` diagnosis and hard-fail drama smoke pass.                                                                           |
 
 ## 3. Scope and non-goals
 
@@ -417,7 +416,6 @@ Codex feasibility review should evaluate whether the plan is executable with the
 9. Are any acceptance criteria too broad or not directly testable, and how should they be narrowed for execution issues?
 
 Expected Codex output: feasibility verdict by checklist area, exact smoke/e2e implementation recommendation, any path corrections, fixture recommendations, and a list of blocker/non-blocker follow-up issues.
-
 
 ## 13. Final recommended task order and human approval gates
 

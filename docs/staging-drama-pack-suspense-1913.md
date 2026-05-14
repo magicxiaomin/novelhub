@@ -1,5 +1,7 @@
 # Staging drama media pack: Suspense (1913)
 
+> Superseded for active launch direction (#219): this short-drama artifact is retained only as historical/reference material after the novels-only pivot (#195/#204) and the drama cutoff/removal sequence (#215-#218). Do not use it to launch, seed, QA, or configure active drama surfaces. True-delete/data/media/schema/live DNS/domain/cert/CDN/secrets/R2/DB teardown is out of scope here and tracked separately by #220 / `docs/pivot/drama-true-delete-runbook.md`.
+
 Related: GitHub issue #179, parent epic #169, staging data gate #178, Kanban task `t_ccf778c3`.
 
 Status: runbook and staging-only asset plan. Do not upload these assets to production. Do not use licensed, rescored, restored, or colorized variants unless their rights are separately verified and documented.
