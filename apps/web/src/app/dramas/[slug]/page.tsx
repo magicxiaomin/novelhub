@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function DramaDetailPage({ params }: Params): Promise<JSX.Element> {
   if (isNovelsOnlyProductMode()) {
-    notFound();
+    redirect('/novels');
   }
 
   const drama = await fetchDramaServer(params.slug);

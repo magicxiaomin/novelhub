@@ -4,7 +4,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { isNovelsOnlyProductMode } from '@/lib/productMode';
 import { fetchDramasServer } from '@/lib/server-api';
 import { messages } from '@novelhub/shared';
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 export const runtime = 'edge';
 
@@ -22,7 +22,7 @@ async function safeFetchDramas(
 
 export default async function DramasPage(): Promise<JSX.Element> {
   if (isNovelsOnlyProductMode()) {
-    notFound();
+    redirect('/novels');
   }
 
   const [featuredResult, allResult] = await Promise.all([

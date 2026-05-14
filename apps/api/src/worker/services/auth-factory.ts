@@ -61,9 +61,11 @@ export type WorkerEnv = {
   // Sentry (Task 10). Read off env so `withSentry` can build per-request
   // options; middleware reads it via `setSentryUser` / `captureWorkerException`.
   SENTRY_DSN?: string;
-  // Runtime product mode. Defaults to mixed; set to 'novels' to quarantine
-  // short-drama Worker endpoints without changing schema or data.
+  // Runtime product mode. Defaults to mixed; retained for rollback/audit context.
   PRODUCT_MODE?: string;
+  // Test-only rollback lever for legacy drama route contract coverage. Keep unset
+  // in deployed envs so drama endpoints return the deterministic deprecated response.
+  DRAMA_CUTOFF_DISABLED?: string;
   // Emergency process-validation/demo-only fallback for production drama routes
   // while the drama database schema is unavailable. Keep unset by default.
   DRAMA_PROCESS_VALIDATION_FALLBACK?: string;

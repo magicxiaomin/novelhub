@@ -153,16 +153,16 @@ const makeApp = (env: Record<string, string | undefined> = {}) => {
   type AppRequestArgs = Parameters<typeof app.request>;
   return {
     request: (input: AppRequestArgs[0], requestInit?: AppRequestArgs[1]) =>
-      app.request(input, requestInit, env),
+      app.request(input, requestInit, { DRAMA_CUTOFF_DISABLED: '1', ...env }),
   };
 };
 
-const expectDramaQuarantined = async (response: Response) => {
+const expectDramaDeprecated = async (response: Response) => {
   expect(response.status).toBe(410);
-  expect(response.headers.get('x-novelhub-quarantine')).toBe('drama');
+  expect(response.headers.get('x-novelhub-deprecated')).toBe('drama');
   await expect(response.json()).resolves.toEqual({
-    code: 'DRAMA_QUARANTINED',
-    message: 'Short-drama endpoints are quarantined in novels-only mode.',
+    code: 'DRAMA_DEPRECATED',
+    message: 'Short-drama endpoints are deprecated during the novels-only pivot.',
   });
 };
 
@@ -175,48 +175,50 @@ describe('dramasRoutes', () => {
     });
   });
 
-  it('quarantines GET /dramas in novels mode before creating the drama service', async () => {
-    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/dramas');
+  it('deprecates GET /dramas in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/dramas');
 
-    await expectDramaQuarantined(response);
+    await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('quarantines GET /dramas/:slug in novels mode before creating the drama service', async () => {
-    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/dramas/shadow-heiress');
+  it('deprecates GET /dramas/:slug in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
+      '/dramas/shadow-heiress',
+    );
 
-    await expectDramaQuarantined(response);
+    await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('quarantines GET /episodes/:episodeId/playback in novels mode before creating the drama service', async () => {
-    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request(
+  it('deprecates GET /episodes/:episodeId/playback in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/playback',
     );
 
-    await expectDramaQuarantined(response);
+    await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('quarantines POST /episodes/:episodeId/unlock in novels mode before creating the drama service', async () => {
-    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request(
+  it('deprecates POST /episodes/:episodeId/unlock in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/unlock',
       { method: 'POST' },
     );
 
-    await expectDramaQuarantined(response);
+    await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('quarantines GET /drama-progress in novels mode before creating the drama service', async () => {
-    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/drama-progress');
+  it('deprecates GET /drama-progress in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/drama-progress');
 
-    await expectDramaQuarantined(response);
+    await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('quarantines POST /drama-progress in novels mode before creating the drama service', async () => {
-    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/drama-progress', {
+  it('deprecates POST /drama-progress in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/drama-progress', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -227,7 +229,7 @@ describe('dramasRoutes', () => {
       }),
     });
 
-    await expectDramaQuarantined(response);
+    await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
@@ -311,7 +313,7 @@ describe('dramasRoutes', () => {
       accessReason: 'locked',
       coinPerEpisode: 5,
       hlsUrl: 'https://cdn.example/drama/episode-2.m3u8',
-      playbackUrl: 'https://signed.example/episode-2.m3u8?token=sample',
+      playbackUrl: 'https://signed.example/episode-2.m3u8?token=***',
       provider: 'external_hls',
       sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
       assetUrl: 'https://cdn.example/drama/episode-2.ts',
@@ -448,7 +450,7 @@ describe('dramasRoutes', () => {
           ...contractDramaDetail.episodes[1],
           isUnlocked: false,
           hlsUrl: 'https://cdn.example/drama/locked.m3u8',
-          playbackUrl: 'https://signed.example/locked.m3u8?token=sample',
+          playbackUrl: 'https://signed.example/locked.m3u8?token=***',
           provider: 'external_hls',
           sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
           assetUrl: 'https://cdn.example/drama/locked.ts',
@@ -483,7 +485,7 @@ describe('dramasRoutes', () => {
             {
               id: 'episode-2',
               isUnlocked: false,
-              playbackUrl: 'https://signed.example/locked.m3u8?token=sample',
+              playbackUrl: 'https://signed.example/locked.m3u8?token=***',
               provider: 'external_hls',
               sourceFileUrl: 'https://r2-bucket.example/source-file.mp4',
               assetUrl: 'https://cdn.example/drama/locked.ts',

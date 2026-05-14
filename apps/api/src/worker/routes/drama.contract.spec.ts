@@ -56,16 +56,16 @@ const buildApp = (env: Partial<WorkerEnv> = {}) => {
   type AppRequestArgs = Parameters<typeof app.request>;
   return {
     request: (input: AppRequestArgs[0], requestInit?: AppRequestArgs[1]) =>
-      app.request(input, requestInit, env as WorkerEnv),
+      app.request(input, requestInit, { DRAMA_CUTOFF_DISABLED: '1', ...env } as WorkerEnv),
   };
 };
 
-const expectDramaQuarantined = async (response: Response) => {
+const expectDramaDeprecated = async (response: Response) => {
   expect(response.status).toBe(410);
-  expect(response.headers.get('x-novelhub-quarantine')).toBe('drama');
+  expect(response.headers.get('x-novelhub-deprecated')).toBe('drama');
   await expect(response.json()).resolves.toEqual({
-    code: 'DRAMA_QUARANTINED',
-    message: 'Short-drama endpoints are quarantined in novels-only mode.',
+    code: 'DRAMA_DEPRECATED',
+    message: 'Short-drama endpoints are deprecated during the novels-only pivot.',
   });
 };
 
@@ -74,21 +74,21 @@ describe('Worker drama route product-mode contracts', () => {
     jest.clearAllMocks();
   });
 
-  it('quarantines public drama endpoints in novels mode before constructing the drama service', async () => {
-    const app = buildApp({ PRODUCT_MODE: 'novels' });
+  it('deprecates public drama endpoints in novels mode before constructing the drama service', async () => {
+    const app = buildApp({ DRAMA_CUTOFF_DISABLED: '0' });
 
-    await expectDramaQuarantined(await app.request('/dramas'));
-    await expectDramaQuarantined(await app.request('/dramas/shadow-heiress'));
-    await expectDramaQuarantined(
+    await expectDramaDeprecated(await app.request('/dramas'));
+    await expectDramaDeprecated(await app.request('/dramas/shadow-heiress'));
+    await expectDramaDeprecated(
       await app.request('/episodes/11111111-1111-4111-8111-111111111111/playback'),
     );
-    await expectDramaQuarantined(
+    await expectDramaDeprecated(
       await app.request('/episodes/11111111-1111-4111-8111-111111111111/unlock', {
         method: 'POST',
       }),
     );
-    await expectDramaQuarantined(await app.request('/drama-progress'));
-    await expectDramaQuarantined(
+    await expectDramaDeprecated(await app.request('/drama-progress'));
+    await expectDramaDeprecated(
       await app.request('/drama-progress', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
