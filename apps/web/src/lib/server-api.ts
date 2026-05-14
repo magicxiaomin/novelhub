@@ -29,8 +29,17 @@ import type {
 type DramaE2eFixtures = typeof import('./drama-e2e-fixtures');
 type LoadedNovelE2eFixtures = typeof NovelE2eFixtures;
 
-const novelE2eFixturesEnabled = (): boolean =>
-  process.env.NOVELHUB_E2E_NOVEL_FIXTURES === '1' || process.env.NOVELHUB_RUNTIME_ENV === 'ci-e2e';
+const allowedNovelFixtureRuntimeEnvironments = ['development', 'test', 'ci', 'ci-e2e'];
+
+const novelE2eFixturesEnabled = (): boolean => {
+  const runtimeEnvironment = process.env.NOVELHUB_RUNTIME_ENV ?? process.env.NODE_ENV;
+  // Production deployments must not enable fixtures; the ci-e2e runtime is set only
+  // by the Playwright workflow for its standalone smoke-test server.
+  if (process.env.NODE_ENV === 'production' && runtimeEnvironment !== 'ci-e2e') return false;
+  if (process.env.NOVELHUB_E2E_NOVEL_FIXTURES !== '1') return false;
+
+  return allowedNovelFixtureRuntimeEnvironments.some((allowed) => allowed === runtimeEnvironment);
+};
 
 const loadNovelE2eFixtures = async (): Promise<LoadedNovelE2eFixtures | null> => {
   if (!novelE2eFixturesEnabled()) return null;
