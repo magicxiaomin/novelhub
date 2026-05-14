@@ -48,7 +48,7 @@ describe('apiFetch', () => {
   });
 
   it('prefers NEXT_PUBLIC_API_BASE_URL over legacy NEXT_PUBLIC_API_URL', async () => {
-    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.dramavela.com';
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.novelhub.test';
     const calls: string[] = [];
     globalThis.fetch = vi.fn(async (url) => {
       calls.push(String(url));
@@ -57,7 +57,7 @@ describe('apiFetch', () => {
 
     await apiFetch('/books/featured');
 
-    expect(calls[0]).toBe('https://api.dramavela.com/books/featured');
+    expect(calls[0]).toBe('https://api.novelhub.test/books/featured');
   });
 
   it('supports same-origin API proxy paths', async () => {

@@ -6,7 +6,7 @@ const canonicalPublicApiBaseUrl = (): string | undefined => process.env.NEXT_PUB
  *
  * NEXT_PUBLIC_API_BASE_URL is the Phase 3 canonical name. NEXT_PUBLIC_API_URL
  * remains supported so existing NovelHub deployments do not break during the
- * dramavela.com / novel.dramavela.com cutover.
+ * public web / API cutover.
  */
 export const publicApiBaseUrl = (): string =>
   canonicalPublicApiBaseUrl() ?? legacyPublicApiUrl() ?? 'http://localhost:4000';
