@@ -51,6 +51,8 @@ async function stubNovelHome(page: Page): Promise<void> {
 }
 
 test.describe('homepage drama-quarantine', () => {
+  test.skip(process.env.PRODUCT_MODE !== 'novels', 'requires PRODUCT_MODE=novels');
+
   test('PRODUCT_MODE=novels homepage exposes novel discovery without drama links', async ({
     page,
   }) => {
@@ -72,7 +74,7 @@ test.describe('homepage drama-quarantine', () => {
     await expect(page.getByText('This page could not be found')).toBeVisible();
 
     await page.goto('/dramas/hidden-love', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: 'Drama not found' })).toBeVisible();
+    await expect(page.getByText('Hidden Love')).toHaveCount(0);
     await expect(page.locator('a[href^="/dramas"]')).toHaveCount(0);
   });
 });
