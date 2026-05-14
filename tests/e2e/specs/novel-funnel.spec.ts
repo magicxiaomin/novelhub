@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const bookId = '22222222-2222-4222-8222-222222222222';
+const bookId = '19500000-0000-4195-8195-000000000198';
 const coinPackButton = (page: Page) => page.getByText('120 coins', { exact: true });
 
 async function stubBrowserApis(page: Page): Promise<void> {
@@ -95,9 +95,15 @@ test.describe('novel acquisition funnel', () => {
     await expect(
       page.getByRole('article').getByRole('heading', { name: 'Free Chapter 1' }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('article').getByText('Free chapter 1 opens the acquisition funnel.'),
+    ).toBeVisible();
     await page.goto(`/read/${bookId}/3`, { waitUntil: 'domcontentloaded' });
     await expect(
       page.getByRole('article').getByRole('heading', { name: 'Free Chapter 3' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('article').getByText('Free chapter 3 opens the acquisition funnel.'),
     ).toBeVisible();
     await expect(
       page.getByRole('link', { name: 'Next chapter', exact: true }).first(),

@@ -74,6 +74,10 @@ jobs:
         run: pnpm --filter @novelhub/api build
 
       - name: Build web
+        env:
+          # CI-only deterministic novel SSR fixture host used by novel-funnel.
+          # Do not copy into production/staging deployment environments.
+          NEXT_PUBLIC_R2_PUBLIC_HOST: novel-e2e-content.test
         run: pnpm --filter @novelhub/web build
 
       - name: Stage web standalone runtime
@@ -94,7 +98,9 @@ jobs:
           # Do not copy into production/staging deployment environments.
           NODE_ENV: test
           NOVELHUB_E2E_DRAMA_FIXTURES: '1'
+          NOVELHUB_E2E_NOVEL_FIXTURES: '1'
           NOVELHUB_RUNTIME_ENV: ci-e2e
+          NEXT_PUBLIC_R2_PUBLIC_HOST: novel-e2e-content.test
         run: nohup node apps/web/.next/standalone/apps/web/server.js > /tmp/web.log 2>&1 &
 
       - name: Wait for services

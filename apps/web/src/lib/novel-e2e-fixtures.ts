@@ -1,6 +1,6 @@
 import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from './types';
 
-export const novelE2eFixtureBookId = '22222222-2222-4222-8222-222222222222';
+export const novelE2eFixtureBookId = '19500000-0000-4195-8195-000000000198';
 
 const coverSvg = encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect width="300" height="400" fill="#7c3aed"/><text x="24" y="210" fill="white" font-size="34" font-family="sans-serif">Novel Funnel</text></svg>',
@@ -70,8 +70,4 @@ export function novelE2eFixtureChapter(chapterId: string): ChapterResponse | nul
     prevChapterId: novelE2eFixtureChapters[summary.order - 2]?.id ?? null,
     nextChapterId: novelE2eFixtureChapters[summary.order]?.id ?? null,
   };
-}
-
-export function novelE2eFixtureContent(chapterNumber: number): string {
-  return `Free chapter ${chapterNumber} opens the acquisition funnel.\n\nReaders can continue through chapter three before the paywall appears.`;
 }
