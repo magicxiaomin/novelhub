@@ -8,6 +8,7 @@ import { optionalAuth } from '../middleware/auth';
 import { validationHook } from '../middleware/validator';
 import type { WorkerEnv } from '../services/auth-factory';
 import { makeDramasService } from '../services/dramas-factory';
+import { dramaQuarantineResponse, isDramaQuarantined } from './drama-quarantine';
 import {
   isDramaProcessValidationFallbackEnabled,
   makeSuspenseFallbackDetail,
@@ -74,6 +75,10 @@ const isDramaSchemaUnavailable = (error: unknown): boolean => {
 };
 
 export const dramasRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+  .use('*', async (c, next) => {
+    if (isDramaQuarantined(c.env)) return dramaQuarantineResponse(c);
+    return next();
+  })
   .use('*', optionalAuth)
   .get('/', zValidator('query', listDramasQuerySchema, validationHook), async (c) => {
     const query = c.req.valid('query');
