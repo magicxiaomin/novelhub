@@ -6,6 +6,12 @@ Mobile-first English web novel PWA for paid acquisition via Facebook Ads. All 14
 
 Start by reading `AGENTS.md` for the project standards, tech stack rules, and definition of done. The original ticket plan lives in `docs/tickets/`; the production runbook is `docs/runbook.md`.
 
+Pivot references:
+
+- `docs/adr/0001-novels-only-pivot.md` records the novels-only product direction, consequences, rollback path, and hard stops.
+- `docs/pivot/funnel.md` maps the active ad landing -> detail -> free chapters -> paywall -> purchase/unlock -> library funnel.
+- `docs/pivot/quarantine-register.md` tracks short-drama artifacts to retain, hide, gate, or propose for later cleanup.
+
 ## Prerequisites
 
 - Node.js 20+

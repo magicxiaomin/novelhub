@@ -1,9 +1,17 @@
 # NovelHub - Project Context for AI Agents
 
 ## Project Overview
+
 NovelHub is a mobile-first English web novel PWA, designed for paid acquisition via Facebook Ads. Users land from FB ads, read 1–3 free chapters, then unlock more via subscription or coin purchases.
 
+Pivot references for current work:
+
+- `docs/adr/0001-novels-only-pivot.md` is the active novels-only pivot ADR.
+- `docs/pivot/funnel.md` defines the active ad landing -> detail -> free chapters -> paywall -> purchase/unlock -> library funnel.
+- `docs/pivot/quarantine-register.md` classifies short-drama artifacts as retain/hide/gate/propose-later.
+
 ## Tech Stack (DO NOT CHANGE)
+
 - **Frontend**: Next.js 14+ (App Router) + TypeScript + Tailwind CSS + shadcn/ui
 - **State**: Zustand for client state, React Query (TanStack Query) for server state
 - **Backend**: NestJS + TypeScript
@@ -18,6 +26,7 @@ NovelHub is a mobile-first English web novel PWA, designed for paid acquisition 
 - **Deployment**: Vercel (frontend) + Railway (backend) + Supabase (DB)
 
 ## Repository Structure
+
 ```
 /
 ├── apps/
@@ -36,12 +45,14 @@ Use **pnpm workspaces** as the monorepo tool. Use **pnpm** for all package manag
 ## Code Standards
 
 ### General
+
 - TypeScript strict mode ON, no `any` unless justified with comment
 - ESLint + Prettier configured, run on commit (Husky + lint-staged)
 - All commits follow Conventional Commits: `feat:`, `fix:`, `chore:`, etc.
 - Branch naming: `feature/<ticket-id>-short-desc`, `fix/<ticket-id>-short-desc`
 
 ### Frontend
+
 - Server Components by default, `'use client'` only when necessary
 - All forms use `react-hook-form` + `zod` validation
 - API calls via React Query, never raw fetch in components
@@ -50,6 +61,7 @@ Use **pnpm workspaces** as the monorepo tool. Use **pnpm** for all package manag
 - Loading states must use Suspense + skeleton UI, no spinners on full pages
 
 ### Backend
+
 - All endpoints use DTO classes with `class-validator` decorators
 - Database access via Prisma, no raw SQL unless justified
 - All business logic in service layer, controllers thin
@@ -58,6 +70,7 @@ Use **pnpm workspaces** as the monorepo tool. Use **pnpm** for all package manag
 - Rate limiting via `@nestjs/throttler` on all public endpoints
 
 ### Security
+
 - All API routes require auth EXCEPT: register, login, public book/chapter listing, free chapters, health check
 - JWT in HTTP-only secure cookie, NOT localStorage
 - Passwords hashed with bcrypt, cost factor 12
@@ -66,12 +79,14 @@ Use **pnpm workspaces** as the monorepo tool. Use **pnpm** for all package manag
 - Input validation on every endpoint, even if frontend validates
 
 ### Database
+
 - All tables have `id` (UUID v4), `created_at`, `updated_at`
 - Soft deletes via `deleted_at` for users, books, chapters
 - Indexes on all foreign keys and frequent query fields
 - Migrations via Prisma Migrate, never edit DB directly
 
 ## Testing Requirements
+
 - Backend: Jest unit tests for all services, e2e tests for critical flows (auth, payment, unlock)
 - Frontend: Playwright e2e for: register → read → paywall → checkout
 - Minimum 70% coverage on backend services
@@ -80,29 +95,34 @@ Use **pnpm workspaces** as the monorepo tool. Use **pnpm** for all package manag
 ## Important Domain Rules
 
 ### Chapter Unlock Logic
+
 1. If `chapter.is_free` → readable by anyone (incl. guests)
 2. If user has active subscription → readable
 3. If user already unlocked this chapter (in `chapter_unlocks` table) → readable
 4. Otherwise → blocked, show paywall
 
 ### Subscription States
+
 - `active`: paid and within period
 - `past_due`: payment failed but in grace period (3 days)
 - `canceled`: user canceled, but still active until `current_period_end`
 - `expired`: period ended, no renewal
 
 ### Coin Transactions
+
 - Every change to `user.coin_balance` MUST create a `coin_transactions` row
 - Use database transaction to ensure atomicity
 - Negative `amount` = spend, positive = earn
 
 ### FB Event Tracking
+
 - Every tracked event has a UUID `event_id`
 - Frontend Pixel and backend CAPI MUST send the same `event_id` for the same logical event
 - Backend always sends CAPI as source of truth for purchase/subscribe events
 - Log every CAPI call to `fb_events` table for debugging
 
 ## Environment Variables
+
 All env vars documented in `.env.example`. Never commit real secrets. Required vars:
 
 ```
@@ -147,6 +167,7 @@ SENTRY_DSN=
 ```
 
 ## What NOT to Do
+
 - Do NOT add features not in the current ticket
 - Do NOT change tech stack
 - Do NOT install new dependencies without approval (note in PR description)
@@ -157,7 +178,9 @@ SENTRY_DSN=
 - Do NOT hardcode strings, prices, or URLs
 
 ## Definition of Done
+
 A ticket is done when:
+
 1. Code matches ticket acceptance criteria
 2. Tests written and passing
 3. Lint + typecheck clean
@@ -166,6 +189,7 @@ A ticket is done when:
 6. No console.log or debug code left
 
 ## How to Use Tickets
+
 - Tickets are in `docs/tickets/` numbered 01–14
 - Work them in order; later tickets depend on earlier ones
 - Each ticket is a self-contained scope; do not bleed work across tickets
