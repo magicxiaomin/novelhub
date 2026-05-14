@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import contextlib
+import io
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -25,6 +28,28 @@ def load_script(name: str):
 
 claude_review = load_script("claude_review")
 claude_security_review = load_script("claude_security_review")
+
+
+def substantive_security_review(verdict: str) -> str:
+    return "\n".join(
+        [
+            "## Claude Security Review",
+            "",
+            "### Findings",
+            "No security findings.",
+            "",
+            "### New dependencies",
+            "No new dependencies.",
+            "",
+            "### New external hosts",
+            "No new external hosts.",
+            "",
+            "Additional rationale: the diff only touches CI review scripts and does not add network egress, secrets, product code, or dependencies.",
+            "This review is intentionally long enough to satisfy the structural minimum and avoid placeholder approvals.",
+            "",
+            f"### Verdict: {verdict}",
+        ]
+    )
 
 
 class ClaudeReviewValidationTest(unittest.TestCase):
@@ -86,6 +111,56 @@ class ClaudeReviewValidationTest(unittest.TestCase):
             ]
         )
         self.assertIsNone(claude_security_review.validate_review(review))
+
+    def test_security_valid_primary_review_passes_without_fallback(self) -> None:
+        primary_review = substantive_security_review("APPROVE")
+        with mock.patch.dict(os.environ, {"TICKET_NUM": "207", "TICKET_CONTEXT": "ticket"}, clear=False), \
+            mock.patch.object(claude_security_review, "build_prompt", return_value="prompt"), \
+            mock.patch.object(claude_security_review, "run_claude", return_value=(primary_review, None)), \
+            mock.patch.object(claude_security_review, "run_fallback_review") as fallback:
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = claude_security_review.main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout.getvalue().strip(), primary_review)
+        fallback.assert_not_called()
+
+    def test_security_short_primary_uses_valid_fallback_review(self) -> None:
+        fallback_review = substantive_security_review("COMMENT")
+        with mock.patch.dict(os.environ, {"TICKET_NUM": "207", "TICKET_CONTEXT": "ticket"}, clear=False), \
+            mock.patch.object(claude_security_review, "build_prompt", return_value="prompt"), \
+            mock.patch.object(
+                claude_security_review,
+                "run_claude",
+                return_value=("## Claude Security Review\n\nshort\n\n### Verdict: COMMENT", None),
+            ), \
+            mock.patch.object(claude_security_review, "run_fallback_review", return_value=(fallback_review, None)) as fallback:
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exit_code = claude_security_review.main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout.getvalue().strip(), fallback_review)
+        self.assertEqual(stderr.getvalue(), "")
+        fallback.assert_called_once()
+        self.assertIn("output is too short", fallback.call_args.args[1])
+
+    def test_security_short_primary_and_invalid_fallback_fails_closed(self) -> None:
+        with mock.patch.dict(os.environ, {"TICKET_NUM": "207", "TICKET_CONTEXT": "ticket"}, clear=False), \
+            mock.patch.object(claude_security_review, "build_prompt", return_value="prompt"), \
+            mock.patch.object(claude_security_review, "run_claude", return_value=("", None)), \
+            mock.patch.object(claude_security_review, "run_fallback_review", return_value=("still bad", None)):
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exit_code = claude_security_review.main()
+
+        self.assertEqual(exit_code, 3)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("fallback invalid", stderr.getvalue())
+        self.assertNotIn("APPROVE", stdout.getvalue())
 
     def test_review_scripts_read_configured_diff_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

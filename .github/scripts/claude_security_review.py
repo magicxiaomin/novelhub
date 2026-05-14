@@ -310,8 +310,19 @@ def main() -> int:
 
     problem = validate_review(review)
     if problem:
-        print(f"ERROR: {problem}", file=sys.stderr)
-        return 3
+        fallback_review, fallback_error = run_fallback_review(prompt, problem)
+        if fallback_error:
+            # Reviewer fallback unavailable: degrade to a COMMENT-verdict notice.
+            print(build_unavailable_review(fallback_error))
+            return 0
+
+        fallback_problem = validate_review(fallback_review)
+        if fallback_problem:
+            print(f"ERROR: primary invalid ({problem}); fallback invalid ({fallback_problem})", file=sys.stderr)
+            return 3
+
+        print(fallback_review)
+        return 0
 
     print(review)
     return 0
