@@ -145,8 +145,6 @@ const buildService = () => {
     cache: cache as CacheClient,
     books: books as unknown as BooksService,
     publicR2Host: undefined,
-    hlsAllowedHosts: 'cdn.example.com,images.example.com',
-    nodeEnv: 'production',
   });
   return { service, prisma, tx, storage, cache, books };
 };

@@ -24,9 +24,6 @@ const COIN_REVENUE_CENTS = Math.round(
 // arbitrary R2 keys (e.g. chapter content) and exfiltrate via the public
 // cover URL. Mirrors the keys produced by AdminService.coverUploadUrl.
 const COVER_IMAGE_KEY_RE = /^covers\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const TOKEN_QUERY_RE =
-  /(^|[_-])(token|signature|sig|key|access[_-]?key|expires|policy)($|[_-])|^x-amz-/i;
-
 const wordCount = (text: string): number =>
   text.trim().length === 0 ? 0 : text.trim().split(/\s+/).length;
 
@@ -55,8 +52,6 @@ export type AdminServiceDeps = {
   // and doesn't supply coverUrl explicitly (matches the previous
   // R2_PUBLIC_HOST / NEXT_PUBLIC_R2_PUBLIC_HOST env-fallback).
   publicR2Host: string | undefined;
-  hlsAllowedHosts?: string;
-  nodeEnv?: string;
 };
 
 // `id-generator` ports the Node `crypto.randomUUID()` call to a runtime-
@@ -76,8 +71,6 @@ export class AdminService {
   private readonly cache: CacheClient;
   private readonly books: BooksService;
   private readonly publicR2Host: string | undefined;
-  private readonly hlsAllowedHosts: Set<string>;
-  private readonly nodeEnv: string | undefined;
   // Default to the global crypto.randomUUID; both Node 19+ and Workers
   // expose it on the global `crypto` object, so no factory plumbing
   // needed for the typical case.
@@ -89,40 +82,6 @@ export class AdminService {
     this.cache = deps.cache;
     this.books = deps.books;
     this.publicR2Host = deps.publicR2Host;
-    this.hlsAllowedHosts = new Set(
-      (deps.hlsAllowedHosts ?? '')
-        .split(',')
-        .map((host) => host.trim().toLowerCase())
-        .filter(Boolean),
-    );
-    this.nodeEnv = deps.nodeEnv;
-  }
-
-  private validateExternalUrl(value: string | undefined, field: string): void {
-    if (!value) return;
-    let url: URL;
-    try {
-      url = new URL(value);
-    } catch {
-      throw DomainError.badRequest(`${field} must be an absolute URL`);
-    }
-    if (!['https:', 'http:'].includes(url.protocol)) {
-      throw DomainError.badRequest(`${field} must use http or https`);
-    }
-    if (this.nodeEnv === 'production' && url.protocol !== 'https:') {
-      throw DomainError.badRequest(`${field} must use HTTPS in production`);
-    }
-    if (url.username || url.password) {
-      throw DomainError.badRequest(`${field} must not include userinfo`);
-    }
-    if (this.hlsAllowedHosts.size > 0 && !this.hlsAllowedHosts.has(url.hostname.toLowerCase())) {
-      throw DomainError.badRequest(`${field} host is not allowed`);
-    }
-    for (const key of url.searchParams.keys()) {
-      if (TOKEN_QUERY_RE.test(key)) {
-        throw DomainError.badRequest(`${field} must not include token-like query parameters`);
-      }
-    }
   }
 
   async createBook(dto: CreateBookDto): Promise<{ id: string }> {
