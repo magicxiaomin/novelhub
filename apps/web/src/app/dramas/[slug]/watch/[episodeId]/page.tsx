@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { DramaPlayer } from '@/components/drama/drama-player';
 import { isNovelsOnlyProductMode } from '@/lib/productMode';
 import { fetchDramaServer, fetchEpisodePlaybackServer } from '@/lib/server-api';
-import { messages } from '@novelhub/shared';
+import { messages, ROUTES } from '@novelhub/shared';
 
 export const runtime = 'edge';
 
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function DramaWatchPage({ params }: Params): Promise<JSX.Element> {
   if (isNovelsOnlyProductMode()) {
-    notFound();
+    redirect(ROUTES.novels());
   }
 
   const drama = await fetchDramaServer(params.slug);

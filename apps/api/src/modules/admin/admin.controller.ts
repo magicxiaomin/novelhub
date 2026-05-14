@@ -1,6 +1,7 @@
 import {
   Body,
   BadRequestException,
+  GoneException,
   Controller,
   Delete,
   Get,
@@ -38,6 +39,14 @@ import {
 } from './dto/query.dto';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const DRAMA_DEPRECATED_RESPONSE = {
+  code: 'DRAMA_DEPRECATED',
+  message: 'Short-drama admin endpoints are deprecated during the novels-only pivot.',
+} as const;
+
+function dramaDeprecated(): never {
+  throw new GoneException(DRAMA_DEPRECATED_RESPONSE);
+}
 
 @ApiTags('admin')
 @ApiCookieAuth()
@@ -161,116 +170,114 @@ export class AdminController {
 
   @Get('dramas')
   @ApiOperation({ summary: 'List dramas for admin' })
-  listDramas(@Query() query: AdminSearchDto): ReturnType<AdminService['listDramas']> {
-    return this.admin.listDramas(query);
+  listDramas(@Query() _query: AdminSearchDto): never {
+    void _query;
+    return dramaDeprecated();
   }
 
   @Get('dramas/:id')
   @ApiOperation({ summary: 'Get a drama for admin editing' })
-  getDrama(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): ReturnType<AdminService['getDrama']> {
-    return this.admin.getDrama(id);
+  getDrama(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Post('dramas')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a drama' })
-  createDrama(@Body() dto: CreateDramaDto): Promise<{ id: string }> {
-    return this.admin.createDrama(dto);
+  createDrama(@Body() _dto: CreateDramaDto): never {
+    void _dto;
+    return dramaDeprecated();
   }
 
   @Put('dramas/:id')
   @ApiOperation({ summary: 'Update a drama' })
   updateDrama(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Body() dto: UpdateDramaDto,
-  ): Promise<{ id: string }> {
-    return this.admin.updateDrama(id, dto);
+    @Param('id', new ParseUUIDPipe({ version: '4' })) _id: string,
+    @Body() _dto: UpdateDramaDto,
+  ): never {
+    void _id;
+    void _dto;
+    return dramaDeprecated();
   }
 
   @Delete('dramas/:id')
   @ApiOperation({ summary: 'Soft-delete a drama' })
-  softDeleteDrama(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<{ id: string }> {
-    return this.admin.softDeleteDrama(id);
+  softDeleteDrama(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Post('dramas/:id/publish')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish a drama' })
-  publishDrama(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<{ id: string }> {
-    return this.admin.publishDrama(id);
+  publishDrama(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Post('dramas/:id/unpublish')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unpublish a drama' })
-  unpublishDrama(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<{ id: string }> {
-    return this.admin.unpublishDrama(id);
+  unpublishDrama(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Get('episodes')
   @ApiOperation({ summary: 'List drama episodes for admin' })
-  listEpisodes(
-    @Query() query: AdminChapterListDto & { dramaId?: string },
-  ): ReturnType<AdminService['listEpisodes']> {
-    return this.admin.listEpisodes(query);
+  listEpisodes(@Query() _query: AdminChapterListDto & { dramaId?: string }): never {
+    void _query;
+    return dramaDeprecated();
   }
 
   @Get('episodes/:id')
   @ApiOperation({ summary: 'Get a drama episode for admin editing' })
-  getEpisode(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): ReturnType<AdminService['getEpisode']> {
-    return this.admin.getEpisode(id);
+  getEpisode(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Post('episodes')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a drama episode' })
-  createEpisode(@Body() dto: CreateEpisodeDto): Promise<{ id: string }> {
-    return this.admin.createEpisode(dto);
+  createEpisode(@Body() _dto: CreateEpisodeDto): never {
+    void _dto;
+    return dramaDeprecated();
   }
 
   @Put('episodes/:id')
   @ApiOperation({ summary: 'Update a drama episode' })
   updateEpisode(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Body() dto: UpdateEpisodeDto,
-  ): Promise<{ id: string }> {
-    return this.admin.updateEpisode(id, dto);
+    @Param('id', new ParseUUIDPipe({ version: '4' })) _id: string,
+    @Body() _dto: UpdateEpisodeDto,
+  ): never {
+    void _id;
+    void _dto;
+    return dramaDeprecated();
   }
 
   @Delete('episodes/:id')
   @ApiOperation({ summary: 'Soft-delete a drama episode' })
-  softDeleteEpisode(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<{ id: string }> {
-    return this.admin.softDeleteEpisode(id);
+  softDeleteEpisode(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Post('episodes/:id/publish')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish a drama episode' })
-  publishEpisode(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<{ id: string }> {
-    return this.admin.publishEpisode(id);
+  publishEpisode(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Post('episodes/:id/unpublish')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unpublish a drama episode' })
-  unpublishEpisode(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<{ id: string }> {
-    return this.admin.unpublishEpisode(id);
+  unpublishEpisode(@Param('id', new ParseUUIDPipe({ version: '4' })) _id: string): never {
+    void _id;
+    return dramaDeprecated();
   }
 
   @Get('users')

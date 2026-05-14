@@ -7,7 +7,7 @@ import { requireAuth, type AuthVariables } from '../middleware/auth';
 import { validationHook } from '../middleware/validator';
 import type { WorkerEnv } from '../services/auth-factory';
 import { makeDramasService } from '../services/dramas-factory';
-import { dramaQuarantineResponse, isDramaQuarantined } from './drama-quarantine';
+import { dramaDeprecatedResponse, isDramaCutoffEnabled } from './drama-quarantine';
 import { saveDramaProgressBodySchema } from './dramas.schemas';
 
 type Bindings = WorkerEnv;
@@ -15,7 +15,7 @@ type Variables = PrismaVariables & AuthVariables;
 
 export const dramaProgressRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>()
   .use('*', async (c, next) => {
-    if (isDramaQuarantined(c.env)) return dramaQuarantineResponse(c);
+    if (isDramaCutoffEnabled(c.env)) return dramaDeprecatedResponse(c);
     return next();
   })
   .use('*', requireAuth)

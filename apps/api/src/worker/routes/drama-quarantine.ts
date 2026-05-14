@@ -1,21 +1,21 @@
 import type { Context, Env } from 'hono';
 
-import { isWorkerNovelsOnlyProductMode } from '../productMode';
 import type { WorkerEnv } from '../services/auth-factory';
 
-export const DRAMA_QUARANTINE_CODE = 'DRAMA_QUARANTINED';
-export const DRAMA_QUARANTINE_HEADER = 'x-novelhub-quarantine';
+export const DRAMA_DEPRECATED_CODE = 'DRAMA_DEPRECATED';
+export const DRAMA_DEPRECATED_HEADER = 'x-novelhub-deprecated';
 
-const DRAMA_QUARANTINE_PAYLOAD = {
-  code: DRAMA_QUARANTINE_CODE,
-  message: 'Short-drama endpoints are quarantined in novels-only mode.',
+const DRAMA_DEPRECATED_PAYLOAD = {
+  code: DRAMA_DEPRECATED_CODE,
+  message: 'Short-drama endpoints are deprecated during the novels-only pivot.',
 } as const;
 
-type DramaQuarantineEnv = Env & { Bindings: WorkerEnv };
+type DramaDeprecatedEnv = Env & { Bindings: WorkerEnv };
 
-export const isDramaQuarantined = (env?: WorkerEnv): boolean => isWorkerNovelsOnlyProductMode(env);
+export const isDramaCutoffEnabled = (env?: WorkerEnv): boolean =>
+  env?.DRAMA_CUTOFF_DISABLED !== '1';
 
-export const dramaQuarantineResponse = <T extends DramaQuarantineEnv>(c: Context<T>): Response => {
-  c.header(DRAMA_QUARANTINE_HEADER, 'drama');
-  return c.json(DRAMA_QUARANTINE_PAYLOAD, 410);
+export const dramaDeprecatedResponse = <T extends DramaDeprecatedEnv>(c: Context<T>): Response => {
+  c.header(DRAMA_DEPRECATED_HEADER, 'drama');
+  return c.json(DRAMA_DEPRECATED_PAYLOAD, 410);
 };

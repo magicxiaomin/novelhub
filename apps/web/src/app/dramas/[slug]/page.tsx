@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { isNovelsOnlyProductMode } from '@/lib/productMode';
 import { fetchDramaServer } from '@/lib/server-api';
 import type { EpisodeSummary } from '@/lib/types';
-import { messages } from '@novelhub/shared';
+import { messages, ROUTES } from '@novelhub/shared';
 
 export const runtime = 'edge';
 
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function DramaDetailPage({ params }: Params): Promise<JSX.Element> {
   if (isNovelsOnlyProductMode()) {
-    notFound();
+    redirect(ROUTES.novels());
   }
 
   const drama = await fetchDramaServer(params.slug);
