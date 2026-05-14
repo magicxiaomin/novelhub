@@ -74,7 +74,7 @@ describe('Worker drama route product-mode contracts', () => {
     jest.clearAllMocks();
   });
 
-  it('deprecates public drama endpoints in novels mode before constructing the drama service', async () => {
+  it('deprecates public drama endpoints when the cutoff is enabled before constructing the drama service', async () => {
     const app = buildApp({ DRAMA_CUTOFF_DISABLED: '0' });
 
     await expectDramaDeprecated(await app.request('/dramas'));
@@ -114,7 +114,7 @@ describe('Worker drama route product-mode contracts', () => {
     const response = await buildApp({ PRODUCT_MODE: 'mixed' }).request('/dramas');
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('x-novelhub-quarantine')).toBeNull();
+    expect(response.headers.get('x-novelhub-deprecated')).toBeNull();
     await expect(response.json()).resolves.toMatchObject({ items: [dramaSummary] });
     expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
   });

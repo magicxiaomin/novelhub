@@ -1,5 +1,26 @@
+import { GoneException } from '@nestjs/common';
+
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+
+const DRAMA_DEPRECATED_RESPONSE = {
+  code: 'DRAMA_DEPRECATED',
+  message: 'Short-drama admin endpoints are deprecated during the novels-only pivot.',
+} as const;
+
+function expectDramaDeprecated(invoke: () => unknown): void {
+  expect(invoke).toThrow(GoneException);
+
+  try {
+    invoke();
+    throw new Error('Expected drama admin endpoint to throw GoneException');
+  } catch (error: unknown) {
+    expect(error).toBeInstanceOf(GoneException);
+    const gone = error as GoneException;
+    expect(gone.getStatus()).toBe(410);
+    expect(gone.getResponse()).toMatchObject(DRAMA_DEPRECATED_RESPONSE);
+  }
+}
 
 const service = {
   dashboardSummary: jest.fn(async () => ({
@@ -80,5 +101,45 @@ describe('AdminController', () => {
       uploadUrl: 'https://upload.test',
       key: 'covers/key',
     });
+  });
+
+  it('drama admin endpoints return HTTP 410 DRAMA_DEPRECATED before service access', () => {
+    const id = '00000000-0000-4000-8000-000000000001';
+
+    const deprecatedEndpoints: Array<() => unknown> = [
+      () => controller.listDramas({}),
+      () => controller.getDrama(id),
+      () => controller.createDrama({ title: 'Drama', slug: 'drama' } as never),
+      () => controller.updateDrama(id, { title: 'Drama' }),
+      () => controller.softDeleteDrama(id),
+      () => controller.publishDrama(id),
+      () => controller.unpublishDrama(id),
+    ];
+
+    for (const endpoint of deprecatedEndpoints) {
+      expectDramaDeprecated(endpoint);
+    }
+
+    expect(service.dashboardSummary).not.toHaveBeenCalled();
+  });
+
+  it('episode admin endpoints return HTTP 410 DRAMA_DEPRECATED before service access', () => {
+    const id = '00000000-0000-4000-8000-000000000001';
+
+    const deprecatedEndpoints: Array<() => unknown> = [
+      () => controller.listEpisodes({}),
+      () => controller.getEpisode(id),
+      () => controller.createEpisode({ dramaId: id, title: 'Episode 1', episodeNumber: 1 }),
+      () => controller.updateEpisode(id, { title: 'Episode 1' }),
+      () => controller.softDeleteEpisode(id),
+      () => controller.publishEpisode(id),
+      () => controller.unpublishEpisode(id),
+    ];
+
+    for (const endpoint of deprecatedEndpoints) {
+      expectDramaDeprecated(endpoint);
+    }
+
+    expect(service.dashboardSummary).not.toHaveBeenCalled();
   });
 });

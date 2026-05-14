@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { isNovelsOnlyProductMode } from '@/lib/productMode';
 import { fetchDramaServer } from '@/lib/server-api';
 import type { EpisodeSummary } from '@/lib/types';
-import { messages } from '@novelhub/shared';
+import { messages, ROUTES } from '@novelhub/shared';
 
 export const runtime = 'edge';
 
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function DramaDetailPage({ params }: Params): Promise<JSX.Element> {
   if (isNovelsOnlyProductMode()) {
-    redirect('/novels');
+    redirect(ROUTES.novels());
   }
 
   const drama = await fetchDramaServer(params.slug);

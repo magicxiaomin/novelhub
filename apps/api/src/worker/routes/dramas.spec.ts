@@ -175,14 +175,14 @@ describe('dramasRoutes', () => {
     });
   });
 
-  it('deprecates GET /dramas in novels mode before creating the drama service', async () => {
+  it('deprecates GET /dramas when the cutoff is enabled before creating the drama service', async () => {
     const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/dramas');
 
     await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('deprecates GET /dramas/:slug in novels mode before creating the drama service', async () => {
+  it('deprecates GET /dramas/:slug when the cutoff is enabled before creating the drama service', async () => {
     const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
       '/dramas/shadow-heiress',
     );
@@ -191,7 +191,7 @@ describe('dramasRoutes', () => {
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('deprecates GET /episodes/:episodeId/playback in novels mode before creating the drama service', async () => {
+  it('deprecates GET /episodes/:episodeId/playback when the cutoff is enabled before creating the drama service', async () => {
     const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/playback',
     );
@@ -200,7 +200,7 @@ describe('dramasRoutes', () => {
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('deprecates POST /episodes/:episodeId/unlock in novels mode before creating the drama service', async () => {
+  it('deprecates POST /episodes/:episodeId/unlock when the cutoff is enabled before creating the drama service', async () => {
     const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/unlock',
       { method: 'POST' },
@@ -210,14 +210,14 @@ describe('dramasRoutes', () => {
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('deprecates GET /drama-progress in novels mode before creating the drama service', async () => {
+  it('deprecates GET /drama-progress when the cutoff is enabled before creating the drama service', async () => {
     const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/drama-progress');
 
     await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('deprecates POST /drama-progress in novels mode before creating the drama service', async () => {
+  it('deprecates POST /drama-progress when the cutoff is enabled before creating the drama service', async () => {
     const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/drama-progress', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -243,7 +243,7 @@ describe('dramasRoutes', () => {
     const response = await makeApp({ PRODUCT_MODE: 'mixed' }).request('/dramas');
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('x-novelhub-quarantine')).toBeNull();
+    expect(response.headers.get('x-novelhub-deprecated')).toBeNull();
     expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
   });
 
