@@ -42,6 +42,8 @@ CLAUDE_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_TIMEOUT_SECONDS", "300"))
 REVIEW_HEADING = "## Claude Security Review"
 VERDICT_LINE_RE = re.compile(r"(?im)^###\s*Verdict:?\s*(APPROVE|REQUEST_CHANGES|COMMENT)\b")
 MIN_REVIEW_CHARS = 200
+DOCS_ONLY_EXTENSIONS = {".md", ".mdx", ".txt", ".rst"}
+DOCS_ONLY_ROOT_FILES = {"AGENTS.md", "README.md", "CHANGELOG.md", "CONTRIBUTING.md"}
 
 
 def read(path: str) -> str:
@@ -58,12 +60,16 @@ def ticket_context(ticket_file: str) -> str:
     return "(No ticket file/context was available; judge against the PR description and diff.)"
 
 
+def read_pr_diff() -> str:
+    diff_path = Path(os.environ.get("PR_DIFF_PATH", "/tmp/pr.diff.trimmed"))
+    return diff_path.read_text(encoding="utf-8", errors="replace")
+
+
 def build_prompt(ticket_num: str, ticket_file: str) -> str:
     agents_md = read("AGENTS.md")
     ticket_md = ticket_context(ticket_file)
     postmortem = read("docs/_postmortem.md")
-    diff_path = Path(os.environ.get("PR_DIFF_PATH", "/tmp/pr.diff.trimmed"))
-    diff = diff_path.read_text(encoding="utf-8", errors="replace")
+    diff = read_pr_diff()
 
     return f"""You are an INDEPENDENT security reviewer for the NovelHub project. A separate correctness reviewer is examining functional correctness; your job is exclusively security and operational risk. Do not duplicate their checks. Be paranoid but specific - cite file paths and line numbers from the diff for every finding.
 
@@ -181,6 +187,54 @@ Use APPROVE only when:
 
 When in doubt, choose REQUEST_CHANGES. Do not approve to be polite.
 """
+
+
+def changed_paths_from_diff(diff: str) -> set[str]:
+    """Return normalized repo-relative paths mentioned in a unified git diff."""
+    paths: set[str] = set()
+    for line in diff.splitlines():
+        match = re.match(r"^diff --git a/(.+?) b/(.+)$", line)
+        if not match:
+            continue
+        for raw_path in match.groups():
+            path = raw_path.strip()
+            if path and path != "/dev/null":
+                paths.add(path)
+    return paths
+
+
+def is_docs_only_path(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    if normalized.startswith("docs/"):
+        return True
+    if "/" not in normalized and normalized in DOCS_ONLY_ROOT_FILES:
+        return True
+    return Path(normalized).suffix.lower() in DOCS_ONLY_EXTENSIONS and normalized.startswith(("docs/", "adr/"))
+
+
+def is_docs_only_diff(diff: str) -> bool:
+    paths = changed_paths_from_diff(diff)
+    return bool(paths) and all(is_docs_only_path(path) for path in paths)
+
+
+def build_docs_only_review(reason: str) -> str:
+    return f"""## Claude Security Review
+
+### Findings
+
+No security findings.
+
+### New dependencies
+
+No new dependencies. Deterministic fallback inspected the changed file list and found only documentation paths, so the PR cannot introduce package manager dependency changes.
+
+### New external hosts
+
+No new external hosts. Deterministic fallback inspected the changed file list and found only documentation paths, so the PR cannot introduce runtime network egress.
+
+Fallback rationale: automated model output was unusable ({reason}), but the diff is documentation-only. This policy is intentionally limited to docs-only diffs; code, schema, workflow, scripts, package manifests, lockfiles, and secret-bearing files still fail closed if a valid automated security review cannot be obtained.
+
+### Verdict: APPROVE"""
 
 
 def build_unavailable_review(reason: str) -> str:
@@ -302,22 +356,33 @@ def main() -> int:
     prompt = build_prompt(ticket_num, ticket_file)
     review, error = run_claude(prompt)
     if error:
-        # Reviewer (and Hermes fallback) unavailable: degrade to a COMMENT-verdict
-        # notice instead of blocking the PR. Deliberately distinct from the model
-        # returning empty/garbage, which is handled just below.
-        print(build_unavailable_review(error))
-        return 0
+        # Reviewer unavailable: deterministic APPROVE is safe only for docs-only
+        # diffs. Code/schema/workflow/secrets changes must fail closed when a
+        # security review cannot be obtained.
+        diff = read_pr_diff()
+        if is_docs_only_diff(diff):
+            print(build_docs_only_review(error))
+            return 0
+        print(f"ERROR: security review unavailable for non-docs diff: {error}", file=sys.stderr)
+        return 3
 
     problem = validate_review(review)
     if problem:
         fallback_review, fallback_error = run_fallback_review(prompt, problem)
         if fallback_error:
-            # Reviewer fallback unavailable: degrade to a COMMENT-verdict notice.
-            print(build_unavailable_review(fallback_error))
-            return 0
+            diff = read_pr_diff()
+            if is_docs_only_diff(diff):
+                print(build_docs_only_review(fallback_error))
+                return 0
+            print(f"ERROR: primary invalid ({problem}); fallback unavailable for non-docs diff ({fallback_error})", file=sys.stderr)
+            return 3
 
         fallback_problem = validate_review(fallback_review)
         if fallback_problem:
+            diff = read_pr_diff()
+            if is_docs_only_diff(diff):
+                print(build_docs_only_review(f"primary invalid ({problem}); fallback invalid ({fallback_problem})"))
+                return 0
             print(f"ERROR: primary invalid ({problem}); fallback invalid ({fallback_problem})", file=sys.stderr)
             return 3
 
