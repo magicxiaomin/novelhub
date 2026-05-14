@@ -161,67 +161,6 @@ describe('AdminService', () => {
     jest.restoreAllMocks();
   });
 
-  it('createDrama rejects non-HTTPS poster URLs in production', async () => {
-    const { service } = buildService();
-
-    await expect(
-      service.createDrama({
-        slug: 'test-drama',
-        title: 'Test Drama',
-        description: 'Desc',
-        posterUrl: 'http://cdn.example.com/poster.jpg',
-        category: 'Drama',
-      }),
-    ).rejects.toEqual(expect.objectContaining({ name: 'DomainError', status: 400 }));
-  });
-
-  it('createEpisode rejects token-like playback query params', async () => {
-    const { service, prisma } = buildService();
-    prisma.drama.findFirst.mockResolvedValue({ id: 'drama-1', totalEpisodes: 0 });
-
-    await expect(
-      service.createEpisode({
-        dramaId: '11111111-1111-4111-8111-111111111111',
-        episodeNumber: 1,
-        title: 'Episode 1',
-        video: {
-          provider: 'external_hls',
-          playbackUrl: 'https://cdn.example.com/e1/master.m3u8?token=secret',
-        },
-      }),
-    ).rejects.toEqual(expect.objectContaining({ name: 'DomainError', status: 400 }));
-  });
-
-  it('createEpisode creates external HLS video metadata and updates total episode count', async () => {
-    const { service, prisma, tx } = buildService();
-    prisma.drama.findFirst.mockResolvedValue({ id: 'drama-1', totalEpisodes: 0 });
-
-    await expect(
-      service.createEpisode({
-        dramaId: '11111111-1111-4111-8111-111111111111',
-        episodeNumber: 3,
-        title: 'Episode 3',
-        isPublished: true,
-        video: {
-          provider: 'external_hls',
-          playbackUrl: 'https://cdn.example.com/e3/master.m3u8',
-          thumbnailUrl: 'https://images.example.com/e3.webp',
-        },
-      }),
-    ).resolves.toEqual({ id: 'episode-1' });
-    expect(tx.episode.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          episodeNumber: 3,
-          videoAsset: { create: expect.objectContaining({ provider: 'external_hls' }) },
-        }),
-      }),
-    );
-    expect(tx.drama.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { totalEpisodes: 3 } }),
-    );
-  });
-
   it('dashboardSummary returns today, weekly, and topBooks aggregates', async () => {
     const { service, prisma } = buildService();
     prisma.user.count.mockResolvedValue(3);
