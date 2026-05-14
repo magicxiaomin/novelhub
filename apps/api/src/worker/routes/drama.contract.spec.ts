@@ -56,7 +56,7 @@ const buildApp = (env: Partial<WorkerEnv> = {}) => {
   type AppRequestArgs = Parameters<typeof app.request>;
   return {
     request: (input: AppRequestArgs[0], requestInit?: AppRequestArgs[1]) =>
-      app.request(input, requestInit, { DRAMA_CUTOFF_DISABLED: '1', ...env } as WorkerEnv),
+      app.request(input, requestInit, env as WorkerEnv),
   };
 };
 
@@ -75,7 +75,7 @@ describe('Worker drama route product-mode contracts', () => {
   });
 
   it('deprecates public drama endpoints when the cutoff is enabled before constructing the drama service', async () => {
-    const app = buildApp({ DRAMA_CUTOFF_DISABLED: '0' });
+    const app = buildApp();
 
     await expectDramaDeprecated(await app.request('/dramas'));
     await expectDramaDeprecated(await app.request('/dramas/shadow-heiress'));
@@ -104,14 +104,16 @@ describe('Worker drama route product-mode contracts', () => {
     expect(mockedMakeDramasService).not.toHaveBeenCalled();
   });
 
-  it('leaves the public drama list contract unchanged in mixed mode', async () => {
+  it('leaves the public drama list contract unchanged when the drama cutoff is disabled (rollback)', async () => {
     const list = jest.fn().mockResolvedValue({
       items: [dramaSummary],
       pageInfo: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
     });
     mockedMakeDramasService.mockReturnValue({ list } as never);
 
-    const response = await buildApp({ PRODUCT_MODE: 'mixed' }).request('/dramas');
+    const response = await buildApp({ DRAMA_CUTOFF_DISABLED: '1', PRODUCT_MODE: 'mixed' }).request(
+      '/dramas',
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('x-novelhub-deprecated')).toBeNull();

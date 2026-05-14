@@ -12,9 +12,10 @@ const DRAMA_DEPRECATED_PAYLOAD = {
 
 type DramaDeprecatedEnv = Env & { Bindings: WorkerEnv };
 
-export const isDramaQuarantined = (env?: WorkerEnv): boolean => env?.DRAMA_CUTOFF_DISABLED !== '1';
+export const isDramaCutoffEnabled = (env?: WorkerEnv): boolean =>
+  env?.DRAMA_CUTOFF_DISABLED !== '1';
 
-export const dramaQuarantineResponse = <T extends DramaDeprecatedEnv>(c: Context<T>): Response => {
+export const dramaDeprecatedResponse = <T extends DramaDeprecatedEnv>(c: Context<T>): Response => {
   c.header(DRAMA_DEPRECATED_HEADER, 'drama');
   return c.json(DRAMA_DEPRECATED_PAYLOAD, 410);
 };

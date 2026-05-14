@@ -153,7 +153,7 @@ const makeApp = (env: Record<string, string | undefined> = {}) => {
   type AppRequestArgs = Parameters<typeof app.request>;
   return {
     request: (input: AppRequestArgs[0], requestInit?: AppRequestArgs[1]) =>
-      app.request(input, requestInit, { DRAMA_CUTOFF_DISABLED: '1', ...env }),
+      app.request(input, requestInit, env),
   };
 };
 
@@ -176,23 +176,21 @@ describe('dramasRoutes', () => {
   });
 
   it('deprecates GET /dramas when the cutoff is enabled before creating the drama service', async () => {
-    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/dramas');
+    const response = await makeApp().request('/dramas');
 
     await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
   it('deprecates GET /dramas/:slug when the cutoff is enabled before creating the drama service', async () => {
-    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
-      '/dramas/shadow-heiress',
-    );
+    const response = await makeApp().request('/dramas/shadow-heiress');
 
     await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
   it('deprecates GET /episodes/:episodeId/playback when the cutoff is enabled before creating the drama service', async () => {
-    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
+    const response = await makeApp().request(
       '/episodes/11111111-1111-4111-8111-111111111111/playback',
     );
 
@@ -201,7 +199,7 @@ describe('dramasRoutes', () => {
   });
 
   it('deprecates POST /episodes/:episodeId/unlock when the cutoff is enabled before creating the drama service', async () => {
-    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request(
+    const response = await makeApp().request(
       '/episodes/11111111-1111-4111-8111-111111111111/unlock',
       { method: 'POST' },
     );
@@ -211,14 +209,14 @@ describe('dramasRoutes', () => {
   });
 
   it('deprecates GET /drama-progress when the cutoff is enabled before creating the drama service', async () => {
-    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/drama-progress');
+    const response = await makeApp().request('/drama-progress');
 
     await expectDramaDeprecated(response);
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
   it('deprecates POST /drama-progress when the cutoff is enabled before creating the drama service', async () => {
-    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '0' }).request('/drama-progress', {
+    const response = await makeApp().request('/drama-progress', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -233,14 +231,16 @@ describe('dramasRoutes', () => {
     expect(makeDramasServiceMock).not.toHaveBeenCalled();
   });
 
-  it('leaves GET /dramas unchanged in mixed mode', async () => {
+  it('leaves GET /dramas unchanged when the drama cutoff is disabled (rollback)', async () => {
     const list = jest.fn().mockResolvedValue({
       items: [contractDramaSummary],
       pageInfo: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
     });
     makeDramasServiceMock.mockReturnValue({ list } as never);
 
-    const response = await makeApp({ PRODUCT_MODE: 'mixed' }).request('/dramas');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1', PRODUCT_MODE: 'mixed' }).request(
+      '/dramas',
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('x-novelhub-deprecated')).toBeNull();
@@ -254,7 +254,7 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ list } as never);
 
-    const response = await makeApp().request(
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
       '/dramas?page=2&pageSize=10&category=revenge&featured=true',
     );
 
@@ -284,7 +284,7 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
-    const response = await makeApp().request(
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/playback',
     );
 
@@ -326,7 +326,7 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
-    const response = await makeApp().request(
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/playback',
     );
 
@@ -364,7 +364,7 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
-    const response = await makeApp().request(
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/playback',
     );
 
@@ -396,7 +396,7 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
-    const response = await makeApp().request(
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/playback',
     );
 
@@ -419,7 +419,9 @@ describe('dramasRoutes', () => {
     const getPlayback = jest.fn();
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
-    const response = await makeApp().request('/episodes/not-a-uuid/playback');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
+      '/episodes/not-a-uuid/playback',
+    );
 
     expect(response.status).toBe(400);
     expect(getPlayback).not.toHaveBeenCalled();
@@ -429,7 +431,9 @@ describe('dramasRoutes', () => {
     const getBySlug = jest.fn().mockResolvedValue(contractDramaDetail);
     makeDramasServiceMock.mockReturnValue({ getBySlug } as never);
 
-    const response = await makeApp().request('/dramas/shadow-heiress');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
+      '/dramas/shadow-heiress',
+    );
 
     expect(response.status).toBe(200);
     expect(getBySlug).toHaveBeenCalledWith('shadow-heiress', null);
@@ -464,7 +468,9 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ getBySlug } as never);
 
-    const response = await makeApp().request('/dramas/shadow-heiress');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
+      '/dramas/shadow-heiress',
+    );
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as { episodes: Array<Record<string, unknown>> };
@@ -498,7 +504,7 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ list } as never);
 
-    const response = await makeApp().request('/dramas');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request('/dramas');
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
@@ -515,7 +521,9 @@ describe('dramasRoutes', () => {
       .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
     makeDramasServiceMock.mockReturnValue({ list } as never);
 
-    const response = await makeApp().request('/dramas?page=2&pageSize=10');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
+      '/dramas?page=2&pageSize=10',
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -532,7 +540,9 @@ describe('dramasRoutes', () => {
       .mockRejectedValue({ code: 'P2022', message: 'Column `dramas.deleted_at` does not exist' });
     makeDramasServiceMock.mockReturnValue({ getBySlug } as never);
 
-    const response = await makeApp().request('/dramas/shadow-heiress');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
+      '/dramas/shadow-heiress',
+    );
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({
@@ -550,7 +560,10 @@ describe('dramasRoutes', () => {
       .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
     makeDramasServiceMock.mockReturnValue({ list } as never);
 
-    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request('/dramas');
+    const response = await makeApp({
+      DRAMA_CUTOFF_DISABLED: '1',
+      DRAMA_PROCESS_VALIDATION_FALLBACK: '1',
+    }).request('/dramas');
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -576,9 +589,10 @@ describe('dramasRoutes', () => {
       .mockRejectedValue({ code: 'P2022', message: 'Column `dramas.deleted_at` does not exist' });
     makeDramasServiceMock.mockReturnValue({ getBySlug } as never);
 
-    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
-      '/dramas/suspense-1913',
-    );
+    const response = await makeApp({
+      DRAMA_CUTOFF_DISABLED: '1',
+      DRAMA_PROCESS_VALIDATION_FALLBACK: '1',
+    }).request('/dramas/suspense-1913');
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as { episodes: Array<Record<string, unknown>> };
@@ -620,9 +634,10 @@ describe('dramasRoutes', () => {
       .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
-    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
-      '/episodes/66666666-0001-4d00-8d00-000000000001/playback',
-    );
+    const response = await makeApp({
+      DRAMA_CUTOFF_DISABLED: '1',
+      DRAMA_PROCESS_VALIDATION_FALLBACK: '1',
+    }).request('/episodes/66666666-0001-4d00-8d00-000000000001/playback');
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -644,9 +659,10 @@ describe('dramasRoutes', () => {
       .mockRejectedValue({ code: 'P2021', message: 'Table `dramas` does not exist' });
     makeDramasServiceMock.mockReturnValue({ getPlayback } as never);
 
-    const response = await makeApp({ DRAMA_PROCESS_VALIDATION_FALLBACK: '1' }).request(
-      '/episodes/66666666-0003-4d00-8d00-000000000003/playback',
-    );
+    const response = await makeApp({
+      DRAMA_CUTOFF_DISABLED: '1',
+      DRAMA_PROCESS_VALIDATION_FALLBACK: '1',
+    }).request('/episodes/66666666-0003-4d00-8d00-000000000003/playback');
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -669,7 +685,9 @@ describe('dramasRoutes', () => {
     const list = jest.fn();
     makeDramasServiceMock.mockReturnValue({ list } as never);
 
-    const response = await makeApp().request('/dramas?page=0&pageSize=99&featured=yes');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
+      '/dramas?page=0&pageSize=99&featured=yes',
+    );
 
     expect(response.status).toBe(400);
     expect(list).not.toHaveBeenCalled();
@@ -679,7 +697,10 @@ describe('dramasRoutes', () => {
     const unlockEpisode = jest.fn();
     makeDramasServiceMock.mockReturnValue({ unlockEpisode } as never);
 
-    const response = await makeApp().request('/episodes/not-a-uuid/unlock', { method: 'POST' });
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
+      '/episodes/not-a-uuid/unlock',
+      { method: 'POST' },
+    );
 
     expect(response.status).toBe(400);
     expect(unlockEpisode).not.toHaveBeenCalled();
@@ -701,7 +722,7 @@ describe('dramasRoutes', () => {
     });
     makeDramasServiceMock.mockReturnValue({ unlockEpisode } as never);
 
-    const response = await makeApp().request(
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request(
       '/episodes/11111111-1111-4111-8111-111111111111/unlock',
       { method: 'POST' },
     );
@@ -728,7 +749,7 @@ describe('dramasRoutes', () => {
     makeDramasServiceMock.mockReturnValue({ saveProgress } as never);
     mockRequireAuth.mockImplementation(async (c) => c.json({ message: 'Unauthorized' }, 401));
 
-    const response = await makeApp().request('/drama-progress', {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request('/drama-progress', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -754,7 +775,7 @@ describe('dramasRoutes', () => {
     const saveProgress = jest.fn().mockResolvedValue(savedProgress);
     makeDramasServiceMock.mockReturnValue({ saveProgress } as never);
 
-    const response = await makeApp().request('/drama-progress', {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request('/drama-progress', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -790,7 +811,7 @@ describe('dramasRoutes', () => {
     const listContinueWatching = jest.fn().mockResolvedValue(continueWatching);
     makeDramasServiceMock.mockReturnValue({ listContinueWatching } as never);
 
-    const response = await makeApp().request('/drama-progress');
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request('/drama-progress');
 
     expect(response.status).toBe(200);
     expect(listContinueWatching).toHaveBeenCalledWith('user-1');
@@ -801,7 +822,7 @@ describe('dramasRoutes', () => {
     const saveProgress = jest.fn();
     makeDramasServiceMock.mockReturnValue({ saveProgress } as never);
 
-    const response = await makeApp().request('/drama-progress', {
+    const response = await makeApp({ DRAMA_CUTOFF_DISABLED: '1' }).request('/drama-progress', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
