@@ -40,6 +40,12 @@ export function Paywall({
   const [selectedPackage, setSelectedPackage] = useState<CoinPackageId>(COIN_PACKAGES.pack_120.id);
   const [submitting, setSubmitting] = useState(false);
 
+  const novelTelemetry = {
+    contentIds: [chapter.id],
+    novelId: chapter.bookId,
+    chapterId: chapter.id,
+  };
+
   const rememberReturnUrl = (): void => {
     window.sessionStorage.setItem(READER_RETURN_URL_KEY, currentUrl);
   };
@@ -49,7 +55,7 @@ export function Paywall({
     fbTrackAddToCart({
       value: SUBSCRIPTION_PLANS[plan].priceUsd,
       currency: 'USD',
-      contentIds: [plan],
+      ...novelTelemetry,
     });
   };
 
@@ -58,7 +64,7 @@ export function Paywall({
     fbTrackAddToCart({
       value: COIN_PACKAGES[packageId].priceUsd,
       currency: 'USD',
-      contentIds: [packageId],
+      ...novelTelemetry,
     });
   };
 
@@ -69,6 +75,7 @@ export function Paywall({
       fbTrackInitiateCheckout({
         value: SUBSCRIPTION_PLANS[selectedPlan].priceUsd,
         currency: 'USD',
+        ...novelTelemetry,
       });
       const checkout = await createSubscriptionCheckout(selectedPlan);
       window.location.assign(checkout.url);
@@ -104,6 +111,7 @@ export function Paywall({
       fbTrackInitiateCheckout({
         value: COIN_PACKAGES[selectedPackage].priceUsd,
         currency: 'USD',
+        ...novelTelemetry,
       });
       const checkout = await createCoinCheckout(selectedPackage);
       window.location.assign(checkout.url);
@@ -133,6 +141,9 @@ export function Paywall({
       <div className="mx-auto flex min-h-0 w-full max-w-mobile flex-1 flex-col px-5 pb-4 pt-8">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <p className="text-sm font-semibold text-brand">{messages.paywall.title}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {messages.paywall.entryCopy}
+          </p>
           <h1 className="mt-2 text-2xl font-bold leading-tight">{chapter.title}</h1>
           <div className="relative mt-5 max-h-32 overflow-hidden text-base leading-7 text-muted-foreground">
             <p className="[mask-image:linear-gradient(180deg,#000_45%,transparent_100%)]">

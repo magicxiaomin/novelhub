@@ -29,6 +29,7 @@ export default defineConfig({
           HOME: process.env.HOME,
           PATH: process.env.PATH,
           NOVELHUB_E2E_DRAMA_FIXTURES: '1',
+          NOVELHUB_E2E_NOVEL_FIXTURES: '1',
           NOVELHUB_RUNTIME_ENV: 'ci-e2e',
           PRODUCT_MODE: process.env.PRODUCT_MODE,
         }),

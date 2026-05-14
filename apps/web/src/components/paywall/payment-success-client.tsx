@@ -83,6 +83,13 @@ export function PaymentSuccessClient(): JSX.Element {
   return (
     <main className="mx-auto flex min-h-dvh max-w-mobile flex-col items-center justify-center px-6 text-center">
       <h1 className="text-2xl font-bold">{titleForState(state)}</h1>
+      {state === 'completed' ? (
+        <div className="mt-5 flex gap-3">
+          <Button asChild className="bg-brand text-brand-foreground hover:bg-brand/90">
+            <Link href="/library">{messages.payment.library}</Link>
+          </Button>
+        </div>
+      ) : null}
       {state === 'failed' || state === 'missing-session' ? (
         <div className="mt-5 flex gap-3">
           {state === 'failed' ? (

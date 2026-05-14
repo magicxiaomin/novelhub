@@ -16,6 +16,7 @@ import type {
   UpdateEpisodeDto,
 } from './dto/drama.types';
 import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './dto/query.types';
+import { clampFreeChapterLimit, configuredFreeChapterLimit } from './free-chapter-limit';
 
 const DEFAULT_DELIMITER = '\n\n---\n\n';
 const MAX_CHAPTER_CONTENT_BYTES = 204800;
@@ -165,7 +166,7 @@ export class AdminService {
       tags: dto.tags ?? [],
       status: dto.status ?? 'ONGOING',
       isFeatured: dto.isFeatured ?? false,
-      freeChapterCount: dto.freeChapterCount ?? 3,
+      freeChapterCount: clampFreeChapterLimit(dto.freeChapterCount ?? configuredFreeChapterLimit()),
       coinPerChapter: dto.coinPerChapter ?? 5,
     };
     const book = await this.prisma.book.create({ data, select: { id: true } });
@@ -257,7 +258,12 @@ export class AdminService {
       select: { id: true },
     });
     if (!book) throw DomainError.notFound('Book not found');
-    const data: Prisma.BookUpdateInput = { ...dto };
+    const data: Prisma.BookUpdateInput = {
+      ...dto,
+      ...(dto.freeChapterCount === undefined
+        ? {}
+        : { freeChapterCount: clampFreeChapterLimit(dto.freeChapterCount) }),
+    };
     if (data.coverImageKey && !COVER_IMAGE_KEY_RE.test(String(data.coverImageKey))) {
       throw DomainError.badRequest('coverImageKey must be a covers/<uuid> path');
     }

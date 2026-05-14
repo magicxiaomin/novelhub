@@ -23,7 +23,7 @@ const bookFormSchema = z.object({
   category: z.string().trim().min(1).max(80),
   tags: z.string().max(500),
   status: z.enum(BOOK_STATUSES),
-  freeChapterCount: z.coerce.number().int().min(0),
+  freeChapterCount: z.coerce.number().int().min(1).max(3),
   coinPerChapter: z.coerce.number().int().min(1),
 });
 
@@ -119,6 +119,8 @@ export function BookForm({ book }: { book?: AdminBook }): JSX.Element {
       <Input
         type="number"
         {...form.register('freeChapterCount', { valueAsNumber: true })}
+        min={1}
+        max={3}
         placeholder={messages.admin.fields.freeChapterCount}
       />
       <FieldError message={form.formState.errors.freeChapterCount?.message} />

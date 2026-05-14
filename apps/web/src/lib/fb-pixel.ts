@@ -72,11 +72,17 @@ export function fbTrackViewContent(input: {
   contentId: string;
   contentType: string;
   value?: number;
+  novelId?: string;
+  chapterId?: string;
+  utm?: Record<string, string>;
 }): TrackResult {
   return track('ViewContent', {
     content_ids: [input.contentId],
     content_type: input.contentType,
     value: input.value,
+    novel_id: input.novelId,
+    chapter_id: input.chapterId,
+    ...prefixedUtm(input.utm),
   });
 }
 
@@ -84,12 +90,16 @@ export function fbTrackAddToCart(input: {
   value: number;
   currency: string;
   contentIds: string[];
+  novelId?: string;
+  chapterId?: string;
 }): TrackResult {
   return track('AddToCart', {
     value: input.value,
     currency: input.currency,
     content_ids: input.contentIds,
-    content_type: 'product',
+    content_type: 'novel_chapter',
+    novel_id: input.novelId,
+    chapter_id: input.chapterId,
   });
 }
 
@@ -97,8 +107,22 @@ export function fbTrackInitiateCheckout(input: {
   value: number;
   currency: string;
   eventId?: string;
+  contentIds?: string[];
+  novelId?: string;
+  chapterId?: string;
 }): TrackResult {
-  return track('InitiateCheckout', { value: input.value, currency: input.currency }, input.eventId);
+  return track(
+    'InitiateCheckout',
+    {
+      value: input.value,
+      currency: input.currency,
+      content_ids: input.contentIds,
+      content_type: input.contentIds ? 'novel_chapter' : undefined,
+      novel_id: input.novelId,
+      chapter_id: input.chapterId,
+    },
+    input.eventId,
+  );
 }
 
 export function fbTrackPurchase(input: {
@@ -140,6 +164,11 @@ function track(
 
 function compact(data: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+}
+
+function prefixedUtm(utm: Record<string, string> | undefined): Record<string, string> {
+  if (!utm) return {};
+  return Object.fromEntries(Object.entries(utm).map(([key, value]) => [`utm_${key}`, value]));
 }
 
 function escapeRegExp(value: string): string {

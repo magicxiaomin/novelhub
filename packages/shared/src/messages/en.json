@@ -289,6 +289,7 @@
   },
   "paywall": {
     "title": "Chapter locked",
+    "entryCopy": "Keep reading with unlimited novel access or unlock chapters with coins.",
     "maybeLater": "Maybe later",
     "subscribe": "Subscribe",
     "buyCoins": "Buy Coins",
@@ -297,9 +298,9 @@
     "monthly": "Monthly",
     "perWeek": "per week",
     "perMonth": "per month",
-    "benefitUnlimited": "Unlimited reading",
-    "benefitAllBooks": "All books unlocked",
-    "benefitCancel": "Cancel anytime",
+    "benefitUnlimited": "Unlimited novel chapters while your plan is active",
+    "benefitAllBooks": "Every currently available book is included",
+    "benefitCancel": "Cancel anytime before renewal",
     "subscribeNow": "Subscribe Now",
     "buyCoinsNow": "Buy Coins",
     "terms": "Terms",
@@ -314,7 +315,8 @@
     "failed": "Something went wrong",
     "retry": "Retry",
     "missingSession": "Missing checkout session",
-    "home": "Home"
+    "home": "Home",
+    "library": "Go to Library"
   },
   "auth": {
     "title": "Sign in to NovelHub",
