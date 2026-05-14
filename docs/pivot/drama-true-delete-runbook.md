@@ -162,6 +162,49 @@ Inventory only. Do not mutate these in the staged non-destructive removal wave u
 - #219 should merge last so docs/env examples describe the final repo state after code/test/seed removal.
 - Any true DB/schema/R2 deletion after #219 needs a separate approved issue with backups, rollback, evidence artifacts, checksums, and explicit operator approval.
 
+## #216 web-route cache and PWA invalidation plan
+
+This section is the non-destructive cache runbook for #216 after the `/dramas` web/client routes are removed. It is documentation only: do not run these commands from the PR, and do not change DNS, Cloudflare configuration, secrets, or live environments without separate operator approval.
+
+### Edge cache purge scope
+
+After the #216 deployment reaches the production Pages project, an operator should purge stale HTML/manifest responses that could still return the deleted drama routes from a warm edge cache:
+
+- `https://$WEB_HOST/dramas`
+- `https://$WEB_HOST/dramas/`
+- `https://$WEB_HOST/dramas/*` by enumerating any known static drama slug/watch URLs from access logs, the prior sitemap, or Pages analytics, for example `https://$WEB_HOST/dramas/<slug>` and `https://$WEB_HOST/dramas/<slug>/watch/<episodeId>`.
+- PWA shell files that may point at the old precache list: `https://$WEB_HOST/sw.js`, `https://$WEB_HOST/workbox-*.js`, and any emitted `https://$WEB_HOST/precache-manifest.*.js` or equivalent manifest asset if present in the deployed artifact.
+
+Use Cloudflare's zone cache purge API for the custom domain. Exact-file purge is safest and should include the concrete URLs above plus any enumerated `/dramas/*` URLs:
+
+```bash
+curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/purge_cache" \
+  -H "Authorization: Bearer <CF_API_TOKEN>" \
+  -H "Content-Type: application/json" \
+  --data "{\"files\":[\"https://${WEB_HOST}/dramas\",\"https://${WEB_HOST}/dramas/\",\"https://${WEB_HOST}/sw.js\"]}"
+```
+
+If the zone plan supports prefix purge, purge the drama subtree and PWA generated assets directly:
+
+```bash
+curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/purge_cache" \
+  -H "Authorization: Bearer <CF_API_TOKEN>" \
+  -H "Content-Type: application/json" \
+  --data "{\"prefixes\":[\"https://${WEB_HOST}/dramas/\",\"https://${WEB_HOST}/workbox-\",\"https://${WEB_HOST}/precache-manifest.\"]}"
+```
+
+If prefix purge is unavailable and the affected `/dramas/*` URL set cannot be enumerated, the fallback is an operator-approved `purge_everything` on the Pages custom-domain zone immediately after the #216 deploy. That fallback is broader than this PR and must be recorded as an operational action, not a repo change.
+
+### Returning PWA users
+
+`apps/web/next.config.mjs` keeps `next-pwa` configured with `register: true` and `skipWaiting: true` for production builds. The #216 deletion changes the build output and therefore churns the generated precache manifest/`sw.js` content hash. Returning PWA users should receive the newly deployed service worker on their next online visit; because `skipWaiting` is enabled, the new worker can activate without waiting for all old tabs to close, then serve the novel-only shell and route fallbacks.
+
+Operators should still purge `sw.js`, generated `workbox-*.js`, and any emitted precache-manifest asset because browsers check the service-worker script URL and Cloudflare can otherwise keep an older script/manifests warm at the edge. Users with an already-installed old worker may need one navigation/reload cycle before the new worker takes control, but the old worker should not get fresh `/dramas` HTML after the edge purge and route deletion.
+
+### `_next/static` CacheFirst rule
+
+The production service worker's `_next/static` runtime rule in `apps/web/next.config.mjs` is CacheFirst for immutable hashed build assets only. It can keep an old JavaScript chunk in a user's browser cache until expiry, but it cannot resurrect the deleted `/dramas` routes by itself: the removed route HTML/RSC entries and route registrations are not addressable in the new build, and chunk filenames are content-hashed. A stale chunk can only be used by an already-loaded old page; once navigation consults the new service worker/deployment and the edge cache for `/dramas` is purged, the route resolves according to the new novel-only app instead of rehydrating a deleted drama page.
+
 ## Non-goals
 
 - Do not delete production database tables or rows.

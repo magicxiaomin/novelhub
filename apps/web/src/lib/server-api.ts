@@ -12,21 +12,9 @@
 import { cookies } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
-import { dramaE2eFixturesEnabled } from './drama-e2e-fixture-gate';
 import type * as NovelE2eFixtures from './novel-e2e-fixtures';
-import type {
-  BookDetail,
-  BookSummary,
-  ChapterResponse,
-  ChapterSummary,
-  DramaDetail,
-  DramaPaginated,
-  DramaSummary,
-  EpisodePlayback,
-  Paginated,
-} from './types';
+import type { BookDetail, BookSummary, ChapterResponse, ChapterSummary, Paginated } from './types';
 
-type DramaE2eFixtures = typeof import('./drama-e2e-fixtures');
 type LoadedNovelE2eFixtures = typeof NovelE2eFixtures;
 
 const allowedNovelFixtureRuntimeEnvironments = ['development', 'test', 'ci', 'ci-e2e'];
@@ -108,11 +96,6 @@ const cookieHeader = (): string => {
   }
 };
 
-const loadDramaE2eFixtures = async (): Promise<DramaE2eFixtures | null> => {
-  if (!dramaE2eFixturesEnabled()) return null;
-  return import('./drama-e2e-fixtures');
-};
-
 export async function fetchBookChaptersServer(
   id: string,
   page = 1,
@@ -153,67 +136,4 @@ export async function fetchChapterServer(id: string): Promise<ChapterResponse | 
     throw new Error(`Failed to fetch chapter ${id}: ${res.status}`);
   }
   return (await res.json()) as ChapterResponse;
-}
-
-export async function fetchDramasServer(query?: {
-  category?: string;
-  featured?: boolean;
-  page?: number;
-  pageSize?: number;
-}): Promise<DramaPaginated<DramaSummary>> {
-  const e2eFixtures = await loadDramaE2eFixtures();
-  if (e2eFixtures) {
-    const fixtures = e2eFixtures.dramaE2eFixtureList();
-    return {
-      ...fixtures,
-      items: query?.featured ? fixtures.items.filter((drama) => drama.isFeatured) : fixtures.items,
-    };
-  }
-
-  const res = await fetch(buildServerApiUrl('/dramas', query), {
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch dramas: ${res.status}`);
-  }
-  return (await res.json()) as DramaPaginated<DramaSummary>;
-}
-
-export async function fetchDramaServer(slug: string): Promise<DramaDetail | null> {
-  const e2eFixtures = await loadDramaE2eFixtures();
-  if (e2eFixtures) {
-    return slug === e2eFixtures.dramaE2eFixtureSlug ? e2eFixtures.dramaE2eFixtureDetail : null;
-  }
-
-  const res = await fetch(buildServerApiUrl(`/dramas/${encodeURIComponent(slug)}`), {
-    cache: 'no-store',
-    headers: { cookie: cookieHeader() },
-  });
-  if (res.status === 404 || res.status === 401) return null;
-  if (!res.ok) {
-    throw new Error(`Failed to fetch drama ${slug}: ${res.status}`);
-  }
-  return (await res.json()) as DramaDetail;
-}
-
-export async function fetchEpisodePlaybackServer(
-  episodeId: string,
-): Promise<EpisodePlayback | null> {
-  const e2eFixtures = await loadDramaE2eFixtures();
-  if (e2eFixtures) {
-    return e2eFixtures.dramaE2eFixturePlayback(episodeId);
-  }
-
-  const res = await fetch(
-    buildServerApiUrl(`/episodes/${encodeURIComponent(episodeId)}/playback`),
-    {
-      cache: 'no-store',
-      headers: { cookie: cookieHeader() },
-    },
-  );
-  if (res.status === 404 || res.status === 401) return null;
-  if (!res.ok) {
-    throw new Error(`Failed to fetch episode playback ${episodeId}: ${res.status}`);
-  }
-  return (await res.json()) as EpisodePlayback;
 }
