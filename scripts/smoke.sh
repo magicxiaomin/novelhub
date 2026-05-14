@@ -64,23 +64,6 @@ check_not_5xx() {
   fi
 }
 
-check_status_in() {
-  local description="$1"; shift
-  local expected_csv="$1"; shift
-  local response
-  : >/tmp/smoke.body
-  response=$(curl -s -o /tmp/smoke.body -w '%{http_code}' "$@" 2>/dev/null)
-  : "${response:=000}"
-  if [[ ",$expected_csv," == *",$response,"* ]]; then
-    green "  PASS  $description (HTTP $response)"
-    PASS=$((PASS + 1))
-  else
-    red "  FAIL  $description (expected one of $expected_csv, got $response)"
-    gray "        body: $(head -c 200 /tmp/smoke.body 2>/dev/null || echo '<no body>')"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
 echo "Smoke testing $API"
 echo
 

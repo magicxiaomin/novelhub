@@ -55,4 +55,11 @@ run_smoke() {
 
 output=$(run_smoke)
 
+grep -q 'PASS  GET /health (DB ping) (HTTP 200)' <<<"$output"
+grep -q 'PASS  GET /books (catalog) (HTTP 200)' <<<"$output"
+grep -q 'PASS  GET signed contentUrl' <<<"$output"
+grep -q 'PASS  GET /auth/me (cookie auth) (HTTP 200)' <<<"$output"
+grep -q 'Summary: ' <<<"$output"
+! grep -q 'FAIL  ' <<<"$output"
+
 echo "smoke.test.sh PASS"
