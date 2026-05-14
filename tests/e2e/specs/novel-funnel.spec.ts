@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const bookId = '11111111-1111-4111-8111-111111111111';
+const bookId = '22222222-2222-4222-8222-222222222222';
 const coinPackButton = (page: Page) => page.getByText('120 coins', { exact: true });
 
 async function stubBrowserApis(page: Page): Promise<void> {
@@ -61,7 +61,7 @@ async function stubBrowserApis(page: Page): Promise<void> {
 async function gotoLockedChapter(page: Page): Promise<void> {
   await page.goto(`/read/${bookId}/4`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Chapter locked')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Subscribe Now', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Subscribe Now', exact: true })).toBeVisible();
 }
 
 test.describe('novel acquisition funnel', () => {
@@ -127,6 +127,7 @@ test.describe('novel acquisition funnel', () => {
 
   test('starts the coin checkout stub from the locked chapter paywall', async ({ page }) => {
     await gotoLockedChapter(page);
+    await expect(page.getByRole('button', { name: 'Subscribe Now', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Buy Coins', exact: true }).click();
     await expect(coinPackButton(page)).toBeVisible();
 

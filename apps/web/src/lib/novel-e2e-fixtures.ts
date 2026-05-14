@@ -1,6 +1,6 @@
 import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from './types';
 
-export const novelE2eFixtureBookId = '11111111-1111-4111-8111-111111111111';
+export const novelE2eFixtureBookId = '22222222-2222-4222-8222-222222222222';
 
 const coverSvg = encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect width="300" height="400" fill="#7c3aed"/><text x="24" y="210" fill="white" font-size="34" font-family="sans-serif">Novel Funnel</text></svg>',
