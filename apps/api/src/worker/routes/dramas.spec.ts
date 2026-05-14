@@ -157,6 +157,15 @@ const makeApp = (env: Record<string, string | undefined> = {}) => {
   };
 };
 
+const expectDramaQuarantined = async (response: Response) => {
+  expect(response.status).toBe(410);
+  expect(response.headers.get('x-novelhub-quarantine')).toBe('drama');
+  await expect(response.json()).resolves.toEqual({
+    code: 'DRAMA_QUARANTINED',
+    message: 'Short-drama endpoints are quarantined in novels-only mode.',
+  });
+};
+
 describe('dramasRoutes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -164,6 +173,76 @@ describe('dramasRoutes', () => {
       c.set('user', { id: 'user-1', email: 'reader@example.com', isAdmin: false });
       await next();
     });
+  });
+
+  it('quarantines GET /dramas in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/dramas');
+
+    await expectDramaQuarantined(response);
+    expect(makeDramasServiceMock).not.toHaveBeenCalled();
+  });
+
+  it('quarantines GET /dramas/:slug in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/dramas/shadow-heiress');
+
+    await expectDramaQuarantined(response);
+    expect(makeDramasServiceMock).not.toHaveBeenCalled();
+  });
+
+  it('quarantines GET /episodes/:episodeId/playback in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request(
+      '/episodes/11111111-1111-4111-8111-111111111111/playback',
+    );
+
+    await expectDramaQuarantined(response);
+    expect(makeDramasServiceMock).not.toHaveBeenCalled();
+  });
+
+  it('quarantines POST /episodes/:episodeId/unlock in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request(
+      '/episodes/11111111-1111-4111-8111-111111111111/unlock',
+      { method: 'POST' },
+    );
+
+    await expectDramaQuarantined(response);
+    expect(makeDramasServiceMock).not.toHaveBeenCalled();
+  });
+
+  it('quarantines GET /drama-progress in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/drama-progress');
+
+    await expectDramaQuarantined(response);
+    expect(makeDramasServiceMock).not.toHaveBeenCalled();
+  });
+
+  it('quarantines POST /drama-progress in novels mode before creating the drama service', async () => {
+    const response = await makeApp({ PRODUCT_MODE: 'novels' }).request('/drama-progress', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        episodeId: '11111111-1111-4111-8111-111111111111',
+        positionSeconds: 42,
+        durationSeconds: 60,
+        completed: false,
+      }),
+    });
+
+    await expectDramaQuarantined(response);
+    expect(makeDramasServiceMock).not.toHaveBeenCalled();
+  });
+
+  it('leaves GET /dramas unchanged in mixed mode', async () => {
+    const list = jest.fn().mockResolvedValue({
+      items: [contractDramaSummary],
+      pageInfo: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+    });
+    makeDramasServiceMock.mockReturnValue({ list } as never);
+
+    const response = await makeApp({ PRODUCT_MODE: 'mixed' }).request('/dramas');
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-novelhub-quarantine')).toBeNull();
+    expect(list).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
   });
 
   it('serves GET /dramas without an /api prefix and forwards validated pagination filters', async () => {
