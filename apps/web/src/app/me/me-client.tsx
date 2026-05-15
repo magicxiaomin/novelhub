@@ -21,7 +21,9 @@ import {
   logout,
   queryKeys,
 } from '@/lib/queries';
-import { formatAccountDate, formatSubscriptionPlanName, getInitials } from '@/lib/formatters';
+import { getAccountSubscriptionNotice } from '@/lib/account-subscription';
+import { formatSubscriptionPlanName, getInitials } from '@/lib/formatters';
+import type { SubscriptionSummary } from '@/lib/types';
 import { messages } from '@novelhub/shared';
 
 const fill = (template: string, values: Record<string, string>): string => {
@@ -113,29 +115,11 @@ export function MeClient(): JSX.Element {
               subscription.isLoading ? (
                 <Skeleton className="h-16 rounded-md" />
               ) : subscription.data ? (
-                <>
-                  <div>
-                    <p className="font-semibold">
-                      {formatSubscriptionPlanName(subscription.data.plan)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {fill(
-                        subscription.data.cancelAtPeriodEnd
-                          ? messages.account.cancelsOn
-                          : messages.account.renewsOn,
-                        { date: formatAccountDate(subscription.data.currentPeriodEnd) },
-                      )}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    disabled={portal.isPending}
-                    onClick={() => portal.mutate()}
-                    className="w-full bg-brand text-brand-foreground hover:bg-brand/90"
-                  >
-                    {messages.account.manageSubscription}
-                  </Button>
-                </>
+                <SubscriptionSummaryCard
+                  subscription={subscription.data}
+                  isPortalPending={portal.isPending}
+                  onManage={() => portal.mutate()}
+                />
               ) : (
                 <SubscribeLink />
               )
@@ -223,6 +207,43 @@ export function MeClient(): JSX.Element {
       </div>
       <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} />
     </AppShell>
+  );
+}
+
+function SubscriptionSummaryCard({
+  subscription,
+  isPortalPending,
+  onManage,
+}: {
+  subscription: SubscriptionSummary;
+  isPortalPending: boolean;
+  onManage: () => void;
+}): JSX.Element {
+  const notice = getAccountSubscriptionNotice(subscription);
+
+  return (
+    <>
+      <div className="space-y-2">
+        <div>
+          <p className="font-semibold">{formatSubscriptionPlanName(subscription.plan)}</p>
+          <p className="text-sm text-muted-foreground">{notice.renewalLabel}</p>
+        </div>
+        {notice.variant === 'past_due' ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            <p className="font-semibold">{notice.title}</p>
+            <p className="mt-1">{notice.body}</p>
+          </div>
+        ) : null}
+      </div>
+      <Button
+        type="button"
+        disabled={isPortalPending}
+        onClick={onManage}
+        className="w-full bg-brand text-brand-foreground hover:bg-brand/90"
+      >
+        {notice.ctaLabel}
+      </Button>
+    </>
   );
 }
 

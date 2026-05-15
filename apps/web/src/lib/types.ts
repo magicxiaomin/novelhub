@@ -126,7 +126,7 @@ export type PaymentOrder = {
 
 export type SubscriptionSummary = {
   plan: 'weekly' | 'monthly';
-  status: string;
+  status: import('@novelhub/shared').SubscriptionStatus;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
   canceledAt: string | null;
