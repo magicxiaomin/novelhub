@@ -55,12 +55,13 @@ export function PaymentSuccessClient(): JSX.Element {
   useEffect(() => {
     if (state !== 'completed' || redirected.current) return;
     redirected.current = true;
-    const returnUrl = window.sessionStorage.getItem(READER_RETURN_URL_KEY);
+    const returnUrl =
+      searchParams.get('return_url') ?? window.sessionStorage.getItem(READER_RETURN_URL_KEY);
     const target = isSafeReturnUrl(returnUrl) ? returnUrl : '/';
     window.sessionStorage.removeItem(READER_RETURN_URL_KEY);
     const timeout = window.setTimeout(() => router.push(target), 600);
     return () => window.clearTimeout(timeout);
-  }, [router, state]);
+  }, [router, searchParams, state]);
 
   useEffect(() => {
     if (state !== 'completed' || !order || !sessionId || tracked.current) return;

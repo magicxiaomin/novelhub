@@ -77,7 +77,7 @@ export function Paywall({
         currency: 'USD',
         ...novelTelemetry,
       });
-      const checkout = await createSubscriptionCheckout(selectedPlan);
+      const checkout = await createSubscriptionCheckout(selectedPlan, currentUrl);
       window.location.assign(checkout.url);
     } catch {
       toast.error(messages.paywall.checkoutError);
@@ -113,7 +113,7 @@ export function Paywall({
         currency: 'USD',
         ...novelTelemetry,
       });
-      const checkout = await createCoinCheckout(selectedPackage);
+      const checkout = await createCoinCheckout(selectedPackage, currentUrl);
       window.location.assign(checkout.url);
     } catch {
       toast.error(messages.paywall.checkoutError);
@@ -188,14 +188,25 @@ export function Paywall({
         </div>
 
         <div className="space-y-3 border-t pt-4">
-          <Button
-            type="button"
-            onClick={tab === 'subscribe' ? startSubscriptionCheckout : startCoinCheckout}
-            disabled={submitting || authLoading}
-            className="h-12 w-full bg-brand text-base font-semibold text-brand-foreground hover:bg-brand/90"
-          >
-            {tab === 'subscribe' ? messages.paywall.subscribeNow : messages.paywall.buyCoinsNow}
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              type="button"
+              onClick={startSubscriptionCheckout}
+              disabled={submitting || authLoading}
+              className="h-12 bg-brand text-sm font-semibold text-brand-foreground hover:bg-brand/90"
+            >
+              {messages.paywall.subscribeNow}
+            </Button>
+            <Button
+              type="button"
+              onClick={startCoinCheckout}
+              disabled={submitting || authLoading}
+              variant="outline"
+              className="h-12 border-brand text-sm font-semibold text-brand hover:bg-brand/10"
+            >
+              {messages.paywall.buyCoinsNow}
+            </Button>
+          </div>
           <div className="flex justify-center gap-4 text-xs text-muted-foreground">
             <Link href="/terms">{messages.paywall.terms}</Link>
             <Link href="/privacy">{messages.paywall.privacy}</Link>

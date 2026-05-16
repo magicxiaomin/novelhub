@@ -7,4 +7,5 @@ test('anonymous visitor sees the paywall on a paid chapter', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Buy Coins', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Subscribe Now', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Buy Coins Now', exact: true })).toBeVisible();
 });
