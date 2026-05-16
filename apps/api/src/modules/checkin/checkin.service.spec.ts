@@ -194,7 +194,12 @@ describe('CheckinService', () => {
     });
   });
 
-  it('claims today in one transaction and adjusts the balance', async () => {
+  it('claims today in one transaction and writes a daily-checkin coin transaction balanceAfter', async () => {
+    coinsService = new CoinsService({ prisma } as unknown as ConstructorParameters<
+      typeof CoinsService
+    >[0]);
+    service = new CheckinService({ prisma, coins: coinsService } as unknown as CheckinServiceDeps);
+
     const result = await service.claim('user-1');
 
     expect(result).toEqual({
@@ -208,13 +213,34 @@ describe('CheckinService', () => {
       streakCount: 1,
       coinsAwarded: REWARD_BY_DAY[1],
     });
-    expect(adjustBalance).toHaveBeenCalledWith(
-      'user-1',
-      REWARD_BY_DAY[1],
-      COIN_TXN_TYPE.DAILY_CHECKIN,
-      null,
-      expect.anything(),
+    expect(state.transactions).toEqual([
+      {
+        userId: 'user-1',
+        amount: REWARD_BY_DAY[1],
+        type: COIN_TXN_TYPE.DAILY_CHECKIN,
+        relatedId: null,
+        balanceAfter: 15,
+      },
+    ]);
+  });
+
+  it('throws DomainError(409) on duplicate claim after a successful same-day claim without a duplicate transaction', async () => {
+    coinsService = new CoinsService({ prisma } as unknown as ConstructorParameters<
+      typeof CoinsService
+    >[0]);
+    service = new CheckinService({ prisma, coins: coinsService } as unknown as CheckinServiceDeps);
+
+    await expect(service.claim('user-1')).resolves.toMatchObject({ newBalance: 15 });
+    await expect(service.claim('user-1')).rejects.toEqual(
+      expect.objectContaining({ name: 'DomainError', status: 409 }),
     );
+
+    expect(state.checkins).toHaveLength(1);
+    expect(state.transactions).toHaveLength(1);
+    expect(state.transactions[0]).toMatchObject({
+      type: COIN_TXN_TYPE.DAILY_CHECKIN,
+      balanceAfter: 15,
+    });
   });
 
   it('throws DomainError(409) when already claimed today', async () => {

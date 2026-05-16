@@ -102,11 +102,23 @@ export const fetchUnlocks = (
     query: bookId ? { page, limit, bookId } : { page, limit },
   });
 
-export const createCoinCheckout = (packageId: string): Promise<CheckoutSession> =>
-  apiFetch('/payments/checkout/coins', { method: 'POST', body: { packageId } });
+export const createCoinCheckout = (
+  packageId: string,
+  returnUrl?: string,
+): Promise<CheckoutSession> =>
+  apiFetch('/payments/checkout/coins', {
+    method: 'POST',
+    body: returnUrl ? { packageId, returnUrl } : { packageId },
+  });
 
-export const createSubscriptionCheckout = (plan: string): Promise<CheckoutSession> =>
-  apiFetch('/payments/checkout/subscription', { method: 'POST', body: { plan } });
+export const createSubscriptionCheckout = (
+  plan: string,
+  returnUrl?: string,
+): Promise<CheckoutSession> =>
+  apiFetch('/payments/checkout/subscription', {
+    method: 'POST',
+    body: returnUrl ? { plan, returnUrl } : { plan },
+  });
 
 export const fetchPaymentOrder = (sessionId: string): Promise<PaymentOrder> =>
   apiFetch(`/payments/orders/${encodeURIComponent(sessionId)}`);

@@ -41,10 +41,15 @@ export class PaymentsController {
   ): Promise<{ url: string; sessionId: string }> {
     if (!user) throw new UnauthorizedException();
     const fbConsent = this.fbCapi.shouldSendForRequest(req);
-    return this.payments.createCoinCheckout(user.id, dto.packageId, {
-      fbConsent,
-      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
-    });
+    return this.payments.createCoinCheckout(
+      user.id,
+      dto.packageId,
+      {
+        fbConsent,
+        fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
+      },
+      dto.returnUrl,
+    );
   }
 
   @Post('checkout/subscription')
@@ -58,10 +63,15 @@ export class PaymentsController {
   ): Promise<{ url: string; sessionId: string }> {
     if (!user) throw new UnauthorizedException();
     const fbConsent = this.fbCapi.shouldSendForRequest(req);
-    return this.payments.createSubscriptionCheckout(user.id, dto.plan, {
-      fbConsent,
-      fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
-    });
+    return this.payments.createSubscriptionCheckout(
+      user.id,
+      dto.plan,
+      {
+        fbConsent,
+        fbUserData: fbConsent ? this.fbCapi.extractFbUserData(req) : null,
+      },
+      dto.returnUrl,
+    );
   }
 
   @Get('portal')

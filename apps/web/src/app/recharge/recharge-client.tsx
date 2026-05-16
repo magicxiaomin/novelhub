@@ -69,12 +69,12 @@ export function RechargeClient(): JSX.Element {
     enabled: Boolean(user),
   });
   const coinCheckout = useMutation({
-    mutationFn: createCoinCheckout,
+    mutationFn: (packageId: string) => createCoinCheckout(packageId),
     onSuccess: ({ url }) => window.location.assign(url),
     onError: () => toast.error(messages.recharge.checkoutError),
   });
   const subscriptionCheckout = useMutation({
-    mutationFn: createSubscriptionCheckout,
+    mutationFn: (plan: string) => createSubscriptionCheckout(plan),
     onSuccess: ({ url }) => window.location.assign(url),
     onError: () => toast.error(messages.recharge.checkoutError),
   });

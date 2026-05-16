@@ -1,7 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const bookId = '19500000-0000-4195-8195-000000000198';
-const coinPackButton = (page: Page) => page.getByText('120 coins', { exact: true });
 
 async function stubBrowserApis(page: Page): Promise<void> {
   await page.route('https://novel-e2e-content.test/chapter-*.txt', async (route) => {
@@ -113,6 +112,7 @@ test.describe('novel acquisition funnel', () => {
     await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Buy Coins', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Subscribe Now', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Buy Coins Now', exact: true })).toBeVisible();
 
     await expect(page.getByRole('button', { name: 'Buy Coins', exact: true })).toBeVisible();
   });
@@ -128,21 +128,17 @@ test.describe('novel acquisition funnel', () => {
 
     await expect
       .poll(async () => (await subscriptionCheckout).postDataJSON())
-      .toMatchObject({ plan: 'weekly' });
+      .toMatchObject({ plan: 'weekly', returnUrl: `/read/${bookId}/4` });
   });
 
   test('starts the coin checkout stub from the locked chapter paywall', async ({ page }) => {
     await gotoLockedChapter(page);
     await expect(page.getByRole('button', { name: 'Subscribe Now', exact: true })).toBeEnabled();
-    await page.getByRole('button', { name: 'Buy Coins', exact: true }).click();
-    await expect(coinPackButton(page)).toBeVisible();
-
     const coinCheckout = page.waitForRequest('**/payments/checkout/coins');
-    await coinPackButton(page).click();
-    await page.getByRole('button', { name: 'Buy Coins', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Buy Coins Now', exact: true }).click();
 
     await expect
       .poll(async () => (await coinCheckout).postDataJSON())
-      .toMatchObject({ packageId: 'pack_120' });
+      .toMatchObject({ packageId: 'pack_120', returnUrl: `/read/${bookId}/4` });
   });
 });
