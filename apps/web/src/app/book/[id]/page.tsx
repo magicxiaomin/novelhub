@@ -11,6 +11,7 @@ import { RelatedBooks } from '@/components/book/related-books';
 import { StickyStartReading } from '@/components/book/sticky-cta';
 import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
+import { buildBookDetailMetadata } from '@/lib/book-metadata';
 import { fakeRating } from '@/lib/fake-rating';
 import { safeJsonLd } from '@/lib/json-ld';
 import { fetchBookServer } from '@/lib/server-api';
@@ -22,17 +23,7 @@ type Params = { params: { id: string } };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const book = await fetchBookServer(params.id).catch(() => null);
   if (!book) return { title: messages.errors.bookNotFound };
-  const description = book.description.slice(0, 160);
-  return {
-    title: `${book.title} — ${book.author}`,
-    description,
-    openGraph: {
-      title: `${book.title} — ${book.author}`,
-      description,
-      images: [{ url: book.coverUrl }],
-      type: 'book',
-    },
-  };
+  return buildBookDetailMetadata(book);
 }
 
 export default async function BookPage({ params }: Params): Promise<JSX.Element> {
