@@ -14,7 +14,8 @@
   },
   "metadata": {
     "title": "NovelHub — Read Addictive Web Novels",
-    "description": "Discover serialized web novels, read free chapters, and unlock more with coins or a subscription."
+    "description": "Discover serialized web novels, read free chapters, and unlock more with coins or a subscription.",
+    "coverAltTemplate": "Cover art for {bookTitle}"
   },
   "nav": {
     "primary": "Primary",

@@ -31,6 +31,7 @@ const bodyFont = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
   title: messages.metadata.title,
   description: messages.metadata.description,
   applicationName: 'NovelHub',
