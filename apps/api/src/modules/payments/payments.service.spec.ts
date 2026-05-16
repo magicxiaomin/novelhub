@@ -159,6 +159,22 @@ describe('PaymentsService', () => {
     expect(sessionArg.customer_email).toBeUndefined();
   });
 
+  it('createCoinCheckout: appends safe reader return URL to Stripe success URL', async () => {
+    prisma.users.set('user-1', {
+      id: 'user-1',
+      email: 'luna@example.com',
+      stripeCustomerId: null,
+      deletedAt: null,
+    });
+    await service.createCoinCheckout('user-1', 'pack_50', undefined, '/read/book-1/4');
+    const sessionArg = stripe.spies.checkoutCreate.mock.calls[0]?.[0] as {
+      success_url: string;
+    };
+    expect(sessionArg.success_url).toBe(
+      'http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}&return_url=%2Fread%2Fbook-1%2F4',
+    );
+  });
+
   it('createCoinCheckout: 401 for unknown user', async () => {
     await expect(service.createCoinCheckout('ghost', 'pack_50')).rejects.toEqual(
       expect.objectContaining({ name: 'DomainError', status: 401 }),
@@ -191,6 +207,27 @@ describe('PaymentsService', () => {
     };
     expect(sessionArg.mode).toBe('subscription');
     expect(sessionArg.line_items[0]?.price).toBe('price_monthly_test');
+  });
+
+  it('createSubscriptionCheckout: ignores unsafe external return URLs', async () => {
+    prisma.users.set('user-1', {
+      id: 'user-1',
+      email: 'luna@example.com',
+      stripeCustomerId: null,
+      deletedAt: null,
+    });
+    await service.createSubscriptionCheckout(
+      'user-1',
+      'weekly',
+      undefined,
+      'https://evil.example/read/book-1/4',
+    );
+    const sessionArg = stripe.spies.checkoutCreate.mock.calls[0]?.[0] as {
+      success_url: string;
+    };
+    expect(sessionArg.success_url).toBe(
+      'http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}',
+    );
   });
 
   it('createSubscriptionCheckout: throws when configured price id is missing', async () => {

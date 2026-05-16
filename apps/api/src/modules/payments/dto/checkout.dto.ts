@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
 import {
   COIN_PACKAGE_IDS,
   type CoinPackageId,
@@ -12,6 +12,12 @@ export class CheckoutCoinsDto {
   @IsString()
   @IsIn([...COIN_PACKAGE_IDS])
   packageId!: CoinPackageId;
+
+  @ApiProperty({ required: false, example: '/read/book-id/4' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\/read\//)
+  returnUrl?: string;
 }
 
 export class CheckoutSubscriptionDto {
@@ -19,4 +25,10 @@ export class CheckoutSubscriptionDto {
   @IsString()
   @IsIn([...SUBSCRIPTION_PLAN_IDS])
   plan!: SubscriptionPlanId;
+
+  @ApiProperty({ required: false, example: '/read/book-id/4' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\/read\//)
+  returnUrl?: string;
 }

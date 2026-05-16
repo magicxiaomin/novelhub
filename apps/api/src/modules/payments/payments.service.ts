@@ -66,6 +66,7 @@ export class PaymentsService {
     userId: string,
     packageId: CoinPackageId,
     fbMetadata: CheckoutFbMetadata = { fbConsent: false, fbUserData: null },
+    returnUrl?: string,
   ): Promise<{ url: string; sessionId: string }> {
     const pkg = COIN_PACKAGES[packageId];
     if (!pkg) {
@@ -89,7 +90,7 @@ export class PaymentsService {
           quantity: 1,
         },
       ],
-      success_url: `${this.appUrl}${PAYMENT_PATHS.SUCCESS}`,
+      success_url: this.successUrl(returnUrl),
       cancel_url: `${this.appUrl}${PAYMENT_PATHS.CANCEL}`,
       metadata: {
         [METADATA_KEY.USER_ID]: userId,
@@ -117,6 +118,7 @@ export class PaymentsService {
     userId: string,
     plan: SubscriptionPlanId,
     fbMetadata: CheckoutFbMetadata = { fbConsent: false, fbUserData: null },
+    returnUrl?: string,
   ): Promise<{ url: string; sessionId: string }> {
     const planMeta = SUBSCRIPTION_PLANS[plan];
     if (!planMeta) {
@@ -131,7 +133,7 @@ export class PaymentsService {
       mode: 'subscription',
       ...this.customerIdentity(user),
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${this.appUrl}${PAYMENT_PATHS.SUCCESS}`,
+      success_url: this.successUrl(returnUrl),
       cancel_url: `${this.appUrl}${PAYMENT_PATHS.CANCEL}`,
       metadata: {
         [METADATA_KEY.USER_ID]: userId,
@@ -289,6 +291,24 @@ export class PaymentsService {
       throw DomainError.badRequest(`Subscription plan ${plan} is not configured (${envKey} unset)`);
     }
     return value;
+  }
+
+  private successUrl(returnUrl?: string): string {
+    const successUrl = `${this.appUrl}${PAYMENT_PATHS.SUCCESS}`;
+    if (!this.isSafeReaderReturnUrl(returnUrl)) return successUrl;
+    const separator = successUrl.includes('?') ? '&' : '?';
+    return `${successUrl}${separator}return_url=${encodeURIComponent(returnUrl)}`;
+  }
+
+  private isSafeReaderReturnUrl(returnUrl?: string): returnUrl is string {
+    if (!returnUrl) return false;
+    try {
+      const appOrigin = new URL(this.appUrl).origin;
+      const url = new URL(returnUrl, this.appUrl);
+      return url.origin === appOrigin && url.pathname.startsWith('/read/');
+    } catch {
+      return false;
+    }
   }
 
   private async requireUser(
