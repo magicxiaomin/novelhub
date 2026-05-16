@@ -32,13 +32,13 @@ describe('buildBookDetailMetadata', () => {
       images: [
         {
           url: baseBook.coverUrl,
-          alt: 'Moonlit Contract cover',
+          alt: 'Cover art for Moonlit Contract',
         },
       ],
     });
   });
 
-  it('falls back to safe site metadata when description and cover are missing', () => {
+  it('falls back to safe site metadata and a raster preview when description and cover are missing', () => {
     const metadata = buildBookDetailMetadata({
       ...baseBook,
       coverUrl: '',
@@ -53,8 +53,25 @@ describe('buildBookDetailMetadata', () => {
         'Discover serialized web novels, read free chapters, and unlock more with coins or a subscription.',
       images: [
         {
-          url: '/og-default.svg',
+          url: '/og-default.png',
           alt: 'NovelHub — Read Addictive Web Novels',
+        },
+      ],
+    });
+  });
+
+  it('builds the cover alt from shared message copy', () => {
+    const metadata = buildBookDetailMetadata({
+      ...baseBook,
+      title: 'Dragon Heir',
+      coverUrl: 'https://cdn.example.com/covers/dragon.jpg',
+    });
+
+    expect(metadata.openGraph).toMatchObject({
+      images: [
+        {
+          url: 'https://cdn.example.com/covers/dragon.jpg',
+          alt: 'Cover art for Dragon Heir',
         },
       ],
     });

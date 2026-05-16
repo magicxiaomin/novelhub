@@ -4,7 +4,7 @@ import { messages } from '@novelhub/shared';
 
 import type { BookDetail } from './types';
 
-const DEFAULT_OG_IMAGE = '/og-default.svg';
+const DEFAULT_OG_IMAGE = '/og-default.png';
 const MAX_DESCRIPTION_LENGTH = 160;
 
 const bookTitle = (book: Pick<BookDetail, 'title' | 'author'>): string =>
@@ -15,6 +15,9 @@ const truncateDescription = (description: string): string => {
   return description.slice(0, MAX_DESCRIPTION_LENGTH).trimEnd();
 };
 
+const coverAlt = (bookTitle: string): string =>
+  messages.metadata.coverAltTemplate.replace('{bookTitle}', bookTitle);
+
 export const buildBookDetailMetadata = (book: BookDetail): Metadata => {
   const title = bookTitle(book);
   const trimmedDescription = book.description.trim();
@@ -23,7 +26,7 @@ export const buildBookDetailMetadata = (book: BookDetail): Metadata => {
     : messages.metadata.description;
   const coverUrl = book.coverUrl.trim();
   const image = coverUrl
-    ? { url: coverUrl, alt: `${book.title} cover` }
+    ? { url: coverUrl, alt: coverAlt(book.title) }
     : { url: DEFAULT_OG_IMAGE, alt: messages.metadata.title };
 
   return {
