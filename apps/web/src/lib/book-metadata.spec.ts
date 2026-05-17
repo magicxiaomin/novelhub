@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildBookDetailMetadata } from './book-metadata';
+import {
+  buildBookDetailMetadata,
+  resolveBookCoverImage,
+  SITE_DEFAULT_BOOK_COVER,
+} from './book-metadata';
 import type { BookDetail } from './types';
 
 const baseBook: BookDetail = {
@@ -20,7 +24,7 @@ const baseBook: BookDetail = {
 };
 
 describe('buildBookDetailMetadata', () => {
-  it('uses the book title, author, description, and cover image for Open Graph previews', () => {
+  it('uses the book title, author, description, and cover image for Open Graph and Twitter previews', () => {
     const metadata = buildBookDetailMetadata(baseBook);
 
     expect(metadata.title).toBe('Moonlit Contract — A. Writer');
@@ -36,15 +40,22 @@ describe('buildBookDetailMetadata', () => {
         },
       ],
     });
+    expect(metadata.twitter).toMatchObject({
+      card: 'summary_large_image',
+      title: 'Moonlit Contract — A. Writer',
+      description: baseBook.description,
+      images: [baseBook.coverUrl],
+    });
   });
 
-  it('falls back to safe site metadata and a raster preview when description and cover are missing', () => {
+  it('falls back to a category cover before the site default when the book cover is missing', () => {
     const metadata = buildBookDetailMetadata({
       ...baseBook,
-      coverUrl: '',
+      coverUrl: '   ',
       description: '   ',
     });
 
+    expect(resolveBookCoverImage({ ...baseBook, coverUrl: '   ' })).toBe('/og/romance-book.png');
     expect(metadata.description).toBe(
       'Discover serialized web novels, read free chapters, and unlock more with coins or a subscription.',
     );
@@ -53,8 +64,32 @@ describe('buildBookDetailMetadata', () => {
         'Discover serialized web novels, read free chapters, and unlock more with coins or a subscription.',
       images: [
         {
-          url: '/og-default.png',
-          alt: 'NovelHub — Read Addictive Web Novels',
+          url: '/og/romance-book.png',
+          alt: 'Cover art for Moonlit Contract',
+        },
+      ],
+    });
+    expect(metadata.twitter).toMatchObject({
+      card: 'summary_large_image',
+      images: ['/og/romance-book.png'],
+    });
+  });
+
+  it('uses the site default cover when neither book nor category cover is available', () => {
+    const metadata = buildBookDetailMetadata({
+      ...baseBook,
+      category: 'Experimental LitRPG',
+      coverUrl: '',
+    });
+
+    expect(
+      resolveBookCoverImage({ ...baseBook, category: 'Experimental LitRPG', coverUrl: '' }),
+    ).toBe(SITE_DEFAULT_BOOK_COVER);
+    expect(metadata.openGraph).toMatchObject({
+      images: [
+        {
+          url: SITE_DEFAULT_BOOK_COVER,
+          alt: 'Cover art for Moonlit Contract',
         },
       ],
     });
