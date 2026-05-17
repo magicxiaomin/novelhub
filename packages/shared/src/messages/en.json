@@ -371,6 +371,7 @@
     "pastDueManagePayment": "Manage payment method",
     "portalError": "Subscription management could not be opened.",
     "readingHistory": "Reading History",
+    "resumeReading": "Continue reading {bookTitle} · Ch {chapterNumber}",
     "historyProgress": "Chapter {chapterNumber} · {scrollPercent}%",
     "emptyHistory": "No reading history yet.",
     "settings": "Settings",
