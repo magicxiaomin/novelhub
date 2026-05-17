@@ -41,7 +41,9 @@
     "free": "Free",
     "locked": "Locked",
     "showLess": "Show less",
-    "readMore": "Read more"
+    "readMore": "Read more",
+    "emptyChaptersTitle": "No chapters available yet",
+    "emptyChaptersBody": "Check back soon for the first chapter."
   },
   "home": {
     "trending": "Trending",

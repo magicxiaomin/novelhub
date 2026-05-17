@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
@@ -53,32 +54,42 @@ export function ChapterList({
   return (
     <section>
       <h2 className="text-base font-semibold tracking-tight">{messages.book.chapters}</h2>
-      <ol className="mt-3 divide-y rounded-2xl border bg-card">
-        {loaded.map((ch) => (
-          <li key={ch.id}>
-            <Link
-              href={`/read/${bookId}/${ch.order}`}
-              className="flex items-center justify-between gap-3 px-4 py-3 active:bg-muted/60"
-            >
-              <div className="min-w-0">
-                <p className="line-clamp-1 text-sm font-medium">
-                  {ch.order}. {ch.title}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {ch.wordCount.toLocaleString()} {messages.book.wordsLower}
-                </p>
-              </div>
-              {ch.isFree ? (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {messages.book.free}
-                </span>
-              ) : (
-                <Lock className="h-4 w-4 text-muted-foreground" aria-label={messages.book.locked} />
-              )}
-            </Link>
-          </li>
-        ))}
-      </ol>
+      {loaded.length === 0 ? (
+        <div className="mt-3 rounded-2xl border border-dashed bg-card px-4 py-6 text-center">
+          <p className="text-sm font-semibold">{messages.book.emptyChaptersTitle}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{messages.book.emptyChaptersBody}</p>
+        </div>
+      ) : (
+        <ol className="mt-3 divide-y rounded-2xl border bg-card">
+          {loaded.map((ch) => (
+            <li key={ch.id}>
+              <Link
+                href={`/read/${bookId}/${ch.order}`}
+                className="flex items-center justify-between gap-3 px-4 py-3 active:bg-muted/60"
+              >
+                <div className="min-w-0">
+                  <p className="line-clamp-1 text-sm font-medium">
+                    {ch.order}. {ch.title}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {ch.wordCount.toLocaleString()} {messages.book.wordsLower}
+                  </p>
+                </div>
+                {ch.isFree ? (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {messages.book.free}
+                  </span>
+                ) : (
+                  <Lock
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-label={messages.book.locked}
+                  />
+                )}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )}
       {hasMore ? (
         <button
           type="button"
