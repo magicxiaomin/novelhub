@@ -186,14 +186,16 @@ describe('ChaptersService access matrix', () => {
   ): {
     service: ChaptersService;
     stubs: ReturnType<typeof buildStubs>;
+    prisma: ReturnType<typeof buildPrismaStub>;
   } => {
     const stubs = buildStubs();
+    const prisma = buildPrismaStub(state);
     const deps = {
-      prisma: buildPrismaStub(state),
+      prisma,
       storage: stubs.storage,
       cache: stubs.cache,
     } as unknown as ChaptersServiceDeps;
-    return { service: new ChaptersService(deps), stubs };
+    return { service: new ChaptersService(deps), stubs, prisma };
   };
 
   it('guest reading a free chapter → unlocked with content URL', async () => {
@@ -290,6 +292,112 @@ describe('ChaptersService access matrix', () => {
       expect(res.prevChapterId).toBe(FREE_CHAPTER.id);
       expect(res.nextChapterId).toBe(NEXT_PAID_CHAPTER.id);
     }
+  });
+
+  describe('unlock eligibility decisions', () => {
+    it('free chapter: unlocks through the free-chapter path without user entitlement checks', async () => {
+      const { service, stubs, prisma } = await buildService(buildState());
+
+      const res = await service.readChapter(FREE_CHAPTER.id, null);
+
+      expect(res.isLocked).toBe(false);
+      expect(prisma.subscription.findFirst).not.toHaveBeenCalled();
+      expect(prisma.chapterUnlock.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(stubs.storage.getSignedUrl).toHaveBeenCalledWith('chapters/book/free.txt', 3600);
+      expect(stubs.storage.getText).not.toHaveBeenCalled();
+      expect(stubs.cache.get).not.toHaveBeenCalled();
+      expect(stubs.cache.set).not.toHaveBeenCalled();
+    });
+
+    it('active subscription: unlocks through subscription entitlement, not chapter unlock or paywall', async () => {
+      const { service, stubs, prisma } = await buildService(
+        buildState({
+          users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }],
+          subs: [
+            {
+              id: 'sub-1',
+              userId: 'user-1',
+              status: 'active',
+              currentPeriodEnd: new Date(Date.now() + 7 * 86400 * 1000),
+            },
+          ],
+        }),
+      );
+
+      const res = await service.readChapter(PAID_CHAPTER.id, 'user-1');
+
+      expect(res.isLocked).toBe(false);
+      expect(prisma.subscription.findFirst).toHaveBeenCalledTimes(1);
+      expect(prisma.subscription.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ userId: 'user-1' }),
+          select: { id: true },
+        }),
+      );
+      await expect(prisma.subscription.findFirst.mock.results[0]!.value).resolves.toEqual({
+        id: 'sub-1',
+      });
+      expect(prisma.chapterUnlock.findUnique).toHaveBeenCalledTimes(1);
+      await expect(prisma.chapterUnlock.findUnique.mock.results[0]!.value).resolves.toBeNull();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(stubs.storage.getSignedUrl).toHaveBeenCalledWith('chapters/book/paid.txt', 3600);
+      expect(stubs.storage.getText).not.toHaveBeenCalled();
+    });
+
+    it('already-unlocked chapter: unlocks through chapter unlock entitlement when subscription is absent', async () => {
+      const { service, stubs, prisma } = await buildService(
+        buildState({
+          users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }],
+          unlocks: [{ userId: 'user-1', chapterId: PAID_CHAPTER.id }],
+        }),
+      );
+
+      const res = await service.readChapter(PAID_CHAPTER.id, 'user-1');
+
+      expect(res.isLocked).toBe(false);
+      expect(prisma.subscription.findFirst).toHaveBeenCalledTimes(1);
+      await expect(prisma.subscription.findFirst.mock.results[0]!.value).resolves.toBeNull();
+      expect(prisma.chapterUnlock.findUnique).toHaveBeenCalledTimes(1);
+      expect(prisma.chapterUnlock.findUnique).toHaveBeenCalledWith({
+        where: { userId_chapterId: { userId: 'user-1', chapterId: PAID_CHAPTER.id } },
+        select: { id: true },
+      });
+      await expect(prisma.chapterUnlock.findUnique.mock.results[0]!.value).resolves.toEqual({
+        id: 'unlock-1',
+      });
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(stubs.storage.getSignedUrl).toHaveBeenCalledWith('chapters/book/paid.txt', 3600);
+      expect(stubs.storage.getText).not.toHaveBeenCalled();
+    });
+
+    it('paywall: remains locked after entitlement checks fail and builds unlock options from user state', async () => {
+      const { service, stubs, prisma } = await buildService(
+        buildState({ users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }] }),
+      );
+
+      const res = await service.readChapter(PAID_CHAPTER.id, 'user-1');
+
+      expect(res.isLocked).toBe(true);
+      expect(prisma.subscription.findFirst).toHaveBeenCalledTimes(2);
+      await expect(prisma.subscription.findFirst.mock.results[0]!.value).resolves.toBeNull();
+      await expect(prisma.subscription.findFirst.mock.results[1]!.value).resolves.toBeNull();
+      expect(prisma.chapterUnlock.findUnique).toHaveBeenCalledTimes(1);
+      await expect(prisma.chapterUnlock.findUnique.mock.results[0]!.value).resolves.toBeNull();
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+      await expect(prisma.user.findUnique.mock.results[0]!.value).resolves.toEqual({
+        id: 'user-1',
+        coinBalance: 0,
+        deletedAt: null,
+      });
+      expect(stubs.storage.getSignedUrl).not.toHaveBeenCalled();
+      expect(stubs.cache.get).toHaveBeenCalledWith(`chapter:preview:${PAID_CHAPTER.id}`);
+      expect(stubs.storage.getText).toHaveBeenCalledWith('chapters/book/paid.txt');
+      if (res.isLocked) {
+        expect(res.unlockOptions.canUnlockWithCoins).toBe(false);
+        expect(res.unlockOptions.canUnlockWithSubscription).toBe(false);
+      }
+    });
   });
 
   it('preview is read from cache when present (no R2 fetch)', async () => {
