@@ -306,4 +306,83 @@ describe('UnlocksService', () => {
     expect(successes.length + failures.length).toBe(10);
     expect(successes.length).toBeGreaterThan(0);
   });
+
+  describe('unlock decision matrix contract', () => {
+    it.each([
+      {
+        name: 'paid chapter with enough coins spends the chapter price once',
+        state: () => buildState({ users: [{ id: 'user-1', coinBalance: 8, deletedAt: null }] }),
+        expected: { method: UNLOCK_METHOD.COINS, balance: 3, txns: 1, unlocks: 1 },
+      },
+      {
+        name: 'paid chapter with subscription writes subscription unlock and preserves coins',
+        state: () =>
+          buildState({
+            hasSubscription: true,
+            users: [{ id: 'user-1', coinBalance: 2, deletedAt: null }],
+          }),
+        expected: { method: UNLOCK_METHOD.SUBSCRIPTION, balance: 2, txns: 0, unlocks: 1 },
+      },
+      {
+        name: 'paid chapter already unlocked returns existing unlock and preserves coins',
+        state: () => {
+          const state = buildState({ users: [{ id: 'user-1', coinBalance: 2, deletedAt: null }] });
+          state.unlocks.push({
+            id: 'unlock-existing',
+            userId: 'user-1',
+            chapterId: 'chapter-1',
+            method: UNLOCK_METHOD.COINS,
+            unlockedAt: new Date('2026-05-07T12:00:00.000Z'),
+          });
+          return state;
+        },
+        expected: { method: UNLOCK_METHOD.COINS, balance: 2, txns: 0, unlocks: 1 },
+      },
+    ])('$name', async ({ state: buildMatrixState, expected }) => {
+      const { service, state } = buildService(buildMatrixState());
+
+      const result = await service.unlockChapter('user-1', 'chapter-1');
+
+      expect(result.method).toBe(expected.method);
+      expect(state.users[0]?.coinBalance).toBe(expected.balance);
+      expect(state.txns).toHaveLength(expected.txns);
+      expect(state.unlocks).toHaveLength(expected.unlocks);
+    });
+
+    it.each([
+      {
+        name: 'free chapter is rejected without writes',
+        state: () =>
+          buildState({
+            chapter: {
+              id: 'chapter-1',
+              bookId: 'book-1',
+              isFree: true,
+              deletedAt: null,
+              book: { id: 'book-1', coinPerChapter: 5, deletedAt: null },
+            },
+          }),
+        status: 400,
+      },
+      {
+        name: 'paid chapter with insufficient coins is rejected without writes',
+        state: () => buildState({ users: [{ id: 'user-1', coinBalance: 4, deletedAt: null }] }),
+        status: 402,
+      },
+      {
+        name: 'missing chapter is rejected without writes',
+        state: () => buildState(),
+        chapterId: 'missing',
+        status: 404,
+      },
+    ])('$name', async ({ state: buildMatrixState, chapterId = 'chapter-1', status }) => {
+      const { service, state } = buildService(buildMatrixState());
+
+      await expect(service.unlockChapter('user-1', chapterId)).rejects.toEqual(
+        expect.objectContaining({ name: 'DomainError', status }),
+      );
+      expect(state.txns).toHaveLength(0);
+      expect(state.unlocks).toHaveLength(0);
+    });
+  });
 });

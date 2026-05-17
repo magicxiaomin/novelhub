@@ -93,6 +93,27 @@ describe('FbPurchaseEventPublisher', () => {
     });
   });
 
+  it('preserves checkout session id as the CAPI event id for Pixel/CAPI parity', async () => {
+    await publisher.publish({
+      userId: 'user-1',
+      orderId: 'order-1',
+      orderType: 'COIN_PURCHASE',
+      amountMinor: 499,
+      currency: 'usd',
+      coinsGranted: 50,
+      stripeSessionId: 'cs_test_pixel_capi_parity',
+    });
+
+    const [, eventId, , customData] = fbCapi.sendEvent.mock.calls[0] ?? [];
+    expect(eventId).toBe('cs_test_pixel_capi_parity');
+    expect(customData).toMatchObject({
+      currency: 'USD',
+      value: 4.99,
+      contentIds: ['coin_purchase'],
+      contentType: 'product',
+    });
+  });
+
   it('publishes SUBSCRIPTION as Subscribe', async () => {
     await publisher.publish({
       userId: 'user-1',

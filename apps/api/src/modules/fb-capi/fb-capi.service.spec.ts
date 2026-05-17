@@ -194,6 +194,31 @@ describe('FbCapiService', () => {
     });
   });
 
+  it('uses the supplied event id identically in the Graph payload and stored FbEvent row', async () => {
+    await service.sendEvent(
+      'Purchase',
+      'cs_test_contract_123',
+      { email: 'buyer@example.com' },
+      { currency: 'USD', value: 19.99, contentIds: ['subscription'], contentType: 'product' },
+      'user-1',
+    );
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      data: Array<{ event_id?: string; event_name?: string; custom_data?: { value?: number } }>;
+    };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({
+      event_id: 'cs_test_contract_123',
+      event_name: 'Purchase',
+      custom_data: { value: 19.99 },
+    });
+    expect(prismaStub.events.get('cs_test_contract_123')).toMatchObject({
+      eventId: 'cs_test_contract_123',
+      eventName: 'Purchase',
+      userId: 'user-1',
+    });
+  });
+
   it('writes an FbEvent row with the response code on Graph API 4xx without throwing', async () => {
     fetchMock.mockResolvedValueOnce(new Response('bad request', { status: 400 }));
 
