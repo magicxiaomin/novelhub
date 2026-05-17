@@ -103,21 +103,12 @@
     "aria": "Footer"
   },
   "legal": {
-    "todo": "<!-- TODO: legal review -->",
-    "lastUpdated": "Last updated: 2026-05-07",
     "privacyTitle": "Privacy Policy",
     "termsTitle": "Terms of Service",
     "refundTitle": "Refund Policy",
     "dmcaTitle": "DMCA Policy",
     "contactTitle": "Contact Us",
-    "aboutTitle": "About NovelHub",
-    "placeholder": "NovelHub takes your privacy seriously. This is placeholder content pending legal review.",
-    "termsPlaceholder": "These placeholder terms are pending legal review.",
-    "refundPlaceholder": "This placeholder refund policy is pending legal review.",
-    "dmcaPlaceholder": "This placeholder DMCA policy is pending legal review.",
-    "dmcaEmailLabel": "Send takedown notices to {email}.",
-    "aboutBodyOne": "NovelHub is a mobile-first web novel reading app built for discovering serialized stories.",
-    "aboutBodyTwo": "This about page is placeholder content pending legal review."
+    "aboutTitle": "About NovelHub"
   },
   "contact": {
     "name": "Name",
