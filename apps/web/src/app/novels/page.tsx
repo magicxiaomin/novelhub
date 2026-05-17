@@ -10,6 +10,7 @@ import {
   buildNovelsHref,
   parseNovelsFilters,
   statusFilterOptions,
+  toBooksListQuery,
   type NovelsSearchParams,
 } from '@/lib/novels-filters';
 import { messages } from '@novelhub/shared';
@@ -24,9 +25,9 @@ export default async function NovelsPage({
   searchParams?: NovelsSearchParams;
 }): Promise<JSX.Element> {
   const filters = parseNovelsFilters(searchParams);
-  const page = filters.page ?? 1;
+  const booksQuery = toBooksListQuery(filters, pageSize);
   const [books, categories] = await Promise.all([
-    fetchBooksServer({ category: filters.category, status: filters.status, page, limit: pageSize }),
+    fetchBooksServer(booksQuery),
     fetchBookCategoriesServer(),
   ]);
   const totalPages = Math.max(1, Math.ceil(books.total / books.limit));
@@ -107,9 +108,9 @@ export default async function NovelsPage({
           className="mt-8 flex items-center justify-between"
           aria-label={messages.novels.paginationLabel}
         >
-          {page > 1 ? (
+          {books.page > 1 ? (
             <Button asChild variant="outline" size="sm">
-              <Link href={buildNovelsHref(filters, { page: page - 1 })}>
+              <Link href={buildNovelsHref(filters, { page: books.page - 1 })}>
                 {messages.novels.previousPage}
               </Link>
             </Button>
@@ -120,12 +121,12 @@ export default async function NovelsPage({
           )}
           <span className="text-sm text-muted-foreground">
             {messages.novels.pageCount
-              .replace('{page}', String(page))
+              .replace('{page}', String(books.page))
               .replace('{pages}', String(totalPages))}
           </span>
-          {page < totalPages ? (
+          {books.page < totalPages ? (
             <Button asChild variant="outline" size="sm">
-              <Link href={buildNovelsHref(filters, { page: page + 1 })}>
+              <Link href={buildNovelsHref(filters, { page: books.page + 1 })}>
                 {messages.novels.nextPage}
               </Link>
             </Button>
