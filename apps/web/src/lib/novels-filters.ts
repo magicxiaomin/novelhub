@@ -19,6 +19,13 @@ export type NovelsFilters = {
   page?: number;
 };
 
+export type NovelsBooksListQuery = {
+  category?: string;
+  status?: NovelStatusFilter;
+  page: number;
+  limit: number;
+};
+
 const singleValue = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? undefined : value;
 
@@ -58,3 +65,10 @@ export const buildNovelsHref = (
   const query = params.toString();
   return query ? `/novels?${query}` : '/novels';
 };
+
+export const toBooksListQuery = (filters: NovelsFilters, limit: number): NovelsBooksListQuery => ({
+  ...(filters.category ? { category: filters.category } : {}),
+  ...(filters.status ? { status: filters.status } : {}),
+  page: filters.page ?? 1,
+  limit,
+});

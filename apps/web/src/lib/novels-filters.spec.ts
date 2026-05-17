@@ -5,6 +5,7 @@ import {
   buildNovelsHref,
   parseNovelsFilters,
   statusFilterOptions,
+  toBooksListQuery,
   type NovelsSearchParams,
 } from './novels-filters';
 
@@ -55,5 +56,15 @@ describe('novels filters', () => {
       messages.novels.statusOngoing,
       messages.novels.statusCompleted,
     ]);
+  });
+
+  it('adapts URL filters to the worker books list query without unsupported filters', () => {
+    const query = toBooksListQuery({ category: 'Werewolf', status: 'ONGOING', page: 3 }, 20);
+
+    expect(query).toEqual({ category: 'Werewolf', status: 'ONGOING', page: 3, limit: 20 });
+    expect(query).not.toHaveProperty('sort');
+    expect(query).not.toHaveProperty('length');
+    expect(query).not.toHaveProperty('recentlyUpdated');
+    expect(query).not.toHaveProperty('featured');
   });
 });
