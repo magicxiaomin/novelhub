@@ -46,7 +46,7 @@ export function NovelHomePage(): JSX.Element {
           <BookRail
             title={messages.home.trending}
             books={trending.data ?? []}
-            seeAllHref="/category/trending"
+            seeAllHref="/novels"
           />
         )}
 
@@ -56,7 +56,7 @@ export function NovelHomePage(): JSX.Element {
           <BookRail
             title={messages.home.newReleases}
             books={newReleases.data?.items ?? []}
-            seeAllHref="/category/new"
+            seeAllHref="/novels"
           />
         )}
 

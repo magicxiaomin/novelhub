@@ -13,7 +13,14 @@ import { cookies } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
 import type * as NovelE2eFixtures from './novel-e2e-fixtures';
-import type { BookDetail, BookSummary, ChapterResponse, ChapterSummary, Paginated } from './types';
+import type {
+  BookDetail,
+  BookSummary,
+  CategoryCount,
+  ChapterResponse,
+  ChapterSummary,
+  Paginated,
+} from './types';
 
 type LoadedNovelE2eFixtures = typeof NovelE2eFixtures;
 
@@ -86,6 +93,16 @@ export async function fetchBooksServer(query?: {
     throw new Error(`Failed to fetch books: ${res.status}`);
   }
   return (await res.json()) as Paginated<BookSummary>;
+}
+
+export async function fetchBookCategoriesServer(): Promise<CategoryCount[]> {
+  const res = await fetch(buildServerApiUrl('/books/categories'), {
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch book categories: ${res.status}`);
+  }
+  return (await res.json()) as CategoryCount[];
 }
 
 const cookieHeader = (): string => {

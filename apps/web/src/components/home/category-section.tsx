@@ -29,7 +29,7 @@ export function CategorySection({ category }: { category: string }): JSX.Element
     <BookRail
       title={category}
       books={data?.items ?? []}
-      seeAllHref={`/category/${encodeURIComponent(category)}`}
+      seeAllHref={`/novels?category=${encodeURIComponent(category)}`}
     />
   );
 }
