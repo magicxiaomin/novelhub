@@ -4,7 +4,17 @@ import { messages } from '@novelhub/shared';
 
 import type { BookDetail } from './types';
 
-const DEFAULT_OG_IMAGE = '/og-default.png';
+export const SITE_DEFAULT_BOOK_COVER = '/og-default.png';
+
+const CATEGORY_DEFAULT_BOOK_COVERS: Record<string, string> = {
+  romance: '/og/romance-book.png',
+  fantasy: '/og/fantasy-book.png',
+  mystery: '/og/mystery-book.png',
+  thriller: '/og/thriller-book.png',
+  'science fiction': '/og/scifi-book.png',
+  scifi: '/og/scifi-book.png',
+};
+
 const MAX_DESCRIPTION_LENGTH = 160;
 
 const bookTitle = (book: Pick<BookDetail, 'title' | 'author'>): string =>
@@ -18,16 +28,27 @@ const truncateDescription = (description: string): string => {
 const coverAlt = (bookTitle: string): string =>
   messages.metadata.coverAltTemplate.replace('{bookTitle}', bookTitle);
 
-export const buildBookDetailMetadata = (book: BookDetail): Metadata => {
-  const title = bookTitle(book);
+export const resolveBookCoverImage = (book: Pick<BookDetail, 'coverUrl' | 'category'>): string => {
+  const coverUrl = book.coverUrl.trim();
+  if (coverUrl) return coverUrl;
+
+  return (
+    CATEGORY_DEFAULT_BOOK_COVERS[book.category.trim().toLowerCase()] ?? SITE_DEFAULT_BOOK_COVER
+  );
+};
+
+export const buildBookDescription = (book: Pick<BookDetail, 'description'>): string => {
   const trimmedDescription = book.description.trim();
-  const description = trimmedDescription
+  return trimmedDescription
     ? truncateDescription(trimmedDescription)
     : messages.metadata.description;
-  const coverUrl = book.coverUrl.trim();
-  const image = coverUrl
-    ? { url: coverUrl, alt: coverAlt(book.title) }
-    : { url: DEFAULT_OG_IMAGE, alt: messages.metadata.title };
+};
+
+export const buildBookDetailMetadata = (book: BookDetail): Metadata => {
+  const title = bookTitle(book);
+  const description = buildBookDescription(book);
+  const imageUrl = resolveBookCoverImage(book);
+  const image = { url: imageUrl, alt: coverAlt(book.title) };
 
   return {
     title,
@@ -37,6 +58,12 @@ export const buildBookDetailMetadata = (book: BookDetail): Metadata => {
       description,
       images: [image],
       type: 'book',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [imageUrl],
     },
   };
 };

@@ -13,7 +13,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { buildBookDetailMetadata } from '@/lib/book-metadata';
 import { fakeRating } from '@/lib/fake-rating';
-import { safeJsonLd } from '@/lib/json-ld';
+import { buildBookJsonLd, safeJsonLd } from '@/lib/json-ld';
 import { fetchBookServer } from '@/lib/server-api';
 import type { BookDetail } from '@/lib/types';
 import { messages } from '@novelhub/shared';
@@ -119,22 +119,7 @@ function estimateWords(book: BookDetail): number {
 }
 
 function BookJsonLd({ book, rating }: { book: BookDetail; rating: number }): JSX.Element {
-  const data = {
-    '@context': 'https://schema.org',
-    '@type': 'Book',
-    name: book.title,
-    author: { '@type': 'Person', name: book.author },
-    image: book.coverUrl,
-    description: book.description,
-    bookFormat: 'EBook',
-    numberOfPages: book.totalChapters,
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: rating.toString(),
-      reviewCount: '1',
-      bestRating: '5',
-    },
-  };
+  const data = buildBookJsonLd(book, rating);
   return (
     <script
       type="application/ld+json"
