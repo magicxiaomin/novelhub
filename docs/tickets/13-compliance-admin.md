@@ -1,9 +1,11 @@
 # Ticket 13: Legal Pages and Admin Panel
 
 ## Goal
+
 Add all required legal pages and a basic admin panel.
 
 ## Tasks
+
 1. Static legal pages (use MDX or markdown):
    - `/privacy` - Privacy Policy
    - `/terms` - Terms of Service
@@ -11,7 +13,7 @@ Add all required legal pages and a basic admin panel.
    - `/dmca` - DMCA Policy with takedown email
    - `/contact` - Contact Us with form (sends to support email via Resend)
    - `/about` - simple about page
-   - Use placeholder text marked `<!-- TODO: legal review -->` - do NOT generate actual legal text, leave for human review
+   - Leave legal body copy blank until human-approved legal text is supplied.
 2. Cookie consent banner:
    - Bottom banner: "We use cookies..." with Accept / Reject / Customize
    - Customize modal: toggle Analytics, Marketing (Necessary always on)
@@ -33,6 +35,7 @@ Add all required legal pages and a basic admin panel.
 5. File upload for covers and bulk chapter import via R2 presigned URLs
 
 ## Acceptance Criteria
+
 - All footer links resolve to valid pages
 - Cookie banner blocks tracking before consent
 - Admin panel works on desktop (mobile not required)
@@ -40,6 +43,7 @@ Add all required legal pages and a basic admin panel.
 - Non-admin users get 404 on /admin routes (do not 403, do not reveal existence)
 
 ## Out of Scope
+
 - Content scheduling
 - Multi-admin roles
 - Audit log (V2)

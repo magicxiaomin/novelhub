@@ -36,8 +36,6 @@ export default function ContactPage(): JSX.Element {
   return (
     <article className="prose mx-auto max-w-prose px-4 py-12">
       <h1>{messages.legal.contactTitle}</h1>
-      <p>{messages.legal.todo}</p>
-      <p>{messages.legal.lastUpdated}</p>
       <form
         onSubmit={form.handleSubmit((values) => void submit(values))}
         className="not-prose mt-6 space-y-4"
