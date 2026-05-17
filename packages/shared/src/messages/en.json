@@ -52,6 +52,22 @@
     "railError": "This row could not be loaded. Please try again soon.",
     "railEmpty": "More stories are coming soon."
   },
+  "novels": {
+    "title": "Novels",
+    "subtitle": "Browse all available web novels by category and completion status.",
+    "filtersLabel": "Novel filters",
+    "categoryFilterLabel": "Category",
+    "statusFilterLabel": "Status",
+    "allCategories": "All categories",
+    "allStatuses": "All statuses",
+    "clearFilters": "Clear filters",
+    "emptyTitle": "No novels found",
+    "emptyBody": "Try clearing filters or choosing a different category or status.",
+    "paginationLabel": "Novel pages",
+    "previousPage": "Previous",
+    "nextPage": "Next",
+    "pageCount": "Page {page} of {pages}"
+  },
   "checkin": {
     "title": "Daily check-in",
     "claimBody": "Claim {coins} coins",
