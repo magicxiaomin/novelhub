@@ -1,6 +1,8 @@
+import { messages } from '@novelhub/shared';
+
 export const statusFilterOptions = [
-  { value: 'ONGOING', label: 'Ongoing' },
-  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'ONGOING', label: messages.novels.statusOngoing },
+  { value: 'COMPLETED', label: messages.novels.statusCompleted },
 ] as const;
 
 export type NovelStatusFilter = (typeof statusFilterOptions)[number]['value'];

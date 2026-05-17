@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { messages } from '@novelhub/shared';
 
 import {
   buildNovelsHref,
@@ -50,5 +51,9 @@ describe('novels filters', () => {
 
   it('documents the status filter values sent to the worker books contract', () => {
     expect(statusFilterOptions.map((option) => option.value)).toEqual(['ONGOING', 'COMPLETED']);
+    expect(statusFilterOptions.map((option) => option.label)).toEqual([
+      messages.novels.statusOngoing,
+      messages.novels.statusCompleted,
+    ]);
   });
 });

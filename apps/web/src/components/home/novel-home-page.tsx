@@ -46,7 +46,7 @@ export function NovelHomePage(): JSX.Element {
           <BookRail
             title={messages.home.trending}
             books={trending.data ?? []}
-            seeAllHref="/novels?category=Trending"
+            seeAllHref="/novels"
           />
         )}
 

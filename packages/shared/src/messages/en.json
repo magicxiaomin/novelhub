@@ -60,6 +60,8 @@
     "statusFilterLabel": "Status",
     "allCategories": "All categories",
     "allStatuses": "All statuses",
+    "statusOngoing": "Ongoing",
+    "statusCompleted": "Completed",
     "clearFilters": "Clear filters",
     "emptyTitle": "No novels found",
     "emptyBody": "Try clearing filters or choosing a different category or status.",

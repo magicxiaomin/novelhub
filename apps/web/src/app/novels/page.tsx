@@ -14,6 +14,8 @@ import {
 } from '@/lib/novels-filters';
 import { messages } from '@novelhub/shared';
 
+export const runtime = 'edge';
+
 const pageSize = 20;
 
 export default async function NovelsPage({
