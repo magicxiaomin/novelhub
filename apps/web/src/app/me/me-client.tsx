@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { DeleteAccountDialog } from '@/components/account/delete-account-dialog';
+import { MeResumeReadingCard } from './me-resume-reading-card';
 import { AppShell } from '@/components/layout/app-shell';
 import { useAuth } from '@/components/providers';
 import { Button } from '@/components/ui/button';
@@ -105,6 +106,8 @@ export function MeClient(): JSX.Element {
             </Button>
           </CardContent>
         </Card>
+
+        {!history.isLoading ? <MeResumeReadingCard entries={history.data ?? []} /> : null}
 
         <Card className="rounded-lg">
           <CardHeader>
