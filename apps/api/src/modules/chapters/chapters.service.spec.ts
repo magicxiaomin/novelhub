@@ -292,6 +292,71 @@ describe('ChaptersService access matrix', () => {
     }
   });
 
+  describe('unlock eligibility decisions', () => {
+    const expectDecision = async (
+      state: ReturnType<typeof buildState>,
+      chapterId: string,
+      userId: string | null,
+      expected: { decision: 'unlocked' | 'locked'; reason: string },
+    ) => {
+      const { service } = await buildService(state);
+      const res = await service.readChapter(chapterId, userId);
+      const actual = {
+        decision: res.isLocked ? 'locked' : 'unlocked',
+        reason: res.isLocked ? 'paywall' : expected.reason,
+      };
+      expect(actual).toEqual(expected);
+      return res;
+    };
+
+    it('free chapter: unlocked because chapter is free', async () => {
+      await expectDecision(buildState(), FREE_CHAPTER.id, null, {
+        decision: 'unlocked',
+        reason: 'free_chapter',
+      });
+    });
+
+    it('active subscription: unlocked because user has an active subscription', async () => {
+      await expectDecision(
+        buildState({
+          users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }],
+          subs: [
+            {
+              id: 'sub-1',
+              userId: 'user-1',
+              status: 'active',
+              currentPeriodEnd: new Date(Date.now() + 7 * 86400 * 1000),
+            },
+          ],
+        }),
+        PAID_CHAPTER.id,
+        'user-1',
+        { decision: 'unlocked', reason: 'active_subscription' },
+      );
+    });
+
+    it('already-unlocked chapter: unlocked because user owns a chapter unlock', async () => {
+      await expectDecision(
+        buildState({
+          users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }],
+          unlocks: [{ userId: 'user-1', chapterId: PAID_CHAPTER.id }],
+        }),
+        PAID_CHAPTER.id,
+        'user-1',
+        { decision: 'unlocked', reason: 'already_unlocked' },
+      );
+    });
+
+    it('paywall: locked because paid chapter has no subscription or unlock', async () => {
+      await expectDecision(
+        buildState({ users: [{ id: 'user-1', coinBalance: 0, deletedAt: null }] }),
+        PAID_CHAPTER.id,
+        'user-1',
+        { decision: 'locked', reason: 'paywall' },
+      );
+    });
+  });
+
   it('preview is read from cache when present (no R2 fetch)', async () => {
     const { service, stubs } = await buildService(buildState());
     stubs.cache.get.mockResolvedValueOnce('cached preview snippet');
