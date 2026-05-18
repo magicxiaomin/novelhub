@@ -23,6 +23,34 @@ function render(book: BookSummary): string {
   return renderToStaticMarkup(<BookCard book={book} />);
 }
 
+function classAttributeFor(html: string, marker: string): string {
+  const index = html.indexOf(marker);
+  expect(index).toBeGreaterThanOrEqual(0);
+
+  const classStart = html.lastIndexOf('class="', index);
+  expect(classStart).toBeGreaterThanOrEqual(0);
+
+  const valueStart = classStart + 'class="'.length;
+  const valueEnd = html.indexOf('"', valueStart);
+  expect(valueEnd).toBeGreaterThan(valueStart);
+
+  return html.slice(valueStart, valueEnd);
+}
+
+function firstClassAttribute(html: string): string {
+  const match = html.match(/class="([^"]+)"/);
+  expect(match?.[1]).toBeDefined();
+
+  return match?.[1] ?? '';
+}
+
+function secondClassAttribute(html: string): string {
+  const matches = [...html.matchAll(/class="([^"]+)"/g)];
+  expect(matches[1]?.[1]).toBeDefined();
+
+  return matches[1]?.[1] ?? '';
+}
+
 describe('BookCard metadata', () => {
   it('renders compact scan-time metadata from full book data', () => {
     const html = render(baseBook);
@@ -71,24 +99,42 @@ describe('BookCard metadata', () => {
 });
 
 describe('BookCardSkeleton', () => {
-  it('matches the medium BookCard footprint without exposing busy content', () => {
-    const html = renderToStaticMarkup(<BookCardSkeleton />);
+  it.each(['sm', 'md'] as const)(
+    'matches the %s BookCard wrapper and cover footprint without exposing busy content',
+    (size) => {
+      const cardHtml = renderToStaticMarkup(<BookCard book={baseBook} size={size} />);
+      const skeletonHtml = renderToStaticMarkup(<BookCardSkeleton size={size} />);
+      const cardWrapperClass = firstClassAttribute(cardHtml);
+      const skeletonWrapperClass = firstClassAttribute(skeletonHtml);
+      const cardCoverClass = secondClassAttribute(cardHtml);
+      const skeletonCoverClass = secondClassAttribute(skeletonHtml);
 
-    expect(html).toContain('w-36');
-    expect(html).toContain('aspect-[3/4]');
-    expect(html).toContain('aria-hidden="true"');
-    expect(html).toContain('data-testid="book-card-skeleton"');
-    expect(html).not.toContain('href=');
-  });
+      expect(skeletonWrapperClass).toBe(cardWrapperClass);
+      expect(skeletonCoverClass).toContain('aspect-[3/4]');
+      expect(skeletonCoverClass).toContain(size === 'sm' ? 'w-28' : 'w-36');
+      expect(cardCoverClass).toContain(size === 'sm' ? 'w-28' : 'w-36');
+      expect(skeletonHtml).toContain('aria-hidden="true"');
+      expect(skeletonHtml).toContain('data-testid="book-card-skeleton"');
+      expect(skeletonHtml).not.toContain('href=');
+    },
+  );
 
-  it('matches the small BookCard footprint and documents reduced-motion animation gating', () => {
+  it('keeps animation gated behind motion-safe with an explicit reduced-motion fallback', () => {
     const html = renderToStaticMarkup(<BookCardSkeleton size="sm" />);
+    const skeletonPieces = [
+      secondClassAttribute(html),
+      classAttributeFor(html, 'h-8'),
+      classAttributeFor(html, 'h-3 w-20'),
+      classAttributeFor(html, 'h-5 w-10'),
+      classAttributeFor(html, 'h-5 w-12'),
+      classAttributeFor(html, 'h-3 w-24'),
+    ];
 
-    expect(html).toContain('w-28');
-    expect(html).toContain('motion-safe:animate-pulse');
-    expect(html).toContain('motion-reduce:animate-none');
-    expect(html).toMatchInlineSnapshot(`
-      "<div class="flex shrink-0 flex-col gap-2 w-28" aria-hidden="true" data-testid="book-card-skeleton"><div class="relative overflow-hidden rounded-xl bg-muted motion-safe:animate-pulse motion-reduce:animate-none aspect-[3/4] w-28"></div><div class="flex flex-col gap-1"><div class="h-8 rounded-md bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div><div class="h-3 w-20 rounded-md bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div><div class="mt-1 flex gap-1"><div class="h-5 w-10 rounded-full bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div><div class="h-5 w-12 rounded-full bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div></div><div class="h-3 w-24 rounded-md bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div></div></div>"
-    `);
+    expect(skeletonPieces).toHaveLength(6);
+    for (const className of skeletonPieces) {
+      expect(className).toContain('motion-safe:animate-pulse');
+      expect(className).toContain('motion-reduce:animate-none');
+      expect(className).not.toContain(' animate-pulse');
+    }
   });
 });
