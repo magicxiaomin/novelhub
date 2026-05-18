@@ -1,4 +1,11 @@
-import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from './types';
+import type {
+  BookDetail,
+  BookSummary,
+  CategoryCount,
+  ChapterResponse,
+  ChapterSummary,
+  Paginated,
+} from './types';
 
 export const novelE2eFixtureBookId = '19500000-0000-4195-8195-000000000198';
 
@@ -20,7 +27,7 @@ export const novelE2eFixtureBook: BookDetail = {
   title: 'Novel Funnel Test Book',
   author: 'NovelHub QA',
   coverUrl: `data:image/svg+xml,${coverSvg}`,
-  category: 'Romance',
+  category: 'ROMANCE',
   tags: ['e2e', 'funnel'],
   status: 'ONGOING',
   isFeatured: true,
@@ -38,6 +45,103 @@ export const novelE2eFixtureChapterList: Paginated<ChapterSummary> = {
   page: 1,
   limit: 200,
 };
+
+const baseListBooks: BookSummary[] = [
+  {
+    id: '11111111-1111-4111-8111-111111111111',
+    title: 'Pride and Prejudice',
+    author: 'Jane Austen',
+    coverUrl: '/covers/pride-and-prejudice.svg',
+    category: 'ROMANCE',
+    tags: ['classic', 'regency', 'slow-burn'],
+    status: 'COMPLETED',
+    isFeatured: true,
+    totalChapters: 10,
+    freeChapterCount: 3,
+    coinPerChapter: 5,
+  },
+  {
+    id: '22222222-2222-4222-8222-222222222222',
+    title: 'The Adventures of Sherlock Holmes',
+    author: 'Arthur Conan Doyle',
+    coverUrl: '/covers/sherlock-holmes.svg',
+    category: 'MYSTERY',
+    tags: ['classic', 'detective', 'short-stories'],
+    status: 'COMPLETED',
+    isFeatured: true,
+    totalChapters: 10,
+    freeChapterCount: 3,
+    coinPerChapter: 5,
+  },
+  {
+    id: '33333333-3333-4333-8333-333333333333',
+    title: 'Frankenstein',
+    author: 'Mary Shelley',
+    coverUrl: '/covers/frankenstein.svg',
+    category: 'GOTHIC',
+    tags: ['classic', 'gothic', 'horror'],
+    status: 'COMPLETED',
+    isFeatured: false,
+    totalChapters: 10,
+    freeChapterCount: 3,
+    coinPerChapter: 5,
+  },
+];
+
+export const novelE2eFixtureBooks: BookSummary[] = [
+  ...baseListBooks,
+  ...Array.from({ length: 22 }, (_, index) => {
+    const number = index + 1;
+    const category = number % 2 === 0 ? 'MYSTERY' : 'ROMANCE';
+    const status = number % 3 === 0 ? 'ONGOING' : 'COMPLETED';
+    return {
+      id: `19500000-0000-4195-8195-${String(1000 + number).padStart(12, '0')}`,
+      title: `Pagination Fixture Novel ${number}`,
+      author: 'NovelHub QA',
+      coverUrl: `data:image/svg+xml,${coverSvg}`,
+      category,
+      tags: ['e2e', 'pagination'],
+      status,
+      isFeatured: false,
+      totalChapters: 12,
+      freeChapterCount: 3,
+      coinPerChapter: 5,
+    } satisfies BookSummary;
+  }),
+];
+
+export function novelE2eFixtureBookList(query?: {
+  category?: string;
+  status?: string;
+  featured?: boolean;
+  page?: number;
+  limit?: number;
+}): Paginated<BookSummary> {
+  const page = query?.page ?? 1;
+  const limit = query?.limit ?? 20;
+  const filtered = novelE2eFixtureBooks.filter((book) => {
+    if (query?.category && book.category !== query.category) return false;
+    if (query?.status && book.status !== query.status) return false;
+    if (query?.featured !== undefined && book.isFeatured !== query.featured) return false;
+    return true;
+  });
+  const start = (page - 1) * limit;
+
+  return {
+    items: filtered.slice(start, start + limit),
+    total: filtered.length,
+    page,
+    limit,
+  };
+}
+
+export const novelE2eFixtureCategories: CategoryCount[] = Array.from(
+  novelE2eFixtureBooks.reduce<Map<string, number>>((counts, book) => {
+    counts.set(book.category, (counts.get(book.category) ?? 0) + 1);
+    return counts;
+  }, new Map()),
+  ([category, count]) => ({ category, count }),
+);
 
 export function novelE2eFixtureChapter(chapterId: string): ChapterResponse | null {
   const summary = novelE2eFixtureChapters.find((chapter) => chapter.id === chapterId);
