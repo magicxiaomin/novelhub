@@ -1,4 +1,5 @@
 export const READER_SETTINGS_KEY = 'reader-settings-v1';
+const READER_SETTINGS_VERSION = 1;
 
 export type ReaderFontSize = 's' | 'm' | 'l' | 'xl';
 export type ReaderLineHeight = 'compact' | 'default' | 'loose';
@@ -11,6 +12,11 @@ export type ReaderSettings = {
   theme: ReaderTheme;
   fontFamily: ReaderFontFamily;
   autoAdvance: boolean;
+};
+
+type ReaderSettingsPayload = {
+  version: typeof READER_SETTINGS_VERSION;
+  settings: ReaderSettings;
 };
 
 export type ReaderSettingsCssVars = {
@@ -58,27 +64,49 @@ const readerFontFamilies: Record<ReaderFontFamily, string> = {
 const includes = <T extends string>(values: readonly T[], value: unknown): value is T =>
   typeof value === 'string' && values.includes(value as T);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function sanitizeReaderSettings(value: Record<string, unknown>): ReaderSettings {
+  return {
+    fontSize: includes(fontSizes, value.fontSize)
+      ? value.fontSize
+      : DEFAULT_READER_SETTINGS.fontSize,
+    lineHeight: includes(lineHeights, value.lineHeight)
+      ? value.lineHeight
+      : DEFAULT_READER_SETTINGS.lineHeight,
+    theme: includes(themes, value.theme) ? value.theme : DEFAULT_READER_SETTINGS.theme,
+    fontFamily: includes(fontFamilies, value.fontFamily)
+      ? value.fontFamily
+      : DEFAULT_READER_SETTINGS.fontFamily,
+    autoAdvance:
+      typeof value.autoAdvance === 'boolean'
+        ? value.autoAdvance
+        : DEFAULT_READER_SETTINGS.autoAdvance,
+  };
+}
+
+function serializeReaderSettings(settings: ReaderSettings): string {
+  return JSON.stringify({
+    version: READER_SETTINGS_VERSION,
+    settings,
+  } satisfies ReaderSettingsPayload);
+}
+
 export function parseReaderSettings(raw: string | null): ReaderSettings {
   if (!raw) return DEFAULT_READER_SETTINGS;
 
   try {
-    const parsed = JSON.parse(raw) as Partial<Record<keyof ReaderSettings, unknown>>;
-    return {
-      fontSize: includes(fontSizes, parsed.fontSize)
-        ? parsed.fontSize
-        : DEFAULT_READER_SETTINGS.fontSize,
-      lineHeight: includes(lineHeights, parsed.lineHeight)
-        ? parsed.lineHeight
-        : DEFAULT_READER_SETTINGS.lineHeight,
-      theme: includes(themes, parsed.theme) ? parsed.theme : DEFAULT_READER_SETTINGS.theme,
-      fontFamily: includes(fontFamilies, parsed.fontFamily)
-        ? parsed.fontFamily
-        : DEFAULT_READER_SETTINGS.fontFamily,
-      autoAdvance:
-        typeof parsed.autoAdvance === 'boolean'
-          ? parsed.autoAdvance
-          : DEFAULT_READER_SETTINGS.autoAdvance,
-    };
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      !isRecord(parsed) ||
+      parsed.version !== READER_SETTINGS_VERSION ||
+      !isRecord(parsed.settings)
+    ) {
+      return DEFAULT_READER_SETTINGS;
+    }
+
+    return sanitizeReaderSettings(parsed.settings);
   } catch {
     return DEFAULT_READER_SETTINGS;
   }
@@ -114,6 +142,7 @@ export function getReaderSettingsBootstrapScript(): string {
   return `(() => {
   const key = ${JSON.stringify(READER_SETTINGS_KEY)};
   const defaults = ${JSON.stringify(DEFAULT_READER_SETTINGS)};
+  const version = ${JSON.stringify(READER_SETTINGS_VERSION)};
   const fontSizes = ${JSON.stringify(fontSizes)};
   const lineHeights = ${JSON.stringify(lineHeights)};
   const themes = ${JSON.stringify(themes)};
@@ -123,14 +152,18 @@ export function getReaderSettingsBootstrapScript(): string {
   const themeValues = ${JSON.stringify(readerThemeColors)};
   const fontFamilyValues = ${JSON.stringify(readerFontFamilies)};
   const includes = (values, value) => typeof value === 'string' && values.includes(value);
+  const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(key) || 'null') || {};
+    const parsed = JSON.parse(window.localStorage.getItem(key) || 'null');
+    const values = isRecord(parsed) && parsed.version === version && isRecord(parsed.settings)
+      ? parsed.settings
+      : defaults;
     const settings = {
-      fontSize: includes(fontSizes, parsed.fontSize) ? parsed.fontSize : defaults.fontSize,
-      lineHeight: includes(lineHeights, parsed.lineHeight) ? parsed.lineHeight : defaults.lineHeight,
-      theme: includes(themes, parsed.theme) ? parsed.theme : defaults.theme,
-      fontFamily: includes(fontFamilies, parsed.fontFamily) ? parsed.fontFamily : defaults.fontFamily,
-      autoAdvance: typeof parsed.autoAdvance === 'boolean' ? parsed.autoAdvance : defaults.autoAdvance,
+      fontSize: includes(fontSizes, values.fontSize) ? values.fontSize : defaults.fontSize,
+      lineHeight: includes(lineHeights, values.lineHeight) ? values.lineHeight : defaults.lineHeight,
+      theme: includes(themes, values.theme) ? values.theme : defaults.theme,
+      fontFamily: includes(fontFamilies, values.fontFamily) ? values.fontFamily : defaults.fontFamily,
+      autoAdvance: typeof values.autoAdvance === 'boolean' ? values.autoAdvance : defaults.autoAdvance,
     };
     const root = document.documentElement;
     const theme = themeValues[settings.theme];
@@ -163,5 +196,5 @@ export function saveReaderSettings(
   storage: Pick<Storage, 'setItem'>,
   settings: ReaderSettings,
 ): void {
-  storage.setItem(READER_SETTINGS_KEY, JSON.stringify(settings));
+  storage.setItem(READER_SETTINGS_KEY, serializeReaderSettings(settings));
 }
