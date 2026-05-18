@@ -68,17 +68,21 @@ test('reader adjacent navigation keeps rendered content visible and restores bac
   // wait for it to settle before simulating the user's own scroll.
   await page.waitForTimeout(1_100);
 
-  await page.mouse.wheel(0, 720);
-  await page.waitForFunction(() => window.scrollY > 0);
-  const beforeY = await page.evaluate(() => window.scrollY);
+  await page.mouse.wheel(0, 1_200);
+  await page.waitForFunction(() => window.scrollY > 700);
+  await page.mouse.wheel(0, -320);
+  await page.waitForFunction(() => window.scrollY > 0 && window.scrollY < 1_200);
+  const beforeY = await page.evaluate(() => Math.round(window.scrollY));
   expect(beforeY).toBeGreaterThan(0);
+  expect(beforeY).toBeLessThan(1_200);
+  await page.waitForFunction(
+    ({ key, expectedY }) => window.sessionStorage.getItem(key) === String(expectedY),
+    { key: `novelhub:reader-scroll:/read/${bookId}/1`, expectedY: beforeY },
+  );
 
-  await page
-    .getByRole('link', { name: 'Next chapter' })
-    .last()
-    .evaluate((link) => {
-      (link as HTMLAnchorElement).click();
-    });
+  await page.locator('nav[aria-label="Chapters"] a[href$="/2"]').evaluate((link) => {
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  });
   await expect(page).toHaveURL(new RegExp(`/read/${bookId}/2$`));
   await expect(article.getByRole('heading', { name: 'Free Chapter 2' })).toBeVisible();
   await expect(page.getByLabel('Loading chapter content')).toHaveCount(0);

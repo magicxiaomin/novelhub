@@ -175,7 +175,7 @@ describe('ReaderContent scroll progress indicator', () => {
     }
   });
 
-  it('stores back-navigation positions by route and consumes them once', () => {
+  it('stores back-navigation positions by route and consumes primary and stale fallback slots once', () => {
     const storage = new Map<string, string>();
     const sessionStorage = {
       getItem: vi.fn((key: string) => storage.get(key) ?? null),
@@ -185,9 +185,11 @@ describe('ReaderContent scroll progress indicator', () => {
     const key = readerScrollRestoreKey('/read/book-1/1');
 
     sessionStorage.setItem(key, '420');
+    sessionStorage.setItem(`${key}:last`, '840');
 
     expect(loadReaderScrollRestoreY('/read/book-1/1', sessionStorage)).toBe(420);
     expect(sessionStorage.removeItem).toHaveBeenCalledWith(key);
+    expect(sessionStorage.removeItem).toHaveBeenCalledWith(`${key}:last`);
     expect(loadReaderScrollRestoreY('/read/book-1/1', sessionStorage)).toBeNull();
   });
 

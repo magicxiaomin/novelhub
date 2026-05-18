@@ -157,7 +157,10 @@ export function ReaderContent({
     navigatingReaderRoute.current = false;
     restoringReaderRoute.current = true;
     restoredChapterId.current = null;
-    const restoreY = peekReaderScrollRestoreY(currentUrl, window.sessionStorage);
+    const restoreY =
+      loadReaderMemoryScrollRestoreY(currentUrl) ??
+      loadReaderHistoryScrollRestoreY(currentUrl) ??
+      loadReaderScrollRestoreY(currentUrl, window.sessionStorage);
     if (restoreY !== null) {
       (window as typeof window & { __novelhubReaderRestoreY?: number }).__novelhubReaderRestoreY =
         restoreY;
@@ -188,15 +191,22 @@ export function ReaderContent({
     const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = 'manual';
     const restoreAfterHistoryNavigation = (): void => {
-      const restoreY = peekReaderScrollRestoreY(window.location.pathname, window.sessionStorage);
+      const path = window.location.pathname;
+      const restoreY =
+        loadReaderMemoryScrollRestoreY(path) ??
+        loadReaderHistoryScrollRestoreY(path) ??
+        peekReaderScrollRestoreY(path, window.sessionStorage);
       if (restoreY === null) return;
       (window as typeof window & { __novelhubReaderRestoreY?: number }).__novelhubReaderRestoreY =
         restoreY;
-      restoreReaderScrollY(restoreY, undefined, window.location.pathname);
+      restoreReaderScrollY(restoreY, undefined, path);
     };
-    window.addEventListener('popstate', restoreAfterHistoryNavigation);
+    const onHistoryNavigation = (): void => {
+      window.setTimeout(restoreAfterHistoryNavigation, 0);
+    };
+    window.addEventListener('popstate', onHistoryNavigation);
     return () => {
-      window.removeEventListener('popstate', restoreAfterHistoryNavigation);
+      window.removeEventListener('popstate', onHistoryNavigation);
       window.history.scrollRestoration = previousScrollRestoration;
     };
   }, []);
@@ -248,13 +258,6 @@ export function ReaderContent({
         restoringReaderRoute.current = false;
       });
   }, [chapter, user, contentQuery.isSuccess, contentQuery.data, currentUrl]);
-
-  useEffect(() => {
-    if (chapter.isLocked) return;
-    return () => {
-      if (!navigatingReaderRoute.current) saveReaderScrollRestoreY(currentUrl);
-    };
-  }, [chapter.isLocked, currentUrl]);
 
   useEffect(() => {
     if (chapter.isLocked) return;
@@ -450,15 +453,15 @@ export function loadReaderScrollRestoreY(path: string, storage: Storage): number
   const key = readerScrollRestoreKey(path);
   const scrollY = peekReaderScrollRestoreY(path, storage);
   storage.removeItem(key);
+  storage.removeItem(`${key}:last`);
   return scrollY;
 }
 
 function peekReaderScrollRestoreY(path: string, storage: Storage): number | null {
   const key = readerScrollRestoreKey(path);
-  const value = storage.getItem(key);
-  const backupValue = storage.getItem(`${key}:last`);
-  if (value === null && backupValue === null) return null;
-  const scrollY = Math.max(Number(value ?? 0), Number(backupValue ?? 0));
+  const value = storage.getItem(key) ?? storage.getItem(`${key}:last`);
+  if (value === null) return null;
+  const scrollY = Number(value);
   return Number.isFinite(scrollY) && scrollY >= 0 ? scrollY : null;
 }
 
@@ -474,15 +477,52 @@ function saveReaderScrollRestoreY(path: string, nextPath?: string): void {
 
 function writeReaderScrollRestoreY(path: string, scrollY: number): void {
   const key = readerScrollRestoreKey(path);
-  const nextScrollY = Math.max(
-    0,
-    Math.round(scrollY),
-    Number(window.sessionStorage.getItem(key) ?? 0),
-    Number(window.sessionStorage.getItem(`${key}:last`) ?? 0),
-  );
+  const nextScrollY = Math.max(0, Math.round(scrollY));
   const value = String(Number.isFinite(nextScrollY) ? nextScrollY : 0);
   window.sessionStorage.setItem(key, value);
   window.sessionStorage.setItem(`${key}:last`, value);
+  if (window.location.pathname === path) {
+    writeReaderMemoryScrollRestoreY(path, nextScrollY);
+    const state = isRecord(window.history.state) ? window.history.state : {};
+    window.history.replaceState(
+      {
+        ...state,
+        __novelhubReaderScrollRestorePath: path,
+        __novelhubReaderScrollRestoreY: nextScrollY,
+      },
+      '',
+      path,
+    );
+  }
+}
+
+function loadReaderHistoryScrollRestoreY(path: string): number | null {
+  const state = window.history.state;
+  if (!isRecord(state) || state.__novelhubReaderScrollRestorePath !== path) return null;
+  const scrollY = Number(state.__novelhubReaderScrollRestoreY);
+  return Number.isFinite(scrollY) && scrollY >= 0 ? scrollY : null;
+}
+
+function loadReaderMemoryScrollRestoreY(path: string): number | null {
+  const scrolls = (
+    window as typeof window & { __novelhubReaderScrollRestores?: Record<string, number> }
+  ).__novelhubReaderScrollRestores;
+  const scrollY = scrolls?.[path] ?? null;
+  return scrollY !== null && Number.isFinite(scrollY) && scrollY >= 0 ? scrollY : null;
+}
+
+function writeReaderMemoryScrollRestoreY(path: string, scrollY: number): void {
+  const target = window as typeof window & {
+    __novelhubReaderScrollRestores?: Record<string, number>;
+  };
+  target.__novelhubReaderScrollRestores = {
+    ...(target.__novelhubReaderScrollRestores ?? {}),
+    [path]: scrollY,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function clampReaderScrollY(scrollY: number): number {
