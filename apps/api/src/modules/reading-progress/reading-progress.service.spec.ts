@@ -31,6 +31,33 @@ type StubState = {
   subscriptions?: FakeSubscription[];
 };
 
+const fakeProgress = (
+  id: string,
+  bookId: string,
+  chapterId: string,
+  lastReadAt: string,
+  overrides: {
+    chapterOrder?: number;
+    scrollPosition?: number;
+    updatedAt?: string;
+    userId?: string;
+    bookTitle?: string;
+  } = {},
+): FakeProgress => ({
+  id,
+  userId: overrides.userId ?? 'user-1',
+  bookId,
+  chapterId,
+  scrollPosition: overrides.scrollPosition ?? 42,
+  lastReadAt: new Date(lastReadAt),
+  updatedAt: new Date(overrides.updatedAt ?? lastReadAt),
+  chapter: { order: overrides.chapterOrder ?? 1 },
+  book: {
+    title: overrides.bookTitle ?? `Book ${bookId}`,
+    coverUrl: `https://cdn.example.test/${bookId}.jpg`,
+  },
+});
+
 const buildPrismaStub = (state: StubState) => {
   let progressCounter = 0;
 
@@ -88,7 +115,13 @@ const buildPrismaStub = (state: StubState) => {
     findMany: async ({ where, take }: { where: { userId: string }; take: number }) =>
       state.progress
         .filter((row) => row.userId === where.userId)
-        .sort((a, b) => b.lastReadAt.getTime() - a.lastReadAt.getTime())
+        .sort((a, b) => {
+          const lastReadDiff = b.lastReadAt.getTime() - a.lastReadAt.getTime();
+          if (lastReadDiff !== 0) return lastReadDiff;
+          const updatedDiff = b.updatedAt.getTime() - a.updatedAt.getTime();
+          if (updatedDiff !== 0) return updatedDiff;
+          return a.id.localeCompare(b.id);
+        })
         .slice(0, take),
   };
 
@@ -209,6 +242,96 @@ describe('ReadingProgressService', () => {
         scrollPercent: 25,
       }),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('dedupes same-book rows by keeping the most recent chapter progress', async () => {
+    const progress = [
+      fakeProgress('old-same-book', 'book-1', 'chapter-1', '2026-05-06T00:00:00.000Z'),
+      fakeProgress('new-same-book', 'book-1', 'chapter-2', '2026-05-06T00:02:00.000Z', {
+        chapterOrder: 2,
+        scrollPosition: 67,
+      }),
+      fakeProgress('other-book', 'book-2', 'chapter-3', '2026-05-06T00:01:00.000Z'),
+    ];
+    const { service } = buildService({ progress, chapters: [] });
+
+    const recent = await service.listRecent('user-1');
+
+    expect(recent.map((row) => row.bookId)).toEqual(['book-1', 'book-2']);
+    expect(recent[0]).toMatchObject({
+      chapterId: 'chapter-2',
+      chapterNumber: 2,
+      scrollPercent: 67,
+    });
+  });
+
+  it('uses updatedAt then id as deterministic tie-breakers for matching lastReadAt values', async () => {
+    const tiedLastReadAt = '2026-05-06T00:00:00.000Z';
+    const progress = [
+      fakeProgress('progress-b', 'book-1', 'chapter-b', tiedLastReadAt, {
+        updatedAt: '2026-05-06T00:00:01.000Z',
+        chapterOrder: 2,
+      }),
+      fakeProgress('progress-a', 'book-2', 'chapter-a', tiedLastReadAt, {
+        updatedAt: '2026-05-06T00:00:01.000Z',
+        chapterOrder: 1,
+      }),
+      fakeProgress('progress-c', 'book-3', 'chapter-c', tiedLastReadAt, {
+        updatedAt: '2026-05-06T00:00:00.000Z',
+        chapterOrder: 3,
+      }),
+    ];
+    const { service } = buildService({ progress, chapters: [] });
+
+    const recent = await service.listRecent('user-1');
+
+    expect(recent.map((row) => row.chapterId)).toEqual(['chapter-a', 'chapter-b', 'chapter-c']);
+  });
+
+  it('applies the final listRecent limit after over-fetching and deduping overflow rows', async () => {
+    const now = new Date('2026-05-06T00:00:00.000Z');
+    const progress = [
+      ...Array.from({ length: 12 }, (_, index) =>
+        fakeProgress(
+          `progress-duplicate-${index}`,
+          'book-duplicate',
+          `chapter-duplicate-${index}`,
+          new Date(now.getTime() + (100 - index) * 1000).toISOString(),
+          {
+            chapterOrder: index + 1,
+          },
+        ),
+      ),
+      ...Array.from({ length: 10 }, (_, index) =>
+        fakeProgress(
+          `progress-unique-${index + 1}`,
+          `book-${index + 1}`,
+          `chapter-${index + 1}`,
+          new Date(now.getTime() + (50 - index) * 1000).toISOString(),
+          {
+            chapterOrder: index + 1,
+          },
+        ),
+      ),
+    ];
+    const { service } = buildService({ progress, chapters: [] });
+
+    const recent = await service.listRecent('user-1', 10);
+
+    expect(recent).toHaveLength(10);
+    expect(recent.map((row) => row.bookId)).toEqual([
+      'book-duplicate',
+      'book-1',
+      'book-2',
+      'book-3',
+      'book-4',
+      'book-5',
+      'book-6',
+      'book-7',
+      'book-8',
+      'book-9',
+    ]);
+    expect(recent).not.toContainEqual(expect.objectContaining({ bookId: 'book-10' }));
   });
 
   it('empty args list path returns the 10 most recent Continue Reading entries', async () => {
