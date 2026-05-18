@@ -48,6 +48,43 @@ describe('worker request id + structured read-path logging', () => {
     expect(logs[0]).not.toContain('a@example.com');
   });
 
+  it('writes the same structured field names and non-negative duration for read-path error responses', async () => {
+    const logs: string[] = [];
+    console.info = jest.fn((line: string) => logs.push(line));
+    const app = new Hono();
+    app.use('/chapters/*', requestIdAndStructuredReadLog());
+    app.onError((error, c) => c.json({ error: error.message }, 503));
+    app.get('/chapters/:id', () => {
+      throw new Error('R2 unavailable');
+    });
+
+    const response = await app.request('/chapters/chapter-1?token=secret', {
+      headers: { 'x-request-id': 'req_error_12345678' },
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get('x-request-id')).toBe('req_error_12345678');
+    expect(logs).toHaveLength(1);
+    const parsed = JSON.parse(logs[0]!) as ReadPathLogLine;
+    expect(parsed).toMatchObject({
+      event: 'worker.read_request',
+      requestId: 'req_error_12345678',
+      method: 'GET',
+      path: '/chapters/chapter-1',
+      status: 503,
+    });
+    expect(parsed.durationMs).toBeGreaterThanOrEqual(0);
+    expect(Object.keys(parsed).sort()).toEqual([
+      'durationMs',
+      'event',
+      'method',
+      'path',
+      'requestId',
+      'status',
+    ]);
+    expect(logs[0]).not.toContain('secret');
+  });
+
   it('replaces missing or invalid request ids', async () => {
     expect(makeRequestId(undefined)).toMatch(/^req_[a-z0-9]{24}$/);
     expect(makeRequestId('bad id with spaces')).toMatch(/^req_[a-z0-9]{24}$/);
