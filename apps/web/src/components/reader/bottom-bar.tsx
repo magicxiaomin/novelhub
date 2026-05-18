@@ -13,12 +13,14 @@ export function ReaderBottomBar({
   nextHref,
   onChapters,
   onSettings,
+  onNavigate,
 }: {
   visible: boolean;
   prevHref: string | null;
   nextHref: string | null;
   onChapters: () => void;
   onSettings: () => void;
+  onNavigate?: (href: string) => void;
 }): JSX.Element {
   return (
     <nav
@@ -29,7 +31,7 @@ export function ReaderBottomBar({
       aria-label={messages.reader.chapters}
     >
       <div className="mx-auto grid max-w-mobile grid-cols-4 gap-2">
-        <BarLink href={prevHref} label={messages.reader.previousChapter}>
+        <BarLink href={prevHref} label={messages.reader.previousChapter} onNavigate={onNavigate}>
           <ChevronLeft className="h-5 w-5" />
         </BarLink>
         <BarButton label={messages.reader.chapters} onClick={onChapters}>
@@ -38,7 +40,7 @@ export function ReaderBottomBar({
         <BarButton label={messages.reader.settings} onClick={onSettings}>
           <Settings className="h-5 w-5" />
         </BarButton>
-        <BarLink href={nextHref} label={messages.reader.nextChapter}>
+        <BarLink href={nextHref} label={messages.reader.nextChapter} onNavigate={onNavigate}>
           <ChevronRight className="h-5 w-5" />
         </BarLink>
       </div>
@@ -71,10 +73,12 @@ function BarLink({
   href,
   label,
   children,
+  onNavigate,
 }: {
   href: string | null;
   label: string;
   children: ReactNode;
+  onNavigate?: (href: string) => void;
 }): JSX.Element {
   if (!href) {
     return (
@@ -91,6 +95,7 @@ function BarLink({
       href={href}
       className="grid h-11 place-items-center rounded-lg active:bg-muted"
       aria-label={label}
+      onClick={() => onNavigate?.(href)}
     >
       {children}
     </Link>

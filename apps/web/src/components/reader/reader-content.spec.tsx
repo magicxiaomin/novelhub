@@ -53,13 +53,26 @@ vi.mock('@/lib/reader-settings', () => ({
     autoAdvance: false,
   })),
   saveReaderSettings: vi.fn(),
+  applyReaderSettingsToDocument: vi.fn(() => ({
+    theme: 'light',
+    fontSize: 'm',
+    lineHeight: 'default',
+    fontFamily: 'sans',
+    autoAdvance: false,
+  })),
 }));
 vi.mock('@/lib/utils', () => ({
   cn: (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' '),
 }));
 
-import { prefetchAdjacentReaderRoutes } from './reader-content';
-import { calculateReaderScrollProgress, ReaderContent } from './reader-content';
+import {
+  calculateReaderScrollProgress,
+  isReducedMotionPreferred,
+  loadReaderScrollRestoreY,
+  prefetchAdjacentReaderRoutes,
+  readerScrollRestoreKey,
+  ReaderContent,
+} from './reader-content';
 import type { ChapterResponse, Paginated, ChapterSummary } from '@/lib/types';
 
 const baseChapter: ChapterResponse = {
@@ -129,6 +142,53 @@ describe('ReaderContent scroll progress indicator', () => {
 
     expect(html).toContain('aria-label="Reader scroll progress"');
     expect(html).not.toContain('data-testid="reader-paywall"');
+  });
+
+  it('omits progress transition classes when reduced motion is preferred', () => {
+    const originalMatchMedia = globalThis.matchMedia;
+    Object.defineProperty(globalThis, 'matchMedia', {
+      configurable: true,
+      value: vi.fn((query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+      })),
+    });
+
+    try {
+      expect(isReducedMotionPreferred()).toBe(true);
+      const html = renderToStaticMarkup(
+        <ReaderContent
+          chapter={baseChapter}
+          initialChapters={initialChapters}
+          currentUrl="/read/book-1/1"
+          bookTitle="Book 1"
+          bookCover="/cover.jpg"
+        />,
+      );
+
+      expect(html).toContain('aria-label="Reader scroll progress"');
+      expect(html).not.toContain('transition-[width]');
+    } finally {
+      Object.defineProperty(globalThis, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
+
+  it('stores back-navigation positions by route and consumes them once', () => {
+    const storage = new Map<string, string>();
+    const sessionStorage = {
+      getItem: vi.fn((key: string) => storage.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => storage.set(key, value)),
+      removeItem: vi.fn((key: string) => storage.delete(key)),
+    } as unknown as Storage;
+    const key = readerScrollRestoreKey('/read/book-1/1');
+
+    sessionStorage.setItem(key, '420');
+
+    expect(loadReaderScrollRestoreY('/read/book-1/1', sessionStorage)).toBe(420);
+    expect(sessionStorage.removeItem).toHaveBeenCalledWith(key);
+    expect(loadReaderScrollRestoreY('/read/book-1/1', sessionStorage)).toBeNull();
   });
 
   it('does not render for locked paywall chapters', () => {
