@@ -17,15 +17,18 @@ describe('reader settings', () => {
     expect(parseReaderSettings('{bad')).toEqual(DEFAULT_READER_SETTINGS);
   });
 
-  it('accepts valid persisted values', () => {
+  it('accepts valid current-version persisted values', () => {
     expect(
       parseReaderSettings(
         JSON.stringify({
-          fontSize: 'xl',
-          lineHeight: 'loose',
-          theme: 'dark',
-          fontFamily: 'serif',
-          autoAdvance: true,
+          version: 1,
+          settings: {
+            fontSize: 'xl',
+            lineHeight: 'loose',
+            theme: 'dark',
+            fontFamily: 'serif',
+            autoAdvance: true,
+          },
         }),
       ),
     ).toEqual({
@@ -37,15 +40,47 @@ describe('reader settings', () => {
     });
   });
 
+  it('falls back to defaults for unknown or legacy payload versions', () => {
+    expect(
+      parseReaderSettings(
+        JSON.stringify({
+          version: 2,
+          settings: {
+            fontSize: 'xl',
+            lineHeight: 'loose',
+            theme: 'dark',
+            fontFamily: 'serif',
+            autoAdvance: true,
+          },
+        }),
+      ),
+    ).toEqual(DEFAULT_READER_SETTINGS);
+
+    expect(
+      parseReaderSettings(
+        JSON.stringify({
+          fontSize: 'xl',
+          lineHeight: 'loose',
+          theme: 'dark',
+          fontFamily: 'serif',
+          autoAdvance: true,
+        }),
+      ),
+    ).toEqual(DEFAULT_READER_SETTINGS);
+  });
+
   it('sanitizes unknown values field by field', () => {
     expect(
       parseReaderSettings(
         JSON.stringify({
-          fontSize: 'huge',
-          lineHeight: 'default',
-          theme: 'sepia',
-          fontFamily: 'mono',
-          autoAdvance: 'yes',
+          version: 1,
+          settings: {
+            fontSize: 'huge',
+            lineHeight: 'default',
+            theme: 'sepia',
+            fontFamily: 'mono',
+            autoAdvance: 'yes',
+          },
         }),
       ),
     ).toEqual({ ...DEFAULT_READER_SETTINGS, lineHeight: 'default', theme: 'sepia' });
@@ -63,7 +98,10 @@ describe('reader settings', () => {
 
     saveReaderSettings(storage, settings);
 
-    expect(storage.setItem).toHaveBeenCalledWith(READER_SETTINGS_KEY, JSON.stringify(settings));
+    expect(storage.setItem).toHaveBeenCalledWith(
+      READER_SETTINGS_KEY,
+      JSON.stringify({ version: 1, settings }),
+    );
     expect(loadReaderSettings(storage)).toEqual(settings);
   });
 
@@ -94,10 +132,13 @@ describe('reader settings', () => {
     const storage = {
       getItem: vi.fn(() =>
         JSON.stringify({
-          fontSize: 'huge',
-          lineHeight: 'compact',
-          theme: 'sepia',
-          fontFamily: 'serif',
+          version: 1,
+          settings: {
+            fontSize: 'huge',
+            lineHeight: 'compact',
+            theme: 'sepia',
+            fontFamily: 'serif',
+          },
         }),
       ),
       setItem: vi.fn(),
