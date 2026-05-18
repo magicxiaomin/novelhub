@@ -4,9 +4,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { ReaderContent } from '@/components/reader/reader-content';
+import { buildReaderChapterJsonLd, buildReaderChapterMetadata } from '@/lib/reader-metadata';
+import { safeJsonLd } from '@/lib/json-ld';
 import { fetchBookChaptersServer, fetchBookServer, fetchChapterServer } from '@/lib/server-api';
 import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from '@/lib/types';
-import { messages } from '@novelhub/shared';
 
 type ReaderPageProps = {
   params: {
@@ -18,13 +19,11 @@ type ReaderPageProps = {
 export async function generateMetadata({ params }: ReaderPageProps): Promise<Metadata> {
   const resolved = await resolveReaderChapter(params.bookId, params.chapterNumber);
   if (!resolved) return {};
-  return {
-    title: resolved.chapter.title,
-    description: messages.reader.chapterDescription.replaceAll(
-      '{title}',
-      () => resolved.chapter.title,
-    ),
-  };
+  return buildReaderChapterMetadata({
+    book: resolved.book,
+    chapter: resolved.chapter,
+    canonicalPath: readerCanonicalPath(params.bookId, resolved.chapterNumber),
+  });
 }
 
 export default async function ReaderPage({ params }: ReaderPageProps): Promise<JSX.Element> {
@@ -32,14 +31,45 @@ export default async function ReaderPage({ params }: ReaderPageProps): Promise<J
   if (!resolved) notFound();
 
   return (
-    <ReaderContent
-      chapter={resolved.chapter}
-      initialChapters={resolved.chapters}
-      currentUrl={`/read/${encodeURIComponent(params.bookId)}/${resolved.chapterNumber}`}
-      bookTitle={resolved.book.title}
-      bookCover={resolved.book.coverUrl}
+    <>
+      <ReaderChapterJsonLd
+        book={resolved.book}
+        chapter={resolved.chapter}
+        canonicalPath={readerCanonicalPath(params.bookId, resolved.chapterNumber)}
+      />
+      <ReaderContent
+        chapter={resolved.chapter}
+        initialChapters={resolved.chapters}
+        currentUrl={readerCanonicalPath(params.bookId, resolved.chapterNumber)}
+        bookTitle={resolved.book.title}
+        bookCover={resolved.book.coverUrl}
+      />
+    </>
+  );
+}
+
+function ReaderChapterJsonLd({
+  book,
+  chapter,
+  canonicalPath,
+}: {
+  book: BookDetail;
+  chapter: ChapterResponse;
+  canonicalPath: string;
+}): JSX.Element {
+  const data = buildReaderChapterJsonLd({ book, chapter, canonicalPath });
+  return (
+    <script
+      type="application/ld+json"
+      // Encode for a <script> context so chapter metadata cannot terminate
+      // this JSON-LD block and run as HTML/JS.
+      dangerouslySetInnerHTML={{ __html: safeJsonLd(data) }}
     />
   );
+}
+
+function readerCanonicalPath(bookId: string, chapterNumber: number): string {
+  return `/read/${encodeURIComponent(bookId)}/${chapterNumber}`;
 }
 
 async function resolveReaderChapter(
