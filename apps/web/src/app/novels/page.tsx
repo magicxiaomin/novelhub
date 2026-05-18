@@ -19,21 +19,18 @@ import { messages } from '@novelhub/shared';
 export const runtime = 'edge';
 
 export const metadata: Metadata = {
-  title: 'Browse Web Novels — NovelHub',
-  description:
-    'Browse serialized web novels, discover trending stories, and start free chapters on NovelHub.',
+  title: messages.metadata.novels.title,
+  description: messages.metadata.novels.description,
   openGraph: {
-    title: 'Browse Web Novels — NovelHub',
-    description:
-      'Browse serialized web novels, discover trending stories, and start free chapters on NovelHub.',
+    title: messages.metadata.novels.title,
+    description: messages.metadata.novels.description,
     type: 'website',
-    images: [{ url: '/og/novels.png', alt: 'Browse NovelHub web novels' }],
+    images: [{ url: '/og/novels.png', alt: messages.metadata.novels.ogAlt }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Browse Web Novels — NovelHub',
-    description:
-      'Browse serialized web novels, discover trending stories, and start free chapters on NovelHub.',
+    title: messages.metadata.novels.title,
+    description: messages.metadata.novels.description,
     images: ['/og/novels.png'],
   },
 };

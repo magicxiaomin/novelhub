@@ -15,6 +15,12 @@
   "metadata": {
     "title": "NovelHub — Read Addictive Web Novels",
     "description": "Discover serialized web novels, read free chapters, and unlock more with coins or a subscription.",
+    "homeOgAlt": "NovelHub web novels",
+    "novels": {
+      "title": "Browse Web Novels — NovelHub",
+      "description": "Browse serialized web novels, discover trending stories, and start free chapters on NovelHub.",
+      "ogAlt": "Browse NovelHub web novels"
+    },
     "coverAltTemplate": "Cover art for {bookTitle}"
   },
   "nav": {
@@ -40,6 +46,8 @@
     "loadMoreChapters": "Load more chapters",
     "free": "Free",
     "locked": "Locked",
+    "loadingMoreChapters": "Loading more chapters",
+    "chaptersLoadError": "Chapters could not be loaded. Please try again.",
     "showLess": "Show less",
     "readMore": "Read more",
     "emptyChaptersTitle": "No chapters available yet",

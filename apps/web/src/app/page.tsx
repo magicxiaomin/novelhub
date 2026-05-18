@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     title: messages.metadata.title,
     description: messages.metadata.description,
     type: 'website',
-    images: [{ url: '/og/novelhub-home.png', alt: 'NovelHub web novels' }],
+    images: [{ url: '/og/novelhub-home.png', alt: messages.metadata.homeOgAlt }],
   },
   twitter: {
     card: 'summary_large_image',

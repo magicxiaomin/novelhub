@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const bookId = '19500000-0000-4195-8195-000000000198';
 
-test('locked chapter subscription checkout uses the current reader URL as mocked returnUrl', async ({
+test('locked chapter subscription checkout posts the current reader URL as mocked returnUrl', async ({
   page,
   baseURL,
 }) => {
