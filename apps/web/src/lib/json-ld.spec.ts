@@ -36,7 +36,9 @@ describe('safeJsonLd', () => {
 
 describe('buildBookJsonLd', () => {
   it('emits valid Book JSON-LD with the resolved book cover', () => {
-    expect(buildBookJsonLd(book, 4.7)).toEqual({
+    const jsonLd = buildBookJsonLd(book, 4.7);
+
+    expect(jsonLd).toEqual({
       '@context': 'https://schema.org',
       '@type': 'Book',
       name: 'Moonlit Contract',
@@ -54,6 +56,29 @@ describe('buildBookJsonLd', () => {
         bestRating: '5',
       },
     });
+    expect(jsonLd).toMatchInlineSnapshot(`
+      {
+        "@context": "https://schema.org",
+        "@type": "Book",
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "bestRating": "5",
+          "ratingValue": "4.7",
+          "reviewCount": "1",
+        },
+        "author": {
+          "@type": "Person",
+          "name": "A. Writer",
+        },
+        "bookFormat": "https://schema.org/EBook",
+        "description": "A forbidden romance with enough twists to hook ad traffic previews.",
+        "genre": "Romance",
+        "image": "https://cdn.example.com/covers/moonlit.jpg",
+        "keywords": "werewolf, fated mates",
+        "name": "Moonlit Contract",
+        "numberOfPages": 88,
+      }
+    `);
   });
 
   it('uses the shared cover fallback chain for JSON-LD image', () => {
