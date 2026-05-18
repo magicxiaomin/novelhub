@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +50,10 @@ export default async function NovelsPage({
     fetchBookCategoriesServer(),
   ]);
   const totalPages = Math.max(1, Math.ceil(books.total / books.limit));
+  if (booksQuery.page > totalPages) {
+    redirect(buildNovelsHref(filters, { page: totalPages }));
+  }
+
   const hasActiveFilters = Boolean(filters.category || filters.status);
 
   return (

@@ -27,6 +27,12 @@ describe('novels filters', () => {
     expect(parseNovelsFilters({ status: ['ONGOING', 'COMPLETED'], page: 'abc' })).toEqual({});
   });
 
+  it('normalizes malformed and out-of-range page values to the first page', () => {
+    expect(parseNovelsFilters({ page: '-2' })).toEqual({});
+    expect(parseNovelsFilters({ page: '1.5' })).toEqual({});
+    expect(parseNovelsFilters({ page: '999999999999' })).toEqual({});
+  });
+
   it('builds filter hrefs with page reset when category or status changes', () => {
     const current = { category: 'Werewolf', status: 'ONGOING' as const, page: 4 };
 
@@ -48,6 +54,16 @@ describe('novels filters', () => {
     expect(
       buildNovelsHref(current, { category: undefined, status: undefined, page: undefined }),
     ).toBe('/novels');
+  });
+
+  it('omits first page and out-of-range page href values', () => {
+    const current = { category: 'ROMANCE', status: 'COMPLETED' as const, page: 2 };
+
+    expect(buildNovelsHref(current, { page: 1 })).toBe('/novels?category=ROMANCE&status=COMPLETED');
+    expect(buildNovelsHref(current, { page: 0 })).toBe('/novels?category=ROMANCE&status=COMPLETED');
+    expect(buildNovelsHref(current, { page: 999999999999 })).toBe(
+      '/novels?category=ROMANCE&status=COMPLETED',
+    );
   });
 
   it('documents the status filter values sent to the worker books contract', () => {

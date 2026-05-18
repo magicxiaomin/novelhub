@@ -86,6 +86,9 @@ export async function fetchBooksServer(query?: {
   page?: number;
   limit?: number;
 }): Promise<Paginated<BookSummary>> {
+  const novelFixtures = await loadNovelE2eFixtures();
+  if (novelFixtures) return novelFixtures.novelE2eFixtureBookList(query);
+
   const res = await fetch(buildServerApiUrl('/books', query), {
     cache: 'no-store',
   });
@@ -96,6 +99,9 @@ export async function fetchBooksServer(query?: {
 }
 
 export async function fetchBookCategoriesServer(): Promise<CategoryCount[]> {
+  const novelFixtures = await loadNovelE2eFixtures();
+  if (novelFixtures) return novelFixtures.novelE2eFixtureCategories;
+
   const res = await fetch(buildServerApiUrl('/books/categories'), {
     cache: 'no-store',
   });

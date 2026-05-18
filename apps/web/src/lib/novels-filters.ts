@@ -26,6 +26,8 @@ export type NovelsBooksListQuery = {
   limit: number;
 };
 
+const maxNovelsPage = 1000;
+
 const singleValue = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? undefined : value;
 
@@ -38,7 +40,10 @@ export const parseNovelsFilters = (searchParams: NovelsSearchParams = {}): Novel
   const pageValue = singleValue(searchParams.page);
   const parsedPage = pageValue ? Number(pageValue) : undefined;
   const page =
-    Number.isInteger(parsedPage) && parsedPage !== undefined && parsedPage > 1
+    Number.isInteger(parsedPage) &&
+    parsedPage !== undefined &&
+    parsedPage > 1 &&
+    parsedPage <= maxNovelsPage
       ? parsedPage
       : undefined;
 
@@ -60,7 +65,9 @@ export const buildNovelsHref = (
   const params = new URLSearchParams();
   if (filters.category) params.set('category', filters.category);
   if (filters.status) params.set('status', filters.status);
-  if (filters.page && filters.page > 1) params.set('page', String(filters.page));
+  if (filters.page && filters.page > 1 && filters.page <= maxNovelsPage) {
+    params.set('page', String(filters.page));
+  }
 
   const query = params.toString();
   return query ? `/novels?${query}` : '/novels';
