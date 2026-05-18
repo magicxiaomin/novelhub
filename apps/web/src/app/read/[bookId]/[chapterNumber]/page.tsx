@@ -119,13 +119,19 @@ async function resolveReaderChapter(
 }
 
 async function fetchMoreLikeThis(book: BookDetail): Promise<BookSummary[]> {
-  const candidates = await fetchBooksServer({
-    category: book.category,
-    status: book.status,
-    page: 1,
-    limit: MORE_LIKE_THIS_FETCH_LIMIT,
-  });
-  return selectMoreLikeThisBooks(book.id, candidates.items);
+  try {
+    const candidates = await fetchBooksServer({
+      category: book.category,
+      status: book.status,
+      page: 1,
+      limit: MORE_LIKE_THIS_FETCH_LIMIT,
+    });
+    return selectMoreLikeThisBooks(book.id, candidates.items);
+  } catch {
+    // Recommendations are optional. Keep the reader/paywall usable if the
+    // related-books query is unavailable or unsupported in an environment.
+    return [];
+  }
 }
 
 async function fetchInitialChapters(
