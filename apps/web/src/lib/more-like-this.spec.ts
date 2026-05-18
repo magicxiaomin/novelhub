@@ -31,8 +31,12 @@ describe('selectMoreLikeThisBooks', () => {
     expect(selected.map((item) => item.id)).toEqual(['a', 'b', 'c', 'd']);
   });
 
-  it('omits the section when fewer than three other candidates are available', () => {
-    const selected = selectMoreLikeThisBooks('current', [book('current'), book('a'), book('b')]);
+  it.each([
+    ['zero', [book('current')]],
+    ['one', [book('current'), book('a')]],
+    ['two', [book('current'), book('a'), book('b')]],
+  ])('returns [] when %s other candidates are available', (_label, candidates) => {
+    const selected = selectMoreLikeThisBooks('current', candidates);
 
     expect(selected).toEqual([]);
   });

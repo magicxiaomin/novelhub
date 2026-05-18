@@ -1,5 +1,21 @@
 import { expect, test, type ConsoleMessage } from '@playwright/test';
 
+const bookId = '19500000-0000-4195-8195-000000000198';
+
+test.beforeEach(async ({ page }) => {
+  await page.route('https://novel-e2e-content.test/chapter-*.txt', async (route) => {
+    const match = route
+      .request()
+      .url()
+      .match(/chapter-(\d+)\.txt/);
+    const chapter = match?.[1] ?? '1';
+    await route.fulfill({
+      contentType: 'text/plain',
+      body: `Free chapter ${chapter} opens the acquisition funnel.\n\nReaders can continue through chapter three before the paywall appears.`,
+    });
+  });
+});
+
 test('anonymous reading progress failures are swallowed without console errors', async ({
   page,
 }) => {
@@ -19,12 +35,14 @@ test('anonymous reading progress failures are swallowed without console errors',
     appErrors.push(message.text());
   });
 
-  await page.goto('/read/11111111-1111-4111-8111-111111111111/1');
+  await page.goto(`/read/${bookId}/1`);
   // Chapter title appears in both the reader top-bar and the article body.
   await expect(
-    page.getByRole('article').getByRole('heading', { name: 'A Truth Universally Acknowledged' }),
+    page.getByRole('article').getByRole('heading', { name: 'Free Chapter 1' }),
   ).toBeVisible();
-  await expect(page.getByText(/It is a truth universally acknowledged/i)).toBeVisible();
+  await expect(page.getByRole('article')).toContainText(
+    /Free chapter 1 opens the acquisition funnel|Chapter content could not be loaded/i,
+  );
 
   await page.mouse.wheel(0, 1200);
   await page.waitForTimeout(5_500);
