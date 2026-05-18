@@ -26,10 +26,28 @@ describe('ContinueReadingRailContent', () => {
     expect(html).toContain('href="/read/book%20with%20spaces/7"');
   });
 
-  it('renders an empty anonymous shelf when there are no entries', () => {
-    const html = renderToStaticMarkup(<ContinueReadingRailContent entries={[]} showEmptyState />);
+  it('renders no rail markup when there are no entries', () => {
+    const html = renderToStaticMarkup(<ContinueReadingRailContent entries={[]} />);
 
-    expect(html).toContain('Continue Reading');
-    expect(html).toContain('Start a free chapter to save your spot on this device.');
+    expect(html).toBe('');
+    expect(html).not.toContain('Continue Reading');
+    expect(html).not.toContain('Start a free chapter to save your spot on this device.');
+  });
+
+  it('caps rendered progress entries at 10 cards', () => {
+    const entries = Array.from({ length: 12 }, (_, index) =>
+      entry({
+        bookId: `book-${index + 1}`,
+        chapterId: `chapter-${index + 1}`,
+        bookTitle: `Book ${index + 1}`,
+      }),
+    );
+
+    const html = renderToStaticMarkup(<ContinueReadingRailContent entries={entries} />);
+
+    expect(html.match(/href="\/read\//g)).toHaveLength(10);
+    expect(html).toContain('Book 10');
+    expect(html).not.toContain('Book 11');
+    expect(html).not.toContain('Book 12');
   });
 });
