@@ -78,6 +78,12 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
   }
 
   const hasActiveFilters = Boolean(filters.category || filters.status);
+  const emptyStateTitle = hasActiveFilters
+    ? messages.novels.filteredEmptyTitle
+    : messages.novels.emptyTitle;
+  const emptyStateBody = hasActiveFilters
+    ? messages.novels.filteredEmptyBody
+    : messages.novels.emptyBody;
   const canonicalAffordance = buildCanonicalNovelsAffordance(searchParams);
 
   return (
@@ -145,9 +151,13 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
         </section>
 
         {books.items.length === 0 ? (
-          <div className="mt-10 rounded-2xl border border-dashed p-8 text-center">
-            <h2 className="text-lg font-semibold">{messages.novels.emptyTitle}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{messages.novels.emptyBody}</p>
+          <div
+            className="mt-10 rounded-2xl border border-dashed p-8 text-center"
+            role="status"
+            aria-live="polite"
+          >
+            <h2 className="text-lg font-semibold">{emptyStateTitle}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{emptyStateBody}</p>
             {hasActiveFilters ? (
               <Button asChild className="mt-5">
                 <Link href="/novels">{messages.novels.clearFilters}</Link>

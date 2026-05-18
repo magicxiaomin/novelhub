@@ -108,15 +108,31 @@ describe('novels canonical affordance', () => {
 });
 
 describe('novels route polish', () => {
-  it('keeps the empty state actionable without removing the clear-filters affordance', () => {
+  it('keeps filtered-zero state distinct, actionable, and announced politely', () => {
     const source = readNovelsRouteFile('page.tsx');
 
-    expect(messages.novels.emptyTitle).toBe('No matching novels yet');
-    expect(messages.novels.emptyBody).toContain('Clear filters');
-    expect(source).toContain('messages.novels.emptyTitle');
-    expect(source).toContain('messages.novels.emptyBody');
-    expect(source).toContain('messages.novels.clearFilters');
+    expect(messages.novels.filteredEmptyTitle).toBe('No novels match these filters');
+    expect(messages.novels.filteredEmptyBody).toContain('Try clearing filters');
+    expect(messages.novels.filteredEmptyTitle).not.toBe(messages.novels.emptyTitle);
+    expect(messages.novels.filteredEmptyBody).not.toBe(messages.novels.emptyBody);
+    expect(source).toContain('messages.novels.filteredEmptyTitle');
+    expect(source).toContain('messages.novels.filteredEmptyBody');
+    expect(source).toContain('role="status"');
+    expect(source).toContain('aria-live="polite"');
     expect(source).toContain('<Link href="/novels">{messages.novels.clearFilters}</Link>');
+  });
+
+  it('keeps the truly-empty catalog state free of misleading filter reset copy', () => {
+    const source = readNovelsRouteFile('page.tsx');
+
+    expect(messages.novels.emptyTitle).toBe('No novels are available yet');
+    expect(messages.novels.emptyBody).toContain('New stories are coming soon');
+    expect(messages.novels.emptyBody).not.toContain('filter');
+    expect(messages.novels.emptyBody).not.toContain('Clear filters');
+    expect(source).toContain('const emptyStateTitle = hasActiveFilters');
+    expect(source).toContain('const emptyStateBody = hasActiveFilters');
+    expect(source).toContain('? messages.novels.filteredEmptyTitle');
+    expect(source).toContain('? messages.novels.filteredEmptyBody');
   });
 
   it('adds a retryable novels route error boundary that returns to novels', () => {
