@@ -19,13 +19,6 @@ test.beforeEach(async ({ page }) => {
 test('anonymous reading progress failures are swallowed without console errors', async ({
   page,
 }) => {
-  await page.route('https://novel-e2e-content.test/**', async (route) => {
-    await route.fulfill({
-      contentType: 'text/plain',
-      body: 'It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.\n\nThis deterministic fixture keeps the anonymous reading-progress smoke test independent from external chapter storage.',
-    });
-  });
-
   const appErrors: string[] = [];
   page.on('console', (message: ConsoleMessage) => {
     if (message.type() !== 'error') return;
