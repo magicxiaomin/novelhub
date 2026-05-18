@@ -10,6 +10,12 @@
  */
 import { z } from 'zod';
 
+const uuidV4Field = z
+  .string()
+  .uuid()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, {
+    message: 'Invalid UUID v4',
+  });
 const pageField = z.coerce.number().int().min(1).optional();
 const limitField = z.coerce.number().int().min(1).max(100).optional();
 
@@ -24,15 +30,19 @@ export const listUnlocksQuerySchema = z.object({
   bookId: z.string().uuid().optional(),
 });
 
-export const listProgressQuerySchema = z.object({
-  bookId: z.string().uuid().optional(),
-  chapterId: z.string().uuid().optional(),
-});
+export const listProgressQuerySchema = z
+  .object({
+    bookId: uuidV4Field.optional(),
+    chapterId: uuidV4Field.optional(),
+  })
+  .strict();
 
-export const saveProgressBodySchema = z.object({
-  chapterId: z.string().uuid(),
-  scrollPercent: z.coerce.number().min(0).max(100),
-});
+export const saveProgressBodySchema = z
+  .object({
+    chapterId: uuidV4Field,
+    scrollPercent: z.coerce.number().min(0).max(100),
+  })
+  .strict();
 
 export type ListTransactionsQuery = z.infer<typeof listTransactionsQuerySchema>;
 export type ListUnlocksQuery = z.infer<typeof listUnlocksQuerySchema>;
