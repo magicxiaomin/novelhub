@@ -144,17 +144,19 @@ describe('BooksService', () => {
   ): {
     service: BooksService;
     cache: CacheClient & { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+    prisma: ReturnType<typeof buildPrismaStub>;
   } => {
     const cache = {
       get: jest.fn(async () => null),
       set: jest.fn(async () => undefined),
       del: jest.fn(async () => undefined),
     };
+    const prisma = buildPrismaStub(state);
     const deps = {
-      prisma: buildPrismaStub(state),
+      prisma,
       cache,
     } as unknown as BooksServiceDeps;
-    return { service: new BooksService(deps), cache: cache as never };
+    return { service: new BooksService(deps), cache: cache as never, prisma };
   };
 
   const buildState = () => ({
@@ -221,6 +223,18 @@ describe('BooksService', () => {
     expect(out.items[0]?.id).toBe('b1');
   });
 
+  it('list adds id as a deterministic secondary sort key for tied createdAt rows', async () => {
+    const { service, prisma } = await buildService(buildState());
+    await service.list({ page: 2, limit: 1 });
+    expect(prisma.book.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        skip: 1,
+        take: 1,
+      }),
+    );
+  });
+
   it('list returns cached value on cache hit', async () => {
     const { service, cache } = await buildService(buildState());
     cache.get.mockResolvedValueOnce({
@@ -245,6 +259,32 @@ describe('BooksService', () => {
     const out = await service.search({ q: 'wolf' });
     expect(out.total).toBe(1);
     expect(out.items[0]?.id).toBe('b3');
+  });
+
+  it('search adds id as a deterministic secondary sort key for tied createdAt rows', async () => {
+    const { service, prisma } = await buildService(buildState());
+    await service.search({ q: 'sarah', page: 2, limit: 1 });
+    expect(prisma.book.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        skip: 1,
+        take: 1,
+      }),
+    );
+  });
+
+  it('featured and trending lists add id as a deterministic secondary sort key', async () => {
+    const { service, prisma } = await buildService(buildState());
+    await service.featured();
+    await service.trending();
+    expect(prisma.book.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ orderBy: [{ createdAt: 'desc' }, { id: 'asc' }] }),
+    );
+    expect(prisma.book.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ orderBy: [{ createdAt: 'desc' }, { id: 'asc' }] }),
+    );
   });
 
   it('search matches author', async () => {
