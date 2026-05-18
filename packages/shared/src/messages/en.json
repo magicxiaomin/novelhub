@@ -52,7 +52,13 @@
     "showLess": "Show less",
     "readMore": "Read more",
     "emptyChaptersTitle": "No chapters available yet",
-    "emptyChaptersBody": "Check back soon for the first chapter."
+    "emptyChaptersBody": "Check back soon for the first chapter.",
+    "chapter": "chapter",
+    "chaptersLower": "chapters",
+    "freeChapter": "free chapter",
+    "freeChapters": "free chapters",
+    "statusOngoing": "Ongoing",
+    "statusCompleted": "Completed"
   },
   "home": {
     "trending": "Trending",
