@@ -79,7 +79,8 @@
     "paginationLabel": "Novel pages",
     "previousPage": "Previous",
     "nextPage": "Next",
-    "pageCount": "Page {page} of {pages}"
+    "pageCount": "Page {page} of {pages}",
+    "filteredViewCanonicalCta": "Filtered view — see all novels"
   },
   "checkin": {
     "title": "Daily check-in",

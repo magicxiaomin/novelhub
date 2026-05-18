@@ -47,9 +47,32 @@ type NovelsPageProps = {
   searchParams?: NovelsSearchParams;
 };
 
-export async function generateMetadata({ searchParams }: NovelsPageProps): Promise<Metadata> {
+type CanonicalNovelsAffordance = {
+  href: typeof novelsCanonicalPath;
+  label: string;
+};
+
+export function shouldShowCanonicalNovelsAffordance(searchParams?: NovelsSearchParams): boolean {
   const filters = parseNovelsFilters(searchParams);
-  const hasFilteredView = Boolean(filters.category || filters.status || filters.page);
+
+  return Boolean(filters.category || filters.status || filters.page);
+}
+
+export function buildCanonicalNovelsAffordance(
+  searchParams?: NovelsSearchParams,
+): CanonicalNovelsAffordance | null {
+  if (!shouldShowCanonicalNovelsAffordance(searchParams)) {
+    return null;
+  }
+
+  return {
+    href: novelsCanonicalPath,
+    label: messages.novels.filteredViewCanonicalCta,
+  };
+}
+
+export async function generateMetadata({ searchParams }: NovelsPageProps): Promise<Metadata> {
+  const hasFilteredView = shouldShowCanonicalNovelsAffordance(searchParams);
 
   return {
     ...baseMetadata,
@@ -70,6 +93,7 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
   }
 
   const hasActiveFilters = Boolean(filters.category || filters.status);
+  const canonicalAffordance = buildCanonicalNovelsAffordance(searchParams);
 
   return (
     <AppShell>
@@ -122,6 +146,17 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
               </FilterLink>
             ))}
           </FilterGroup>
+
+          {canonicalAffordance ? (
+            <p className="text-sm text-muted-foreground">
+              <Link
+                className="font-medium text-primary underline-offset-4 hover:underline"
+                href={canonicalAffordance.href}
+              >
+                {canonicalAffordance.label}
+              </Link>
+            </p>
+          ) : null}
         </section>
 
         {books.items.length === 0 ? (

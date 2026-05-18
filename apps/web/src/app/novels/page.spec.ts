@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { generateMetadata } from './page';
+import {
+  buildCanonicalNovelsAffordance,
+  generateMetadata,
+  shouldShowCanonicalNovelsAffordance,
+} from './page';
 import { messages } from '@novelhub/shared';
 
 describe('novels page metadata', () => {
@@ -44,5 +48,24 @@ describe('novels page metadata', () => {
 
     expect(metadata.robots).toMatchObject({ index: false, follow: true });
     expect(metadata.alternates).toMatchObject({ canonical: '/novels' });
+  });
+});
+
+describe('novels canonical affordance', () => {
+  it.each([
+    ['category-filtered views', { category: 'Werewolf' }],
+    ['status-filtered views', { status: 'ONGOING' }],
+    ['page-only paginated views', { page: '2' }],
+  ])('shows on %s', (_label, searchParams) => {
+    expect(shouldShowCanonicalNovelsAffordance(searchParams)).toBe(true);
+    expect(buildCanonicalNovelsAffordance(searchParams)).toEqual({
+      href: '/novels',
+      label: messages.novels.filteredViewCanonicalCta,
+    });
+  });
+
+  it('does not show on the unfiltered canonical novels view', () => {
+    expect(shouldShowCanonicalNovelsAffordance({})).toBe(false);
+    expect(buildCanonicalNovelsAffordance({})).toBeNull();
   });
 });
