@@ -34,6 +34,20 @@ const chapters: ChapterSummary[] = [
 ];
 
 describe('ChapterList loading and error states', () => {
+  it('labels locked chapter icons without adding unlabeled icon-only controls to the list', () => {
+    queryState = { data: undefined, isFetching: false };
+
+    const html = renderToStaticMarkup(
+      <ChapterList bookId="book-1" chapters={chapters} totalChapters={2} />,
+    );
+
+    expect(html).toContain('href="/read/book-1/1"');
+    expect(html).toContain('href="/read/book-1/2"');
+    expect(html).toContain('aria-label="Locked"');
+    expect(html).toContain('Free');
+    expect(html).not.toContain('<button');
+  });
+
   it('shows a loading affordance and disables loading while more chapters are being fetched', () => {
     queryState = { data: undefined, isFetching: true };
 

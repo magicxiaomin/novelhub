@@ -22,6 +22,7 @@ describe('SettingsDrawer accessibility', () => {
 
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-label="Settings"');
+    expect(html).toContain('tabindex="-1"');
     expect(html).toContain('role="radiogroup"');
     expect(html).toContain('aria-label="Font size"');
     expect(html).toContain('aria-label="Line height"');
@@ -29,5 +30,20 @@ describe('SettingsDrawer accessibility', () => {
     expect(html).toContain('aria-label="Font"');
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('type="checkbox"');
+  });
+
+  it('keeps the closed drawer hidden from assistive tech while preserving a focus target for reopen', () => {
+    const html = renderToStaticMarkup(
+      <SettingsDrawer
+        open={false}
+        settings={DEFAULT_READER_SETTINGS}
+        onChange={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('tabindex="-1"');
   });
 });
