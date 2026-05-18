@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { BookCard } from './book-card';
+import { BookCard, BookCardSkeleton } from './book-card';
 import type { BookSummary } from '@/lib/types';
 
 const baseBook: BookSummary = {
@@ -67,5 +67,28 @@ describe('BookCard metadata', () => {
     expect(html).not.toContain('rounded-full bg-muted px-1.5');
     expect(html).not.toContain('undefined');
     expect(html).not.toContain('NaN');
+  });
+});
+
+describe('BookCardSkeleton', () => {
+  it('matches the medium BookCard footprint without exposing busy content', () => {
+    const html = renderToStaticMarkup(<BookCardSkeleton />);
+
+    expect(html).toContain('w-36');
+    expect(html).toContain('aspect-[3/4]');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('data-testid="book-card-skeleton"');
+    expect(html).not.toContain('href=');
+  });
+
+  it('matches the small BookCard footprint and documents reduced-motion animation gating', () => {
+    const html = renderToStaticMarkup(<BookCardSkeleton size="sm" />);
+
+    expect(html).toContain('w-28');
+    expect(html).toContain('motion-safe:animate-pulse');
+    expect(html).toContain('motion-reduce:animate-none');
+    expect(html).toMatchInlineSnapshot(`
+      "<div class="flex shrink-0 flex-col gap-2 w-28" aria-hidden="true" data-testid="book-card-skeleton"><div class="relative overflow-hidden rounded-xl bg-muted motion-safe:animate-pulse motion-reduce:animate-none aspect-[3/4] w-28"></div><div class="flex flex-col gap-1"><div class="h-8 rounded-md bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div><div class="h-3 w-20 rounded-md bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div><div class="mt-1 flex gap-1"><div class="h-5 w-10 rounded-full bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div><div class="h-5 w-12 rounded-full bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div></div><div class="h-3 w-24 rounded-md bg-muted motion-safe:animate-pulse motion-reduce:animate-none"></div></div></div>"
+    `);
   });
 });

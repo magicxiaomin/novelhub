@@ -86,7 +86,8 @@
     "previousPage": "Previous",
     "nextPage": "Next",
     "pageCount": "Page {page} of {pages}",
-    "filteredViewCanonicalCta": "Filtered view — see all novels"
+    "filteredViewCanonicalCta": "Filtered view — see all novels",
+    "loadingSkeletonLabel": "Loading novels"
   },
   "checkin": {
     "title": "Daily check-in",
