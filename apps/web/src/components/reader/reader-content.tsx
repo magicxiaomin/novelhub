@@ -40,6 +40,10 @@ const CHAPTER_LIMIT = 200;
 const MIN_PROGRESS_DELTA_PX = 8;
 let warnedProgressUnavailable = false;
 
+type AdjacentPrefetchRouter = {
+  prefetch: (href: string) => void;
+};
+
 export function ReaderContent({
   chapter,
   initialChapters,
@@ -65,6 +69,7 @@ export function ReaderContent({
   const restored = useRef(false);
   const countedRead = useRef(false);
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefetchedAdjacentHrefs = useRef(new Set<string>());
 
   // Scope the unlock fetch to the current book so a heavy reader (>1000
   // unlocks across the catalog) doesn't have later chapters of THIS book
@@ -187,6 +192,17 @@ export function ReaderContent({
     if (chapter.isLocked) return null;
     return hrefForChapterId(chapter.bookId, chapters, chapter.prevChapterId);
   }, [chapter, chapters]);
+
+  useEffect(() => {
+    prefetchAdjacentReaderRoutes(router, {
+      prevHref: prefetchedAdjacentHrefs.current.has(prevHref ?? '') ? null : prevHref,
+      nextHref: prefetchedAdjacentHrefs.current.has(nextHref ?? '') ? null : nextHref,
+    });
+    if (!isReducedDataPreferred()) {
+      if (prevHref) prefetchedAdjacentHrefs.current.add(prevHref);
+      if (nextHref) prefetchedAdjacentHrefs.current.add(nextHref);
+    }
+  }, [nextHref, prevHref, router]);
 
   useEffect(() => {
     if (chapter.isLocked || !settings.autoAdvance || !nextHref) return;
@@ -315,6 +331,23 @@ function hrefForChapterId(
   if (!chapterId) return null;
   const chapter = chapters.find((item) => item.id === chapterId);
   return chapter ? `/read/${bookId}/${chapter.order}` : null;
+}
+
+export function prefetchAdjacentReaderRoutes(
+  router: AdjacentPrefetchRouter,
+  hrefs: { prevHref: string | null; nextHref: string | null },
+): void {
+  if (isReducedDataPreferred()) return;
+  if (hrefs.prevHref) router.prefetch(hrefs.prevHref);
+  if (hrefs.nextHref) router.prefetch(hrefs.nextHref);
+}
+
+function isReducedDataPreferred(): boolean {
+  const navigatorWithConnection = globalThis.navigator as
+    | (Navigator & { connection?: { saveData?: boolean } })
+    | undefined;
+  if (navigatorWithConnection?.connection?.saveData === true) return true;
+  return globalThis.matchMedia?.('(prefers-reduced-data: reduce)').matches === true;
 }
 
 function styleForSettings(settings: ReaderSettings): {
