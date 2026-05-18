@@ -67,6 +67,8 @@ vi.mock('@/lib/utils', () => ({
 
 import {
   calculateReaderScrollProgress,
+  getReaderKeyboardShortcutAction,
+  isReaderKeyboardShortcutTarget,
   isReducedMotionPreferred,
   loadReaderScrollRestoreY,
   prefetchAdjacentReaderRoutes,
@@ -157,6 +159,24 @@ describe('ReaderContent scroll progress indicator', () => {
 
     expect(html).toContain('type="button"');
     expect(html).toContain('aria-label="Toggle reader controls"');
+  });
+
+  it('labels the keyboard shortcuts trigger and overlay for assistive tech', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={baseChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('aria-label="Reader keyboard shortcuts"');
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('Keyboard shortcuts');
+    expect(html).toContain('Press ? for keyboard shortcuts');
   });
 
   it('omits progress transition classes when reduced motion is preferred', () => {
@@ -282,5 +302,29 @@ describe('prefetchAdjacentReaderRoutes', () => {
     }
 
     expect(router.prefetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('reader keyboard shortcuts', () => {
+  it('maps navigation and help keys while leaving unrelated keys unhandled', () => {
+    expect(getReaderKeyboardShortcutAction({ key: 'ArrowLeft' })).toBe('previous');
+    expect(getReaderKeyboardShortcutAction({ key: 'ArrowRight' })).toBe('next');
+    expect(getReaderKeyboardShortcutAction({ key: '?' })).toBe('help');
+    expect(getReaderKeyboardShortcutAction({ key: 'Escape' })).toBe('close-help');
+    expect(getReaderKeyboardShortcutAction({ key: 'h' })).toBe('help');
+    expect(getReaderKeyboardShortcutAction({ key: 'H', shiftKey: true })).toBe('help');
+    expect(getReaderKeyboardShortcutAction({ key: 'ArrowUp' })).toBeNull();
+  });
+
+  it('ignores shortcuts from editable targets', () => {
+    const input = { tagName: 'INPUT', isContentEditable: false } as HTMLElement;
+    const textarea = { tagName: 'TEXTAREA', isContentEditable: false } as HTMLElement;
+    const editable = { tagName: 'DIV', isContentEditable: true } as HTMLElement;
+    const button = { tagName: 'BUTTON', isContentEditable: false } as HTMLElement;
+
+    expect(isReaderKeyboardShortcutTarget(input)).toBe(false);
+    expect(isReaderKeyboardShortcutTarget(textarea)).toBe(false);
+    expect(isReaderKeyboardShortcutTarget(editable)).toBe(false);
+    expect(isReaderKeyboardShortcutTarget(button)).toBe(true);
   });
 });

@@ -322,6 +322,13 @@
     "autoAdvance": "Auto-advance to next chapter",
     "progressUnavailable": "Reading progress sync is unavailable.",
     "scrollProgress": "Reader scroll progress",
+    "keyboardShortcuts": "Keyboard shortcuts",
+    "keyboardShortcutsHelp": "Reader keyboard shortcuts",
+    "keyboardShortcutsHint": "Press ? for keyboard shortcuts",
+    "keyboardShortcutPrevious": "Previous chapter",
+    "keyboardShortcutNext": "Next chapter",
+    "keyboardShortcutHelp": "Open keyboard shortcuts",
+    "keyboardShortcutDismiss": "Dismiss this help",
     "moreLikeThis": "More like this",
     "browseAllNovels": "Browse all novels",
     "noChapters": "No chapters found"
