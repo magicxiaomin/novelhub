@@ -147,7 +147,7 @@ class ClaudeReviewValidationTest(unittest.TestCase):
         fallback.assert_called_once()
         self.assertIn("output is too short", fallback.call_args.args[1])
 
-    def test_security_short_primary_and_invalid_fallback_fails_closed(self) -> None:
+    def test_security_short_primary_and_invalid_fallback_emits_comment_for_non_docs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             diff_path = Path(tmpdir) / "pr.diff.trimmed"
             diff_path.write_text("diff --git a/apps/api/src/auth.ts b/apps/api/src/auth.ts\n+code change\n", encoding="utf-8")
@@ -164,10 +164,14 @@ class ClaudeReviewValidationTest(unittest.TestCase):
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                     exit_code = claude_security_review.main()
 
-        self.assertEqual(exit_code, 3)
-        self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("fallback invalid", stderr.getvalue())
-        self.assertNotIn("APPROVE", stdout.getvalue())
+        output = stdout.getvalue()
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertIn("fallback invalid", output)
+        self.assertIn("### Verdict: COMMENT", output)
+        self.assertIn("auto-merge remains blocked", output)
+        self.assertNotIn("### Verdict: APPROVE", output)
+        self.assertIsNone(claude_security_review.validate_review(output))
 
     def test_security_docs_only_invalid_primary_and_fallback_gets_deterministic_approve(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
