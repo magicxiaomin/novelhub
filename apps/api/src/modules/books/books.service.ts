@@ -23,6 +23,10 @@ const DEFAULT_CHAPTER_PAGE_SIZE = 50;
 const TRENDING_LIMIT = 20;
 const FEATURED_LIMIT = 10;
 const DETAIL_CHAPTER_PREVIEW = 10;
+const STABLE_BOOK_LIST_ORDER = [
+  { createdAt: 'desc' },
+  { id: 'asc' },
+] satisfies Prisma.BookOrderByWithRelationInput[];
 
 const toBookSummary = (book: {
   id: string;
@@ -90,7 +94,7 @@ export class BooksService {
     const [items, total] = await Promise.all([
       this.prisma.book.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: STABLE_BOOK_LIST_ORDER,
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -114,7 +118,7 @@ export class BooksService {
 
     const books = await this.prisma.book.findMany({
       where: { deletedAt: null, isFeatured: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: STABLE_BOOK_LIST_ORDER,
       take: FEATURED_LIMIT,
     });
     const result = books.map(toBookSummary);
@@ -129,7 +133,7 @@ export class BooksService {
 
     const books = await this.prisma.book.findMany({
       where: { deletedAt: null },
-      orderBy: { createdAt: 'desc' },
+      orderBy: STABLE_BOOK_LIST_ORDER,
       take: TRENDING_LIMIT,
     });
     const result = books.map(toBookSummary);
@@ -174,7 +178,7 @@ export class BooksService {
     const [items, total] = await Promise.all([
       this.prisma.book.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: STABLE_BOOK_LIST_ORDER,
         skip: (page - 1) * limit,
         take: limit,
       }),
