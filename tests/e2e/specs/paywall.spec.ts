@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+const bookId = '19500000-0000-4195-8195-000000000198';
+
 test('anonymous visitor sees the paywall on a paid chapter', async ({ page }) => {
-  await page.goto('/read/11111111-1111-4111-8111-111111111111/4');
+  await page.goto(`/read/${bookId}/4`);
 
   await expect(page.getByText('Chapter locked')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Subscribe', exact: true })).toBeVisible();
