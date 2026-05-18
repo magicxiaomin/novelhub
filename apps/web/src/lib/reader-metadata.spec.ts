@@ -60,6 +60,19 @@ describe('buildReaderChapterMetadata', () => {
     expect(metadata.alternates).toEqual({
       canonical: 'https://novelhub.example/read/reader-book-281/2',
     });
+    expect(metadata.openGraph).toMatchObject({
+      title: 'Unlocked Chapter <safe>',
+      description: 'Read Unlocked Chapter <safe> on NovelHub.',
+      type: 'article',
+      url: 'https://novelhub.example/read/reader-book-281/2',
+      images: [{ url: book.coverUrl, alt: 'Cover art for Canonical Dawn' }],
+    });
+    expect(metadata.twitter).toMatchObject({
+      card: 'summary_large_image',
+      title: 'Unlocked Chapter <safe>',
+      description: 'Read Unlocked Chapter <safe> on NovelHub.',
+      images: [book.coverUrl],
+    });
   });
 
   it('uses safe existing chapter templates for locked chapters without leaking previews', () => {

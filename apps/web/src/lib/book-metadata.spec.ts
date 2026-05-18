@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildBookDetailMetadata,
@@ -25,10 +25,15 @@ const baseBook: BookDetail = {
 
 describe('buildBookDetailMetadata', () => {
   it('uses the book title, author, description, and cover image for Open Graph and Twitter previews', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://novelhub.example/base/?ignored=1');
+
     const metadata = buildBookDetailMetadata(baseBook);
 
     expect(metadata.title).toBe('Moonlit Contract — A. Writer');
     expect(metadata.description).toBe(baseBook.description);
+    expect(metadata.alternates).toEqual({
+      canonical: 'https://novelhub.example/book/book-1',
+    });
     expect(metadata.openGraph).toMatchObject({
       title: 'Moonlit Contract — A. Writer',
       description: baseBook.description,

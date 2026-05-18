@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { messages } from '@novelhub/shared';
 
+import { resolveBookCoverImage } from './book-metadata';
 import { absoluteAppUrl } from './site-url';
 import type { BookDetail, ChapterResponse } from './types';
 
@@ -10,7 +11,7 @@ type ReaderChapterForMetadata = Pick<ChapterResponse, 'title' | 'chapterNumber'>
 };
 
 type ReaderChapterMetadataInput = {
-  book: Pick<BookDetail, 'title' | 'author'>;
+  book: Pick<BookDetail, 'title' | 'author' | 'coverUrl' | 'category'>;
   chapter: ReaderChapterForMetadata;
   canonicalPath: string;
 };
@@ -31,16 +32,36 @@ export type ReaderChapterJsonLd = {
 };
 
 export function buildReaderChapterMetadata({
+  book,
   chapter,
   canonicalPath,
 }: ReaderChapterMetadataInput): Metadata {
   const description = messages.reader.chapterDescription.split('{title}').join(chapter.title);
+  const canonicalUrl = canonicalReaderUrl(canonicalPath);
+  const imageUrl = resolveBookCoverImage(book);
+  const image = {
+    url: imageUrl,
+    alt: messages.metadata.coverAltTemplate.replace('{bookTitle}', book.title),
+  };
 
   return {
     title: chapter.title,
     description,
     alternates: {
-      canonical: canonicalReaderUrl(canonicalPath),
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title: chapter.title,
+      description,
+      url: canonicalUrl,
+      images: [image],
+      type: 'article',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: chapter.title,
+      description,
+      images: [imageUrl],
     },
   };
 }
