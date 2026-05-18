@@ -1,13 +1,27 @@
 export const runtime = 'edge';
 
+import React from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { MoreLikeThis } from '@/components/reader/more-like-this';
 import { ReaderContent } from '@/components/reader/reader-content';
+import { MORE_LIKE_THIS_FETCH_LIMIT, selectMoreLikeThisBooks } from '@/lib/more-like-this';
 import { buildReaderChapterJsonLd, buildReaderChapterMetadata } from '@/lib/reader-metadata';
 import { safeJsonLd } from '@/lib/json-ld';
-import { fetchBookChaptersServer, fetchBookServer, fetchChapterServer } from '@/lib/server-api';
-import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from '@/lib/types';
+import {
+  fetchBookChaptersServer,
+  fetchBooksServer,
+  fetchBookServer,
+  fetchChapterServer,
+} from '@/lib/server-api';
+import type {
+  BookDetail,
+  BookSummary,
+  ChapterResponse,
+  ChapterSummary,
+  Paginated,
+} from '@/lib/types';
 
 type ReaderPageProps = {
   params: {
@@ -44,6 +58,7 @@ export default async function ReaderPage({ params }: ReaderPageProps): Promise<J
         bookTitle={resolved.book.title}
         bookCover={resolved.book.coverUrl}
       />
+      <MoreLikeThis books={resolved.moreLikeThis} />
     </>
   );
 }
@@ -80,6 +95,7 @@ async function resolveReaderChapter(
   book: BookDetail;
   chapters: Paginated<ChapterSummary>;
   chapter: ChapterResponse;
+  moreLikeThis: BookSummary[];
 } | null> {
   const chapterNumber = Number(chapterNumberParam);
   if (!Number.isInteger(chapterNumber) || chapterNumber < 1) return null;
@@ -97,7 +113,25 @@ async function resolveReaderChapter(
   const chapter = await fetchChapterServer(summary.id);
   if (!chapter) return null;
 
-  return { chapterNumber, book, chapters, chapter };
+  const moreLikeThis = await fetchMoreLikeThis(book);
+
+  return { chapterNumber, book, chapters, chapter, moreLikeThis };
+}
+
+async function fetchMoreLikeThis(book: BookDetail): Promise<BookSummary[]> {
+  try {
+    const candidates = await fetchBooksServer({
+      category: book.category,
+      status: book.status,
+      page: 1,
+      limit: MORE_LIKE_THIS_FETCH_LIMIT,
+    });
+    return selectMoreLikeThisBooks(book.id, candidates.items);
+  } catch {
+    // Recommendations are optional. Keep the reader/paywall usable if the
+    // related-books query is unavailable or unsupported in an environment.
+    return [];
+  }
 }
 
 async function fetchInitialChapters(
