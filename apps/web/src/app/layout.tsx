@@ -19,6 +19,7 @@ import { Footer } from '@/components/layout/footer';
 import { Providers } from '@/components/providers';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { PushPrompt } from '@/components/push/push-prompt';
+import { ReaderSettingsBootstrap } from '@/components/reader/reader-settings-bootstrap';
 import { Toaster } from '@/components/ui/toaster';
 import { messages } from '@novelhub/shared';
 
@@ -73,6 +74,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={bodyFont.variable}>
+      <head>
+        <ReaderSettingsBootstrap />
+      </head>
       <body>
         <Providers>
           {children}
