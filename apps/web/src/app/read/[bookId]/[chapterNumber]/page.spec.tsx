@@ -142,4 +142,15 @@ describe('reader page more like this', () => {
 
     expect(html.match(/type="application\/ld\+json"/g)).toHaveLength(1);
   });
+
+  it('keeps the reader available when related books cannot be fetched', async () => {
+    vi.mocked(fetchBooksServer).mockRejectedValue(new Error('related books unavailable'));
+
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '1' } });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain('data-reader-content="true"');
+    expect(html).toContain('data-more-like-this="true"');
+    expect(html).not.toContain('a,b,c,d');
+  });
 });
