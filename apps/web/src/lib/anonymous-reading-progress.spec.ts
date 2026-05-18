@@ -145,7 +145,76 @@ describe('anonymous reading progress storage', () => {
     expect(storage.getItem).toHaveBeenCalledWith(ANONYMOUS_READING_PROGRESS_KEY);
   });
 
-  it('swallows quota-exceeded write failures without clearing existing progress', () => {
+  it('rejects shape-mismatched array entries without preserving partial data', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      ANONYMOUS_READING_PROGRESS_KEY,
+      JSON.stringify([
+        entry(),
+        {
+          bookId: 'bad-book',
+          chapterId: 'chapter-2',
+          chapterNumber: '2',
+          scrollPercent: 25,
+          bookTitle: 'Bad Book',
+          bookCover: '/covers/bad.svg',
+          updatedAt: '2026-05-19T00:00:00.000Z',
+        },
+      ]),
+    );
+
+    expect(loadAnonymousReadingProgress(storage)).toEqual([]);
+    expect(loadAnonymousBookProgress(storage, 'book-1')).toBeNull();
+    expect(loadAnonymousChapterProgress(storage, 'book-1', 'chapter-1')).toBeNull();
+  });
+
+  it('keeps the v1 record shape unchanged on the happy path', () => {
+    const storage = new MemoryStorage();
+    const progress = entry({ scrollPercent: 88 });
+
+    saveAnonymousReadingProgress(storage, progress);
+
+    expect(JSON.parse(storage.getItem(ANONYMOUS_READING_PROGRESS_KEY) ?? '')).toEqual([progress]);
+  });
+
+  it('retries quota-exceeded writes by dropping the oldest progress entry', () => {
+    const storage = new MemoryStorage();
+    saveAnonymousReadingProgress(
+      storage,
+      entry({
+        bookId: 'oldest',
+        chapterId: 'chapter-oldest',
+        updatedAt: '2026-05-16T00:00:00.000Z',
+      }),
+    );
+    saveAnonymousReadingProgress(
+      storage,
+      entry({ bookId: 'newer', chapterId: 'chapter-newer', updatedAt: '2026-05-17T00:00:00.000Z' }),
+    );
+    const setItemSpy = vi.spyOn(storage, 'setItem');
+    setItemSpy.mockImplementationOnce(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    expect(() =>
+      saveAnonymousReadingProgress(
+        storage,
+        entry({
+          bookId: 'newest',
+          chapterId: 'chapter-newest',
+          updatedAt: '2026-05-18T00:00:00.000Z',
+        }),
+      ),
+    ).not.toThrow();
+
+    expect(setItemSpy).toHaveBeenCalledTimes(2);
+    expect(loadAnonymousReadingProgress(storage).map((item) => item.bookId)).toEqual([
+      'newest',
+      'newer',
+    ]);
+  });
+
+  it('swallows repeated quota-exceeded write failures without clearing existing progress', () => {
     const storage = new MemoryStorage();
     saveAnonymousReadingProgress(storage, entry({ scrollPercent: 12 }));
     const setItemSpy = vi.spyOn(storage, 'setItem').mockImplementation(() => {

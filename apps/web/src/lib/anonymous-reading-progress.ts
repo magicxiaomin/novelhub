@@ -12,8 +12,8 @@ export function loadAnonymousReadingProgress(storage: OptionalStorage): ReadingP
     const raw = storage.getItem(ANONYMOUS_READING_PROGRESS_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isReadingProgressEntry).sort(byNewestFirst);
+    if (!Array.isArray(parsed) || !parsed.every(isReadingProgressEntry)) return [];
+    return parsed.sort(byNewestFirst);
   } catch {
     return [];
   }
@@ -64,11 +64,32 @@ export function saveAnonymousReadingProgress(
     const next = [entry, ...withoutCurrent]
       .sort(byNewestFirst)
       .slice(0, MAX_ANONYMOUS_PROGRESS_ENTRIES);
-    storage.setItem(ANONYMOUS_READING_PROGRESS_KEY, JSON.stringify(next));
+    tryWriteAnonymousReadingProgress(storage, next);
   } catch {
     // Anonymous progress is a best-effort browser convenience. Storage quota,
     // privacy-mode failures, or corrupt payloads should not break reading.
   }
+}
+
+function tryWriteAnonymousReadingProgress(
+  storage: Pick<Storage, 'setItem'>,
+  entries: ReadingProgressEntry[],
+): void {
+  try {
+    storage.setItem(ANONYMOUS_READING_PROGRESS_KEY, JSON.stringify(entries));
+  } catch (error) {
+    if (!isQuotaExceededError(error) || entries.length <= 1) return;
+    const withoutOldest = entries.slice(0, -1);
+    try {
+      storage.setItem(ANONYMOUS_READING_PROGRESS_KEY, JSON.stringify(withoutOldest));
+    } catch {
+      // If the quota retry also fails, keep the previous stored value intact.
+    }
+  }
+}
+
+function isQuotaExceededError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'QuotaExceededError';
 }
 
 function byNewestFirst(a: ReadingProgressEntry, b: ReadingProgressEntry): number {
