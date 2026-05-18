@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { toast } from 'sonner';
 
 import { Paywall } from '@/components/paywall/paywall';
@@ -73,6 +73,7 @@ export function ReaderContent({
   const countedRead = useRef(false);
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prefetchedAdjacentHrefs = useRef(new Set<string>());
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   // Scope the unlock fetch to the current book so a heavy reader (>1000
   // unlocks across the catalog) doesn't have later chapters of THIS book
@@ -123,6 +124,26 @@ export function ReaderContent({
       cancelled = true;
     };
   }, [chapter.bookId, initialChapters.total]);
+
+  useEffect(() => {
+    if (chapter.isLocked) return;
+    const updateProgress = (): void => {
+      setScrollProgress(
+        calculateReaderScrollProgress({
+          scrollY: window.scrollY,
+          scrollHeight: document.documentElement.scrollHeight,
+          innerHeight: window.innerHeight,
+        }),
+      );
+    };
+    updateProgress();
+    window.addEventListener('scroll', updateProgress, { passive: true });
+    window.addEventListener('resize', updateProgress);
+    return () => {
+      window.removeEventListener('scroll', updateProgress);
+      window.removeEventListener('resize', updateProgress);
+    };
+  }, [chapter.isLocked]);
 
   useEffect(() => {
     const onScroll = (): void => {
@@ -236,6 +257,7 @@ export function ReaderContent({
 
   return (
     <main className={cn('min-h-dvh touch-pan-y', readerStyle.className)} style={readerStyle.style}>
+      <ReaderScrollProgress progress={scrollProgress} />
       <ReaderTopBar
         title={chapter.title}
         visible={barsVisible}
@@ -288,6 +310,38 @@ export function ReaderContent({
       />
     </main>
   );
+}
+
+function ReaderScrollProgress({ progress }: { progress: number }): JSX.Element {
+  return (
+    <div
+      aria-label={messages.reader.scrollProgress}
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={progress}
+      className="fixed left-0 right-0 top-0 z-50 h-1 bg-transparent"
+      role="progressbar"
+    >
+      <div
+        className="h-full bg-brand transition-[width] duration-150 ease-out"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  );
+}
+
+export function calculateReaderScrollProgress({
+  scrollY,
+  scrollHeight,
+  innerHeight,
+}: {
+  scrollY: number;
+  scrollHeight: number;
+  innerHeight: number;
+}): number {
+  const maxScroll = scrollHeight - innerHeight;
+  if (maxScroll <= 0) return 100;
+  return Math.min(100, Math.max(0, Math.round((scrollY / maxScroll) * 100)));
 }
 
 function ChapterText({ content }: { content: string }): JSX.Element {
