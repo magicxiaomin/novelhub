@@ -19,9 +19,14 @@ import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
 
-export const metadata: Metadata = {
+const novelsCanonicalPath = '/novels';
+
+const baseMetadata: Metadata = {
   title: messages.metadata.novels.title,
   description: messages.metadata.novels.description,
+  alternates: {
+    canonical: novelsCanonicalPath,
+  },
   openGraph: {
     title: messages.metadata.novels.title,
     description: messages.metadata.novels.description,
@@ -38,11 +43,21 @@ export const metadata: Metadata = {
 
 const pageSize = 20;
 
-export default async function NovelsPage({
-  searchParams,
-}: {
+type NovelsPageProps = {
   searchParams?: NovelsSearchParams;
-}): Promise<JSX.Element> {
+};
+
+export async function generateMetadata({ searchParams }: NovelsPageProps): Promise<Metadata> {
+  const filters = parseNovelsFilters(searchParams);
+  const hasFilteredView = Boolean(filters.category || filters.status || filters.page);
+
+  return {
+    ...baseMetadata,
+    ...(hasFilteredView ? { robots: { index: false, follow: true } } : {}),
+  };
+}
+
+export default async function NovelsPage({ searchParams }: NovelsPageProps): Promise<JSX.Element> {
   const filters = parseNovelsFilters(searchParams);
   const booksQuery = toBooksListQuery(filters, pageSize);
   const [books, categories] = await Promise.all([
