@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:pwa-assets": "vitest run src/pwa-assets.spec.ts",
     "typecheck": "tsc --noEmit",
+    "bundle:report": "node scripts/advisory-bundle-report.mjs",
     "pages:build": "BUILD_TARGET=pages NEXT_PUBLIC_BUILD_TARGET=pages pnpm --filter @novelhub/shared build && BUILD_TARGET=pages NEXT_PUBLIC_BUILD_TARGET=pages next-on-pages",
     "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name novelhub-web",
     "pages:dev": "wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat --port=8788"

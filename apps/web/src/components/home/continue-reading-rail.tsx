@@ -35,7 +35,14 @@ export function ContinueReadingRail(): JSX.Element | null {
               className="flex w-36 shrink-0 flex-col gap-2"
             >
               <div className="relative aspect-[3/4] w-36 overflow-hidden rounded-xl bg-muted">
-                <Image src={entry.bookCover} alt="" fill sizes="144px" className="object-cover" />
+                <Image
+                  src={entry.bookCover}
+                  alt=""
+                  fill
+                  sizes="144px"
+                  loading="lazy"
+                  className="object-cover"
+                />
               </div>
               <div className="flex flex-col gap-0.5">
                 <p className="line-clamp-2 text-sm font-medium leading-tight">{entry.bookTitle}</p>

@@ -35,6 +35,7 @@ export function BookCard({
           width={size === 'sm' ? 112 : 144}
           height={size === 'sm' ? 149 : 192}
           sizes={size === 'sm' ? '112px' : '144px'}
+          loading="lazy"
           className="h-full w-full object-cover"
         />
         {showCategory ? (
