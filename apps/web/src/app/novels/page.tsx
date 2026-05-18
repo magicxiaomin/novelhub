@@ -15,11 +15,14 @@ import {
   toBooksListQuery,
   type NovelsSearchParams,
 } from '@/lib/novels-filters';
+import {
+  buildCanonicalNovelsAffordance,
+  novelsCanonicalPath,
+  shouldShowCanonicalNovelsAffordance,
+} from './canonical-affordance';
 import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
-
-const novelsCanonicalPath = '/novels';
 
 const baseMetadata: Metadata = {
   title: messages.metadata.novels.title,
@@ -46,30 +49,6 @@ const pageSize = 20;
 type NovelsPageProps = {
   searchParams?: NovelsSearchParams;
 };
-
-type CanonicalNovelsAffordance = {
-  href: typeof novelsCanonicalPath;
-  label: string;
-};
-
-export function shouldShowCanonicalNovelsAffordance(searchParams?: NovelsSearchParams): boolean {
-  const filters = parseNovelsFilters(searchParams);
-
-  return Boolean(filters.category || filters.status || filters.page);
-}
-
-export function buildCanonicalNovelsAffordance(
-  searchParams?: NovelsSearchParams,
-): CanonicalNovelsAffordance | null {
-  if (!shouldShowCanonicalNovelsAffordance(searchParams)) {
-    return null;
-  }
-
-  return {
-    href: novelsCanonicalPath,
-    label: messages.novels.filteredViewCanonicalCta,
-  };
-}
 
 export async function generateMetadata({ searchParams }: NovelsPageProps): Promise<Metadata> {
   const hasFilteredView = shouldShowCanonicalNovelsAffordance(searchParams);

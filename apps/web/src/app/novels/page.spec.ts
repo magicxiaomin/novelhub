@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { generateMetadata } from './page';
 import {
   buildCanonicalNovelsAffordance,
-  generateMetadata,
   shouldShowCanonicalNovelsAffordance,
-} from './page';
+} from './canonical-affordance';
 import { messages } from '@novelhub/shared';
 
 describe('novels page metadata', () => {
