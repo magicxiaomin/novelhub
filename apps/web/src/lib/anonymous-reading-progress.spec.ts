@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  ANONYMOUS_READING_PROGRESS_KEY,
   loadAnonymousBookProgress,
   loadAnonymousChapterProgress,
   loadAnonymousReadingProgress,
@@ -101,10 +102,10 @@ describe('anonymous reading progress storage', () => {
     expect(loadAnonymousBookProgress(storage, 'missing')).toBeNull();
   });
 
-  it('returns an empty shelf for corrupt payloads without logging', () => {
+  it('returns an empty shelf for corrupt non-JSON payloads without logging', () => {
     const storage = new MemoryStorage();
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    storage.setItem('novelhub:anonymous-reading-progress:v1', '{not-json');
+    storage.setItem(ANONYMOUS_READING_PROGRESS_KEY, '{not-json');
 
     expect(loadAnonymousReadingProgress(storage)).toEqual([]);
     expect(errorSpy).not.toHaveBeenCalled();
@@ -112,9 +113,67 @@ describe('anonymous reading progress storage', () => {
     errorSpy.mockRestore();
   });
 
+  it('falls back to empty progress for schema-version mismatched payloads', () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      ANONYMOUS_READING_PROGRESS_KEY,
+      JSON.stringify({ schemaVersion: 0, entries: [entry()] }),
+    );
+
+    expect(loadAnonymousReadingProgress(storage)).toEqual([]);
+    expect(loadAnonymousBookProgress(storage, 'book-1')).toBeNull();
+    expect(loadAnonymousChapterProgress(storage, 'book-1', 'chapter-1')).toBeNull();
+  });
+
   it('is safe when storage is unavailable during SSR', () => {
     expect(loadAnonymousReadingProgress(null)).toEqual([]);
     expect(loadAnonymousChapterProgress(undefined, 'book-1', 'chapter-1')).toBeNull();
     expect(() => saveAnonymousReadingProgress(undefined, entry())).not.toThrow();
+  });
+
+  it('swallows storage read failures and falls back to empty progress', () => {
+    const storage = {
+      getItem: vi.fn(() => {
+        throw new DOMException('Blocked by privacy settings', 'SecurityError');
+      }),
+      setItem: vi.fn(),
+    } satisfies Pick<Storage, 'getItem' | 'setItem'>;
+
+    expect(loadAnonymousReadingProgress(storage)).toEqual([]);
+    expect(loadAnonymousBookProgress(storage, 'book-1')).toBeNull();
+    expect(loadAnonymousChapterProgress(storage, 'book-1', 'chapter-1')).toBeNull();
+    expect(storage.getItem).toHaveBeenCalledWith(ANONYMOUS_READING_PROGRESS_KEY);
+  });
+
+  it('swallows quota-exceeded write failures without clearing existing progress', () => {
+    const storage = new MemoryStorage();
+    saveAnonymousReadingProgress(storage, entry({ scrollPercent: 12 }));
+    const setItemSpy = vi.spyOn(storage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    expect(() => saveAnonymousReadingProgress(storage, entry({ scrollPercent: 88 }))).not.toThrow();
+
+    setItemSpy.mockRestore();
+    expect(loadAnonymousReadingProgress(storage)).toEqual([entry({ scrollPercent: 12 })]);
+  });
+
+  it('uses last-write-wins semantics for concurrent-tab style updates without crashing', () => {
+    const storage = new MemoryStorage();
+    const tabOneSnapshot = JSON.stringify([
+      entry({ chapterId: 'chapter-1', scrollPercent: 25, updatedAt: '2026-05-18T00:00:00.000Z' }),
+    ]);
+    const tabTwoSnapshot = JSON.stringify([
+      entry({ chapterId: 'chapter-2', scrollPercent: 50, updatedAt: '2026-05-18T00:01:00.000Z' }),
+    ]);
+
+    expect(() => {
+      storage.setItem(ANONYMOUS_READING_PROGRESS_KEY, tabOneSnapshot);
+      storage.setItem(ANONYMOUS_READING_PROGRESS_KEY, tabTwoSnapshot);
+    }).not.toThrow();
+
+    expect(loadAnonymousReadingProgress(storage)).toEqual([
+      entry({ chapterId: 'chapter-2', scrollPercent: 50, updatedAt: '2026-05-18T00:01:00.000Z' }),
+    ]);
   });
 });
