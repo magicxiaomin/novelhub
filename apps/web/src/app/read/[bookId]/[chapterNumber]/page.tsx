@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { ReaderContent } from '@/components/reader/reader-content';
-import { fetchBookChaptersServer, fetchChapterServer } from '@/lib/server-api';
-import type { ChapterResponse, ChapterSummary, Paginated } from '@/lib/types';
+import { fetchBookChaptersServer, fetchBookServer, fetchChapterServer } from '@/lib/server-api';
+import type { BookDetail, ChapterResponse, ChapterSummary, Paginated } from '@/lib/types';
 import { messages } from '@novelhub/shared';
 
 type ReaderPageProps = {
@@ -36,6 +36,8 @@ export default async function ReaderPage({ params }: ReaderPageProps): Promise<J
       chapter={resolved.chapter}
       initialChapters={resolved.chapters}
       currentUrl={`/read/${encodeURIComponent(params.bookId)}/${resolved.chapterNumber}`}
+      bookTitle={resolved.book.title}
+      bookCover={resolved.book.coverUrl}
     />
   );
 }
@@ -45,13 +47,18 @@ async function resolveReaderChapter(
   chapterNumberParam: string,
 ): Promise<{
   chapterNumber: number;
+  book: BookDetail;
   chapters: Paginated<ChapterSummary>;
   chapter: ChapterResponse;
 } | null> {
   const chapterNumber = Number(chapterNumberParam);
   if (!Number.isInteger(chapterNumber) || chapterNumber < 1) return null;
 
-  const chapters = await fetchInitialChapters(bookId, chapterNumber);
+  const [book, chapters] = await Promise.all([
+    fetchBookServer(bookId),
+    fetchInitialChapters(bookId, chapterNumber),
+  ]);
+  if (!book) return null;
   if (!chapters) return null;
 
   const summary = chapters.items.find((chapter) => chapter.order === chapterNumber);
@@ -60,7 +67,7 @@ async function resolveReaderChapter(
   const chapter = await fetchChapterServer(summary.id);
   if (!chapter) return null;
 
-  return { chapterNumber, chapters, chapter };
+  return { chapterNumber, book, chapters, chapter };
 }
 
 async function fetchInitialChapters(
