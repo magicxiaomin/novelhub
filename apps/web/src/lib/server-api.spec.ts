@@ -9,8 +9,10 @@ vi.mock('next/headers', () => ({
 
 import {
   buildServerApiUrl,
+  fetchBookCategoriesServer,
   fetchBookChaptersServer,
   fetchBookServer,
+  fetchBooksServer,
   fetchChapterServer,
 } from './server-api';
 
@@ -86,11 +88,14 @@ describe('server API fetch helpers', () => {
         }),
     ) as unknown as typeof fetch;
 
+    await fetchBookServer('book-1');
+    await fetchBooksServer();
+    await fetchBookCategoriesServer();
     await fetchBookChaptersServer('book-1');
     await fetchChapterServer('chapter-1');
 
     const calls = vi.mocked(globalThis.fetch).mock.calls;
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(5);
     for (const [, init] of calls) {
       expect(init?.headers).toMatchObject({ cookie: 'session=abc', 'x-request-id': 'req_ssr123' });
     }

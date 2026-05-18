@@ -71,6 +71,7 @@ export async function fetchBookServer(id: string): Promise<BookDetail | null> {
     // Avoid Next's default fetch caching — book detail can change as
     // chapters land. ISR could be added later if traffic warrants.
     cache: 'no-store',
+    headers: serverReadHeaders(),
   });
   if (res.status === 404 || res.status === 401) return null;
   if (!res.ok) {
@@ -91,6 +92,7 @@ export async function fetchBooksServer(query?: {
 
   const res = await fetch(buildServerApiUrl('/books', query), {
     cache: 'no-store',
+    headers: serverReadHeaders(),
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch books: ${res.status}`);
@@ -104,6 +106,7 @@ export async function fetchBookCategoriesServer(): Promise<CategoryCount[]> {
 
   const res = await fetch(buildServerApiUrl('/books/categories'), {
     cache: 'no-store',
+    headers: serverReadHeaders(),
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch book categories: ${res.status}`);
