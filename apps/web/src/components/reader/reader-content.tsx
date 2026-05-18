@@ -3,7 +3,14 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { toast } from 'sonner';
 
 import { Paywall } from '@/components/paywall/paywall';
@@ -63,6 +70,10 @@ export function ReaderContent({
   const [barsVisible, setBarsVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpTriggerRef = useRef<HTMLButtonElement>(null);
+  const helpDialogRef = useRef<HTMLElement>(null);
+  const helpReturnFocusRef = useRef<HTMLElement | null>(null);
   const [settings, setSettings] = useState<ReaderSettings>(() => {
     if (typeof window === 'undefined') return DEFAULT_READER_SETTINGS;
     return applyReaderSettingsToDocument(document, window.localStorage);
@@ -330,6 +341,61 @@ export function ReaderContent({
     };
   }, [chapter, currentUrl, nextHref, router, settings.autoAdvance]);
 
+  const closeHelpOverlay = useCallback((): void => {
+    setHelpOpen(false);
+    window.requestAnimationFrame(() => {
+      (helpReturnFocusRef.current ?? helpTriggerRef.current)?.focus({ preventScroll: true });
+      helpReturnFocusRef.current = null;
+    });
+  }, []);
+
+  const openHelpOverlay = useCallback((returnFocusTo?: HTMLElement | null): void => {
+    helpReturnFocusRef.current = returnFocusTo ?? helpTriggerRef.current;
+    setHelpOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    helpDialogRef.current?.focus({ preventScroll: true });
+  }, [helpOpen]);
+
+  useEffect(() => {
+    if (chapter.isLocked) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!isReaderKeyboardShortcutTarget(event.target)) return;
+      const action = getReaderKeyboardShortcutAction(event);
+      if (!action) return;
+      if (action === 'close-help') {
+        if (!helpOpen) return;
+        event.preventDefault();
+        closeHelpOverlay();
+        return;
+      }
+      event.preventDefault();
+      if (action === 'help') {
+        openHelpOverlay(
+          event.target instanceof HTMLElement ? event.target : helpTriggerRef.current,
+        );
+        return;
+      }
+      const href = action === 'previous' ? prevHref : nextHref;
+      if (!href) return;
+      navigatingReaderRoute.current = true;
+      navigateReaderRoute(router, currentUrl, href);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    chapter.isLocked,
+    closeHelpOverlay,
+    currentUrl,
+    helpOpen,
+    nextHref,
+    openHelpOverlay,
+    prevHref,
+    router,
+  ]);
+
   if (chapter.isLocked) {
     return <Paywall chapter={chapter} currentUrl={currentUrl} onDismiss={() => router.back()} />;
   }
@@ -345,6 +411,15 @@ export function ReaderContent({
         visible={barsVisible}
         onSettings={() => setSettingsOpen(true)}
       />
+      <button
+        ref={helpTriggerRef}
+        type="button"
+        className="fixed right-4 top-20 z-40 rounded-full border bg-background/90 px-3 py-2 text-xs font-semibold text-foreground shadow-sm backdrop-blur"
+        aria-label={messages.reader.keyboardShortcutsHelp}
+        onClick={() => openHelpOverlay(helpTriggerRef.current)}
+      >
+        {messages.reader.keyboardShortcuts}
+      </button>
       <button
         type="button"
         className="fixed bottom-[44dvh] left-0 right-0 top-[44dvh] z-20 cursor-default bg-transparent"
@@ -393,6 +468,13 @@ export function ReaderContent({
         onChange={setSettings}
         onClose={() => setSettingsOpen(false)}
       />
+      <ReaderKeyboardHelpOverlay
+        ref={helpDialogRef}
+        open={helpOpen}
+        hasPrevious={Boolean(prevHref)}
+        hasNext={Boolean(nextHref)}
+        onClose={closeHelpOverlay}
+      />
       <ChapterListDrawer
         open={chaptersOpen}
         bookId={chapter.bookId}
@@ -425,6 +507,111 @@ function ReaderScrollProgress({ progress }: { progress: number }): JSX.Element {
       />
     </div>
   );
+}
+
+const ReaderKeyboardHelpOverlay = React.forwardRef<
+  HTMLElement,
+  { open: boolean; hasPrevious: boolean; hasNext: boolean; onClose: () => void }
+>(function ReaderKeyboardHelpOverlay({ open, hasPrevious, hasNext, onClose }, ref): JSX.Element {
+  return (
+    <div
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 transition-opacity',
+        open ? 'opacity-100' : 'pointer-events-none opacity-0',
+      )}
+      aria-hidden={!open}
+    >
+      <section
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label={messages.reader.keyboardShortcutsHelp}
+        tabIndex={-1}
+        className="w-full max-w-sm rounded-2xl bg-background p-5 text-foreground shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold">{messages.reader.keyboardShortcuts}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {messages.reader.keyboardShortcutsHint}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            aria-label={messages.reader.drawerClose}
+          >
+            ×
+          </Button>
+        </div>
+        <dl className="mt-5 space-y-3 text-sm">
+          <ReaderShortcutRow
+            keys={[messages.reader.previousChapter, '←']}
+            label={messages.reader.keyboardShortcutPrevious}
+            disabled={!hasPrevious}
+          />
+          <ReaderShortcutRow
+            keys={[messages.reader.nextChapter, '→']}
+            label={messages.reader.keyboardShortcutNext}
+            disabled={!hasNext}
+          />
+          <ReaderShortcutRow keys={['?', 'H']} label={messages.reader.keyboardShortcutHelp} />
+          <ReaderShortcutRow keys={['Esc']} label={messages.reader.keyboardShortcutDismiss} />
+        </dl>
+      </section>
+    </div>
+  );
+});
+
+function ReaderShortcutRow({
+  keys,
+  label,
+  disabled = false,
+}: {
+  keys: string[];
+  label: string;
+  disabled?: boolean;
+}): JSX.Element {
+  return (
+    <div className={cn('flex items-center justify-between gap-4', disabled ? 'opacity-50' : '')}>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="flex gap-1">
+        {keys.map((key) => (
+          <kbd
+            key={key}
+            className="rounded border bg-muted px-2 py-1 font-mono text-xs text-foreground"
+          >
+            {key}
+          </kbd>
+        ))}
+      </dd>
+    </div>
+  );
+}
+
+type ReaderKeyboardShortcutAction = 'previous' | 'next' | 'help' | 'close-help';
+
+export function getReaderKeyboardShortcutAction({
+  key,
+}: {
+  key: string;
+  shiftKey?: boolean;
+}): ReaderKeyboardShortcutAction | null {
+  if (key === 'ArrowLeft') return 'previous';
+  if (key === 'ArrowRight') return 'next';
+  if (key === '?' || key.toLowerCase() === 'h') return 'help';
+  if (key === 'Escape') return 'close-help';
+  return null;
+}
+
+export function isReaderKeyboardShortcutTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== 'object') return true;
+  if (!('tagName' in target)) return true;
+  const element = target as { tagName: string; isContentEditable?: boolean };
+  const tagName = element.tagName.toLowerCase();
+  return tagName !== 'input' && tagName !== 'textarea' && element.isContentEditable !== true;
 }
 
 export function calculateReaderScrollProgress({
