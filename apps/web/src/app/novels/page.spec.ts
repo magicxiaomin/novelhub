@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { generateMetadata } from './page';
@@ -6,6 +9,12 @@ import {
   shouldShowCanonicalNovelsAffordance,
 } from './canonical-affordance';
 import { messages } from '@novelhub/shared';
+
+const novelsRouteDir = join(process.cwd(), 'src/app/novels');
+
+function readNovelsRouteFile(path: string): string {
+  return readFileSync(join(novelsRouteDir, path), 'utf8');
+}
 
 describe('novels page metadata', () => {
   it('keeps unfiltered discovery indexable without forcing robots metadata', async () => {
@@ -67,5 +76,32 @@ describe('novels canonical affordance', () => {
   it('does not show on the unfiltered canonical novels view', () => {
     expect(shouldShowCanonicalNovelsAffordance({})).toBe(false);
     expect(buildCanonicalNovelsAffordance({})).toBeNull();
+  });
+});
+
+describe('novels route polish', () => {
+  it('keeps the empty state actionable without removing the clear-filters affordance', () => {
+    const source = readNovelsRouteFile('page.tsx');
+
+    expect(messages.novels.emptyTitle).toBe('No matching novels yet');
+    expect(messages.novels.emptyBody).toContain('Clear filters');
+    expect(source).toContain('messages.novels.emptyTitle');
+    expect(source).toContain('messages.novels.emptyBody');
+    expect(source).toContain('messages.novels.clearFilters');
+    expect(source).toContain('<Link href="/novels">{messages.novels.clearFilters}</Link>');
+  });
+
+  it('adds a retryable novels route error boundary that returns to novels', () => {
+    const source = readNovelsRouteFile('error.tsx');
+
+    expect(messages.errors.novelsRouteError).toBe('Novels could not be loaded');
+    expect(messages.errors.novelsRouteErrorBody).toContain('Try again');
+    expect(source).toMatch(/^'use client';/);
+    expect(source).toContain('reset');
+    expect(source).toContain('messages.errors.routeBoundaryReset');
+    expect(source).toContain('messages.errors.novelsRouteError');
+    expect(source).toContain('messages.errors.novelsRouteErrorBody');
+    expect(source).toContain('href="/novels"');
+    expect(source).not.toContain('href="/"');
   });
 });

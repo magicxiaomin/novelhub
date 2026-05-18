@@ -17,18 +17,18 @@ export default function NovelsError({
     <AppShell>
       <section className="px-4 py-16 text-center">
         <div className="rounded-2xl border border-dashed p-8">
-          <h1 className="text-2xl font-bold tracking-tight">{messages.errors.somethingWrong}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{messages.errors.novelsRouteError}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {error.digest
-              ? `${messages.errors.pleaseTryAgain} (${error.digest})`
-              : messages.errors.pleaseTryAgain}
+              ? `${messages.errors.novelsRouteErrorBody} (${error.digest})`
+              : messages.errors.novelsRouteErrorBody}
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button type="button" onClick={reset}>
               {messages.errors.routeBoundaryReset}
             </Button>
             <Button asChild variant="outline">
-              <Link href="/">{messages.errors.backToHome}</Link>
+              <Link href="/novels">{messages.errors.backToNovels}</Link>
             </Button>
           </div>
         </div>
