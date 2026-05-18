@@ -15,6 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/providers';
 import {
+  loadAnonymousChapterProgress,
+  saveAnonymousReadingProgress,
+} from '@/lib/anonymous-reading-progress';
+import {
   fetchBookChapters,
   fetchChapterReadingProgress,
   fetchUnlocks,
@@ -40,10 +44,14 @@ export function ReaderContent({
   chapter,
   initialChapters,
   currentUrl,
+  bookTitle,
+  bookCover,
 }: {
   chapter: ChapterResponse;
   initialChapters: Paginated<ChapterSummary>;
   currentUrl: string;
+  bookTitle: string;
+  bookCover: string;
 }): JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
@@ -127,10 +135,15 @@ export function ReaderContent({
     // requestAnimationFrame fires while document.documentElement.scrollHeight
     // is still the skeleton height and the percent-to-y mapping lands at
     // the wrong y-position.
-    if (chapter.isLocked || !user || restored.current) return;
+    if (chapter.isLocked || restored.current) return;
     if (!contentQuery.isSuccess || !contentQuery.data) return;
     restored.current = true;
-    fetchChapterReadingProgress(chapter.bookId, chapter.id)
+    const progressPromise = user
+      ? fetchChapterReadingProgress(chapter.bookId, chapter.id)
+      : Promise.resolve(
+          loadAnonymousChapterProgress(window.localStorage, chapter.bookId, chapter.id),
+        );
+    progressPromise
       .then((progress) => {
         if (!progress) return;
         window.requestAnimationFrame(() => {
@@ -142,11 +155,11 @@ export function ReaderContent({
   }, [chapter, user, contentQuery.isSuccess, contentQuery.data]);
 
   useEffect(() => {
-    if (chapter.isLocked || !user) return;
+    if (chapter.isLocked) return;
     lastPersistedScrollY.current = window.scrollY;
     const save = async (): Promise<void> => {
       const scrollY = window.scrollY;
-      if (await persistProgress(chapter.id)) {
+      if (await persistProgress(chapter, Boolean(user), bookTitle, bookCover)) {
         lastPersistedScrollY.current = scrollY;
       }
     };
@@ -164,7 +177,7 @@ export function ReaderContent({
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [chapter, user]);
+  }, [chapter, user, bookTitle, bookCover]);
 
   const nextHref = useMemo(() => {
     if (chapter.isLocked) return null;
@@ -322,10 +335,28 @@ function styleForSettings(settings: ReaderSettings): {
   };
 }
 
-async function persistProgress(chapterId: string): Promise<boolean> {
+async function persistProgress(
+  chapter: ChapterResponse,
+  isAuthenticated: boolean,
+  bookTitle: string,
+  bookCover: string,
+): Promise<boolean> {
+  if (chapter.isLocked) return false;
   const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
   const scrollPercent = Math.min(100, Math.max(0, Math.round((window.scrollY / maxScroll) * 100)));
-  const saved = await saveReadingProgress(chapterId, scrollPercent);
+  if (!isAuthenticated) {
+    saveAnonymousReadingProgress(window.localStorage, {
+      bookId: chapter.bookId,
+      chapterId: chapter.id,
+      chapterNumber: chapter.chapterNumber,
+      scrollPercent,
+      bookTitle,
+      bookCover,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  }
+  const saved = await saveReadingProgress(chapter.id, scrollPercent);
   if (!saved && !warnedProgressUnavailable) {
     warnedProgressUnavailable = true;
     toast.error(messages.reader.progressUnavailable);
