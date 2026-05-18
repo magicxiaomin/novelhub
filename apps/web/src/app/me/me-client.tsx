@@ -151,6 +151,8 @@ export function MeClient(): JSX.Element {
                     alt=""
                     width={48}
                     height={64}
+                    sizes="48px"
+                    loading="lazy"
                     className="h-16 w-12 rounded object-cover"
                   />
                   <div className="min-w-0 flex-1">
