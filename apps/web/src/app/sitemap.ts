@@ -3,6 +3,8 @@ import type { MetadataRoute } from 'next';
 import { fetchBooksServer } from '@/lib/server-api';
 import { absoluteAppUrl } from '@/lib/site-url';
 
+export const runtime = 'edge';
+
 const maxSitemapUrls = 5_000;
 const staticUrlCount = 2;
 const maxNovelUrls = maxSitemapUrls - staticUrlCount;
