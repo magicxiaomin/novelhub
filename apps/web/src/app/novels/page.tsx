@@ -15,11 +15,14 @@ import {
   toBooksListQuery,
   type NovelsSearchParams,
 } from '@/lib/novels-filters';
+import {
+  buildCanonicalNovelsAffordance,
+  novelsCanonicalPath,
+  shouldShowCanonicalNovelsAffordance,
+} from './canonical-affordance';
 import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
-
-const novelsCanonicalPath = '/novels';
 
 const baseMetadata: Metadata = {
   title: messages.metadata.novels.title,
@@ -48,8 +51,7 @@ type NovelsPageProps = {
 };
 
 export async function generateMetadata({ searchParams }: NovelsPageProps): Promise<Metadata> {
-  const filters = parseNovelsFilters(searchParams);
-  const hasFilteredView = Boolean(filters.category || filters.status || filters.page);
+  const hasFilteredView = shouldShowCanonicalNovelsAffordance(searchParams);
 
   return {
     ...baseMetadata,
@@ -70,6 +72,7 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
   }
 
   const hasActiveFilters = Boolean(filters.category || filters.status);
+  const canonicalAffordance = buildCanonicalNovelsAffordance(searchParams);
 
   return (
     <AppShell>
@@ -122,6 +125,17 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
               </FilterLink>
             ))}
           </FilterGroup>
+
+          {canonicalAffordance ? (
+            <p className="text-sm text-muted-foreground">
+              <Link
+                className="font-medium text-primary underline-offset-4 hover:underline"
+                href={canonicalAffordance.href}
+              >
+                {canonicalAffordance.label}
+              </Link>
+            </p>
+          ) : null}
         </section>
 
         {books.items.length === 0 ? (

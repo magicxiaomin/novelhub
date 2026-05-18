@@ -63,9 +63,8 @@ export const buildServerApiUrl = (
 
 export async function fetchBookServer(id: string): Promise<BookDetail | null> {
   const novelFixtures = await loadNovelE2eFixtures();
-  if (novelFixtures && id === novelFixtures.novelE2eFixtureBookId) {
-    return novelFixtures.novelE2eFixtureBook;
-  }
+  const fixtureBook = novelFixtures?.novelE2eFixtureBookDetail(id);
+  if (fixtureBook) return fixtureBook;
 
   const res = await fetch(buildServerApiUrl(`/books/${encodeURIComponent(id)}`), {
     // Avoid Next's default fetch caching — book detail can change as
@@ -146,11 +145,8 @@ export async function fetchBookChaptersServer(
   limit = 200,
 ): Promise<Paginated<ChapterSummary> | null> {
   const novelFixtures = await loadNovelE2eFixtures();
-  if (novelFixtures) {
-    if (id === novelFixtures.novelE2eFixtureBookId) {
-      return { ...novelFixtures.novelE2eFixtureChapterList, page, limit };
-    }
-  }
+  const fixtureChapters = novelFixtures?.novelE2eFixtureChapterListForBook(id, page, limit);
+  if (fixtureChapters) return fixtureChapters;
 
   const res = await fetch(
     buildServerApiUrl(`/books/${encodeURIComponent(id)}/chapters`, { page, limit }),

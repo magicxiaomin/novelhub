@@ -1,5 +1,3 @@
-export const runtime = 'edge';
-
 import React from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -23,6 +21,8 @@ import type {
   Paginated,
 } from '@/lib/types';
 
+export const runtime = 'edge';
+
 type ReaderPageProps = {
   params: {
     bookId: string;
@@ -31,7 +31,7 @@ type ReaderPageProps = {
 };
 
 export async function generateMetadata({ params }: ReaderPageProps): Promise<Metadata> {
-  const resolved = await resolveReaderChapter(params.bookId, params.chapterNumber);
+  const resolved = await resolveReaderChapterMetadata(params.bookId, params.chapterNumber);
   if (!resolved) return {};
   return buildReaderChapterMetadata({
     book: resolved.book,
@@ -116,6 +116,38 @@ async function resolveReaderChapter(
   const moreLikeThis = await fetchMoreLikeThis(book);
 
   return { chapterNumber, book, chapters, chapter, moreLikeThis };
+}
+
+async function resolveReaderChapterMetadata(
+  bookId: string,
+  chapterNumberParam: string,
+): Promise<{
+  chapterNumber: number;
+  book: BookDetail;
+  chapter: Pick<ChapterSummary, 'title' | 'wordCount'> & { chapterNumber: number };
+} | null> {
+  const chapterNumber = Number(chapterNumberParam);
+  if (!Number.isInteger(chapterNumber) || chapterNumber < 1) return null;
+
+  const [book, chapters] = await Promise.all([
+    fetchBookServer(bookId),
+    fetchInitialChapters(bookId, chapterNumber),
+  ]);
+  if (!book) return null;
+  if (!chapters) return null;
+
+  const summary = chapters.items.find((chapter) => chapter.order === chapterNumber);
+  if (!summary) return null;
+
+  return {
+    chapterNumber,
+    book,
+    chapter: {
+      title: summary.title,
+      chapterNumber: summary.order,
+      wordCount: summary.wordCount,
+    },
+  };
 }
 
 async function fetchMoreLikeThis(book: BookDetail): Promise<BookSummary[]> {
