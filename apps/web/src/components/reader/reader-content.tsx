@@ -28,7 +28,7 @@ import {
 import { incrementChaptersReadCount } from '@/lib/read-count';
 import {
   DEFAULT_READER_SETTINGS,
-  loadReaderSettings,
+  applyReaderSettingsToDocument,
   saveReaderSettings,
   type ReaderSettings,
 } from '@/lib/reader-settings';
@@ -58,7 +58,10 @@ export function ReaderContent({
   const [barsVisible, setBarsVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
-  const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_READER_SETTINGS);
+  const [settings, setSettings] = useState<ReaderSettings>(() => {
+    if (typeof window === 'undefined') return DEFAULT_READER_SETTINGS;
+    return applyReaderSettingsToDocument(document, window.localStorage);
+  });
   const [chapters, setChapters] = useState<ChapterSummary[]>(initialChapters.items);
   const lastToolbarScrollY = useRef(0);
   const lastPersistedScrollY = useRef(0);
@@ -90,11 +93,8 @@ export function ReaderContent({
   });
 
   useEffect(() => {
-    setSettings(loadReaderSettings(window.localStorage));
-  }, []);
-
-  useEffect(() => {
     saveReaderSettings(window.localStorage, settings);
+    applyReaderSettingsToDocument(document, window.localStorage);
   }, [settings]);
 
   useEffect(() => {
@@ -321,17 +321,16 @@ function styleForSettings(settings: ReaderSettings): {
   className: string;
   style: CSSProperties;
 } {
-  const theme =
-    settings.theme === 'dark'
-      ? 'bg-[#1A1A1A] text-[#E8E8E8]'
-      : settings.theme === 'sepia'
-        ? 'bg-[#F5EFE0] text-[#211A13]'
-        : 'bg-white text-[#171717]';
-  const fontSize = { s: 15, m: 17, l: 19, xl: 22 }[settings.fontSize];
-  const lineHeight = { compact: 1.5, default: 1.7, loose: 1.9 }[settings.lineHeight];
   return {
-    className: cn(theme, settings.fontFamily === 'serif' ? 'font-serif' : 'font-sans'),
-    style: { fontSize, lineHeight },
+    className: cn(
+      'bg-[var(--reader-bg)] text-[var(--reader-fg)]',
+      settings.fontFamily === 'serif' ? 'font-serif' : 'font-sans',
+    ),
+    style: {
+      fontSize: 'var(--reader-font-size)',
+      lineHeight: 'var(--reader-line-height)',
+      fontFamily: 'var(--reader-font-family)',
+    },
   };
 }
 

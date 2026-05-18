@@ -27,6 +27,12 @@
   --accent-foreground: 222 47% 11%;
 
   --radius: 0.875rem;
+
+  --reader-bg: #ffffff;
+  --reader-fg: #171717;
+  --reader-font-size: 17px;
+  --reader-line-height: 1.7;
+  --reader-font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
