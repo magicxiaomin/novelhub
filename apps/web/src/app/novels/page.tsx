@@ -18,6 +18,7 @@ import {
 import {
   buildCanonicalNovelsAffordance,
   novelsCanonicalPath,
+  shouldRedirectToCanonicalNovelsHref,
   shouldShowCanonicalNovelsAffordance,
 } from './canonical-affordance';
 import { messages } from '@novelhub/shared';
@@ -60,6 +61,11 @@ export async function generateMetadata({ searchParams }: NovelsPageProps): Promi
 }
 
 export default async function NovelsPage({ searchParams }: NovelsPageProps): Promise<JSX.Element> {
+  const canonicalRedirectHref = shouldRedirectToCanonicalNovelsHref(searchParams);
+  if (canonicalRedirectHref) {
+    redirect(canonicalRedirectHref);
+  }
+
   const filters = parseNovelsFilters(searchParams);
   const booksQuery = toBooksListQuery(filters, pageSize);
   const [books, categories] = await Promise.all([

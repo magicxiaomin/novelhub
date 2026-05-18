@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { generateMetadata } from './page';
 import {
   buildCanonicalNovelsAffordance,
+  shouldRedirectToCanonicalNovelsHref,
   shouldShowCanonicalNovelsAffordance,
 } from './canonical-affordance';
 import { messages } from '@novelhub/shared';
@@ -76,6 +77,33 @@ describe('novels canonical affordance', () => {
   it('does not show on the unfiltered canonical novels view', () => {
     expect(shouldShowCanonicalNovelsAffordance({})).toBe(false);
     expect(buildCanonicalNovelsAffordance({})).toBeNull();
+  });
+
+  it('requests a canonical URL redirect when incoming filter params are unordered or unknown', () => {
+    expect(
+      shouldRedirectToCanonicalNovelsHref({
+        status: 'ONGOING',
+        page: '4',
+        category: 'Werewolf',
+        utm_source: 'facebook',
+      } as Record<string, string>),
+    ).toBe('/novels?category=Werewolf&status=ONGOING&page=4');
+  });
+
+  it('requests a bare-path redirect when incoming filters normalize to empty', () => {
+    expect(
+      shouldRedirectToCanonicalNovelsHref({
+        category: ' ',
+        status: 'DRAFT',
+        page: '1',
+      }),
+    ).toBe('/novels');
+  });
+
+  it('does not redirect an already canonical shared filter URL', () => {
+    expect(
+      shouldRedirectToCanonicalNovelsHref({ category: 'Werewolf', status: 'ONGOING', page: '4' }),
+    ).toBeNull();
   });
 });
 

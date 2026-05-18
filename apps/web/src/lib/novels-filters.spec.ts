@@ -4,6 +4,7 @@ import { messages } from '@novelhub/shared';
 import {
   buildNovelsHref,
   parseNovelsFilters,
+  serializeNovelsFilters,
   statusFilterOptions,
   toBooksListQuery,
   type NovelsSearchParams,
@@ -64,6 +65,30 @@ describe('novels filters', () => {
     expect(buildNovelsHref(current, { page: 999999999999 })).toBe(
       '/novels?category=ROMANCE&status=COMPLETED',
     );
+  });
+
+  it('serializes parsed filters in deterministic shareable URL order', () => {
+    const searchParams = {
+      status: 'COMPLETED',
+      page: '3',
+      category: 'Royal Romance',
+      utm_source: 'facebook',
+    } as NovelsSearchParams & { utm_source: string };
+
+    expect(serializeNovelsFilters(parseNovelsFilters(searchParams))).toBe(
+      '/novels?category=Royal+Romance&status=COMPLETED&page=3',
+    );
+  });
+
+  it('serializes unknown, empty, and first-page filters to the bare novels path', () => {
+    const searchParams = {
+      category: '   ',
+      status: 'DRAFT',
+      page: '1',
+      sort: 'recently-updated',
+    } as NovelsSearchParams & { sort: string };
+
+    expect(serializeNovelsFilters(parseNovelsFilters(searchParams))).toBe('/novels');
   });
 
   it('documents the status filter values sent to the worker books contract', () => {

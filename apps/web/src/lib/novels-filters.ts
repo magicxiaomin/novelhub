@@ -54,14 +54,7 @@ export const parseNovelsFilters = (searchParams: NovelsSearchParams = {}): Novel
   };
 };
 
-export const buildNovelsHref = (
-  current: NovelsFilters,
-  updates: { category?: string; status?: NovelStatusFilter; page?: number },
-): string => {
-  const filters: NovelsFilters = { ...current, ...updates };
-  const filterChanged = 'category' in updates || 'status' in updates;
-  if (filterChanged && !('page' in updates)) delete filters.page;
-
+export const serializeNovelsFilters = (filters: NovelsFilters): string => {
   const params = new URLSearchParams();
   if (filters.category) params.set('category', filters.category);
   if (filters.status) params.set('status', filters.status);
@@ -71,6 +64,17 @@ export const buildNovelsHref = (
 
   const query = params.toString();
   return query ? `/novels?${query}` : '/novels';
+};
+
+export const buildNovelsHref = (
+  current: NovelsFilters,
+  updates: { category?: string; status?: NovelStatusFilter; page?: number },
+): string => {
+  const filters: NovelsFilters = { ...current, ...updates };
+  const filterChanged = 'category' in updates || 'status' in updates;
+  if (filterChanged && !('page' in updates)) delete filters.page;
+
+  return serializeNovelsFilters(filters);
 };
 
 export const toBooksListQuery = (filters: NovelsFilters, limit: number): NovelsBooksListQuery => ({
