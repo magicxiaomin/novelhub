@@ -1,3 +1,5 @@
+import vm from 'node:vm';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -15,6 +17,35 @@ describe('reader settings', () => {
   it('uses defaults for empty or invalid JSON', () => {
     expect(parseReaderSettings(null)).toEqual(DEFAULT_READER_SETTINGS);
     expect(parseReaderSettings('{bad')).toEqual(DEFAULT_READER_SETTINGS);
+  });
+
+  it('uses defaults when the persisted payload is missing keys', () => {
+    expect(
+      parseReaderSettings(
+        JSON.stringify({
+          version: 1,
+          settings: {},
+        }),
+      ),
+    ).toEqual(DEFAULT_READER_SETTINGS);
+  });
+
+  it('keeps valid partial keys and defaults missing keys', () => {
+    expect(
+      parseReaderSettings(
+        JSON.stringify({
+          version: 1,
+          settings: {
+            fontSize: 'l',
+            lineHeight: 'compact',
+          },
+        }),
+      ),
+    ).toEqual({
+      ...DEFAULT_READER_SETTINGS,
+      fontSize: 'l',
+      lineHeight: 'compact',
+    });
   });
 
   it('accepts valid current-version persisted values', () => {
@@ -39,6 +70,29 @@ describe('reader settings', () => {
       autoAdvance: true,
     });
   });
+
+  it.each([
+    ['s', 'compact'],
+    ['m', 'default'],
+    ['l', 'loose'],
+    ['xl', 'default'],
+  ] as const)(
+    'accepts valid font-size and line-height combination %s/%s',
+    (fontSize, lineHeight) => {
+      expect(
+        parseReaderSettings(
+          JSON.stringify({
+            version: 1,
+            settings: {
+              ...DEFAULT_READER_SETTINGS,
+              fontSize,
+              lineHeight,
+            },
+          }),
+        ),
+      ).toMatchObject({ fontSize, lineHeight });
+    },
+  );
 
   it('falls back to defaults for unknown or legacy payload versions', () => {
     expect(
@@ -163,5 +217,42 @@ describe('reader settings', () => {
     expect(script).toContain('document.documentElement');
     expect(script).toContain('--reader-font-size');
     expect(script).not.toContain('setItem');
+  });
+
+  it('executes the pre-hydration bootstrap contract against persisted settings', () => {
+    const style = new Map<string, string>();
+    const documentElement = {
+      dataset: {} as Record<string, string>,
+      style: { setProperty: vi.fn((key: string, value: string) => style.set(key, value)) },
+    };
+    const localStorage = {
+      getItem: vi.fn(() =>
+        JSON.stringify({
+          version: 1,
+          settings: {
+            ...DEFAULT_READER_SETTINGS,
+            fontSize: 'xl',
+            lineHeight: 'loose',
+            theme: 'dark',
+            fontFamily: 'serif',
+            autoAdvance: true,
+          },
+        }),
+      ),
+      setItem: vi.fn(),
+    };
+
+    vm.runInNewContext(getReaderSettingsBootstrapScript(), {
+      document: { documentElement },
+      window: { localStorage },
+    });
+
+    expect(localStorage.getItem).toHaveBeenCalledWith(READER_SETTINGS_KEY);
+    expect(localStorage.setItem).not.toHaveBeenCalled();
+    expect(documentElement.dataset.readerTheme).toBe('dark');
+    expect(documentElement.dataset.readerFontFamily).toBe('serif');
+    expect(style.get('--reader-bg')).toBe('#1A1A1A');
+    expect(style.get('--reader-font-size')).toBe('22px');
+    expect(style.get('--reader-line-height')).toBe('1.9');
   });
 });

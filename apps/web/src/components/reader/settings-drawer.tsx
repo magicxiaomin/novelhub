@@ -49,7 +49,12 @@ export function SettingsDrawer({
       >
         <div className="mx-auto h-1 w-10 rounded-full bg-muted-foreground/30" />
         <div className="mt-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{messages.reader.settings}</h2>
+          <div>
+            <h2 className="text-base font-semibold">{messages.reader.settings}</h2>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {messages.reader.settingsHelp}
+            </p>
+          </div>
           <Button
             type="button"
             variant="outline"

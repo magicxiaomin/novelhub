@@ -22,6 +22,7 @@ describe('SettingsDrawer accessibility', () => {
 
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-label="Settings"');
+    expect(html).toContain('Changes apply before each chapter paints');
     expect(html).toContain('tabindex="-1"');
     expect(html).toContain('role="radiogroup"');
     expect(html).toContain('aria-label="Font size"');
