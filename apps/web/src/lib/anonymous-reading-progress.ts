@@ -41,6 +41,16 @@ export function loadAnonymousChapterProgress(
   };
 }
 
+export function loadAnonymousBookProgress(
+  storage: OptionalStorage,
+  bookId: string,
+): ReadingProgressEntry | null {
+  for (const item of loadAnonymousReadingProgress(storage)) {
+    if (item.bookId === bookId) return item;
+  }
+  return null;
+}
+
 export function saveAnonymousReadingProgress(
   storage: OptionalStorage,
   entry: ReadingProgressEntry,
