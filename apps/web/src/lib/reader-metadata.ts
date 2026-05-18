@@ -5,9 +5,13 @@ import { messages } from '@novelhub/shared';
 import { absoluteAppUrl } from './site-url';
 import type { BookDetail, ChapterResponse } from './types';
 
+type ReaderChapterForMetadata = Pick<ChapterResponse, 'title' | 'chapterNumber'> & {
+  wordCount?: number;
+};
+
 type ReaderChapterMetadataInput = {
   book: Pick<BookDetail, 'title' | 'author'>;
-  chapter: ChapterResponse;
+  chapter: ReaderChapterForMetadata;
   canonicalPath: string;
 };
 
