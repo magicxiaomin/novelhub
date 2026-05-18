@@ -43,7 +43,14 @@ export function ContinueReadingRailContent({
 }): JSX.Element | null {
   if (entries.length === 0) return null;
 
-  const visibleEntries = entries.slice(0, MAX_CONTINUE_READING_ENTRIES);
+  const visibleEntries = Array.from(
+    entries
+      .reduce((byBook, entry) => {
+        if (!byBook.has(entry.bookId)) byBook.set(entry.bookId, entry);
+        return byBook;
+      }, new Map<string, ReadingProgressEntry>())
+      .values(),
+  ).slice(0, MAX_CONTINUE_READING_ENTRIES);
 
   return (
     <section className="mt-6">
@@ -56,7 +63,7 @@ export function ContinueReadingRailContent({
 
           return (
             <Link
-              key={`${entry.bookId}-${entry.chapterId}`}
+              key={entry.bookId}
               href={`/read/${encodeURIComponent(entry.bookId)}/${entry.chapterNumber}`}
               className="flex w-36 shrink-0 flex-col gap-2"
             >

@@ -119,11 +119,17 @@ export class ReadingProgressService {
   }
 
   async listRecent(userId: string, limit = 10): Promise<ProgressListItem[]> {
+    const requestedLimit = Math.max(0, limit);
+    const fetchLimit = Math.min(requestedLimit * 5, 50);
+    if (fetchLimit === 0) return [];
+
     const rows = await this.prisma.readingProgress.findMany({
       where: { userId },
-      orderBy: { lastReadAt: 'desc' },
-      take: limit,
+      // Over-fetch so deduping multiple chapter progress rows per book still fills the visible cap.
+      orderBy: [{ lastReadAt: 'desc' }, { updatedAt: 'desc' }, { id: 'asc' }],
+      take: fetchLimit,
       select: {
+        id: true,
         bookId: true,
         chapterId: true,
         scrollPosition: true,
@@ -132,7 +138,16 @@ export class ReadingProgressService {
         book: { select: { title: true, coverUrl: true } },
       },
     });
-    return rows.map((row) => ({
+    const dedupedRows = Array.from(
+      rows
+        .reduce((byBook, row) => {
+          if (!byBook.has(row.bookId)) byBook.set(row.bookId, row);
+          return byBook;
+        }, new Map<string, (typeof rows)[number]>())
+        .values(),
+    ).slice(0, requestedLimit);
+
+    return dedupedRows.map((row) => ({
       bookId: row.bookId,
       chapterId: row.chapterId,
       chapterNumber: row.chapter.order,
