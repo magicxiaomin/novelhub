@@ -104,4 +104,12 @@ describe('novels route polish', () => {
     expect(source).toContain('href="/novels"');
     expect(source).not.toContain('href="/"');
   });
+
+  it('uses BookCardSkeleton in the route loading state to reserve card footprint', () => {
+    const source = readNovelsRouteFile('loading.tsx');
+
+    expect(source).toContain('BookCardSkeleton');
+    expect(source).toContain('Array.from({ length: 8 })');
+    expect(source).toContain('aria-label={messages.novels.loadingSkeletonLabel}');
+  });
 });

@@ -9,6 +9,8 @@ import { messages } from '@novelhub/shared';
 
 type Size = 'sm' | 'md';
 
+const skeletonClass = 'bg-muted motion-safe:animate-pulse motion-reduce:animate-none';
+
 const sizeClasses: Record<Size, { wrapper: string; cover: string; title: string }> = {
   sm: { wrapper: 'w-28', cover: 'aspect-[3/4] w-28', title: 'text-sm' },
   md: { wrapper: 'w-36', cover: 'aspect-[3/4] w-36', title: 'text-sm' },
@@ -45,6 +47,29 @@ function formatFreeChapterCount(count: BookSummary['freeChapterCount'] | undefin
 
   const label = count === 1 ? messages.book.freeChapter : messages.book.freeChapters;
   return `${count} ${label}`;
+}
+
+export function BookCardSkeleton({ size = 'md' }: { size?: Size } = {}): JSX.Element {
+  const cls = sizeClasses[size];
+
+  return (
+    <div
+      className={cn('flex shrink-0 flex-col gap-2', cls.wrapper)}
+      aria-hidden="true"
+      data-testid="book-card-skeleton"
+    >
+      <div className={cn('relative overflow-hidden rounded-xl', skeletonClass, cls.cover)} />
+      <div className="flex flex-col gap-1">
+        <div className={cn('h-8 rounded-md', skeletonClass)} />
+        <div className={cn('h-3 w-20 rounded-md', skeletonClass)} />
+        <div className="mt-1 flex gap-1">
+          <div className={cn('h-5 w-10 rounded-full', skeletonClass)} />
+          <div className={cn('h-5 w-12 rounded-full', skeletonClass)} />
+        </div>
+        <div className={cn('h-3 w-24 rounded-md', skeletonClass)} />
+      </div>
+    </div>
+  );
 }
 
 export function BookCard({
