@@ -144,6 +144,21 @@ describe('ReaderContent scroll progress indicator', () => {
     expect(html).not.toContain('data-testid="reader-paywall"');
   });
 
+  it('labels the transparent tap target so keyboard and screen-reader users can toggle reader controls', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={baseChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('type="button"');
+    expect(html).toContain('aria-label="Toggle reader controls"');
+  });
+
   it('omits progress transition classes when reduced motion is preferred', () => {
     const originalMatchMedia = globalThis.matchMedia;
     Object.defineProperty(globalThis, 'matchMedia', {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { type ReactNode } from 'react';
+import React, { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,13 @@ export function SettingsDrawer({
   onChange,
   onClose,
 }: SettingsDrawerProps): JSX.Element {
+  const dialogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    dialogRef.current?.focus({ preventScroll: true });
+  }, [open]);
+
   return (
     <div
       className={cn(
@@ -30,6 +37,7 @@ export function SettingsDrawer({
       aria-hidden={!open}
     >
       <section
+        ref={dialogRef}
         className={cn(
           'absolute inset-x-0 bottom-0 min-h-[50dvh] rounded-t-2xl bg-background px-4 pb-6 pt-4 text-foreground shadow-2xl transition-transform',
           open ? 'translate-y-0' : 'translate-y-full',
@@ -37,6 +45,7 @@ export function SettingsDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={messages.reader.settings}
+        tabIndex={-1}
       >
         <div className="mx-auto h-1 w-10 rounded-full bg-muted-foreground/30" />
         <div className="mt-4 flex items-center justify-between">
