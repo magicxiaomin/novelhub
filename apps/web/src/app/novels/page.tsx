@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
@@ -16,6 +17,26 @@ import {
 import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
+
+export const metadata: Metadata = {
+  title: 'Browse Web Novels — NovelHub',
+  description:
+    'Browse serialized web novels, discover trending stories, and start free chapters on NovelHub.',
+  openGraph: {
+    title: 'Browse Web Novels — NovelHub',
+    description:
+      'Browse serialized web novels, discover trending stories, and start free chapters on NovelHub.',
+    type: 'website',
+    images: [{ url: '/og/novels.png', alt: 'Browse NovelHub web novels' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Browse Web Novels — NovelHub',
+    description:
+      'Browse serialized web novels, discover trending stories, and start free chapters on NovelHub.',
+    images: ['/og/novels.png'],
+  },
+};
 
 const pageSize = 20;
 
