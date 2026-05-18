@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 vi.mock('next/link', () => ({ default: 'a' }));
 vi.mock('next/navigation', () => ({
@@ -8,7 +10,9 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: undefined, isSuccess: false, isLoading: false, isError: false }),
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
-vi.mock('@/components/paywall/paywall', () => ({ Paywall: () => null }));
+vi.mock('@/components/paywall/paywall', () => ({
+  Paywall: () => <section data-testid="reader-paywall">Paywall</section>,
+}));
 vi.mock('@/components/reader/bottom-bar', () => ({ ReaderBottomBar: () => null }));
 vi.mock('@/components/reader/chapter-list-drawer', () => ({ ChapterListDrawer: () => null }));
 vi.mock('@/components/reader/settings-drawer', () => ({ SettingsDrawer: () => null }));
@@ -55,6 +59,93 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 import { prefetchAdjacentReaderRoutes } from './reader-content';
+import { calculateReaderScrollProgress, ReaderContent } from './reader-content';
+import type { ChapterResponse, Paginated, ChapterSummary } from '@/lib/types';
+
+const baseChapter: ChapterResponse = {
+  id: 'chapter-1',
+  bookId: 'book-1',
+  title: 'Chapter 1',
+  chapterNumber: 1,
+  isLocked: false,
+  contentUrl: 'https://assets.example.com/chapter-1.txt',
+  wordCount: 1234,
+  prevChapterId: null,
+  nextChapterId: null,
+};
+
+const lockedChapter: ChapterResponse = {
+  id: 'chapter-1',
+  bookId: 'book-1',
+  title: 'Chapter 1',
+  chapterNumber: 1,
+  isLocked: true,
+  preview: 'Locked preview',
+  unlockOptions: {
+    coinCost: 30,
+    canUnlockWithCoins: true,
+    canUnlockWithSubscription: true,
+  },
+};
+
+const initialChapters: Paginated<ChapterSummary> = {
+  items: [],
+  total: 0,
+  page: 1,
+  limit: 200,
+};
+
+describe('calculateReaderScrollProgress', () => {
+  it('clamps live scroll progress between 0 and 100 percent', () => {
+    expect(
+      calculateReaderScrollProgress({ scrollY: -50, scrollHeight: 1200, innerHeight: 200 }),
+    ).toBe(0);
+    expect(
+      calculateReaderScrollProgress({ scrollY: 500, scrollHeight: 1200, innerHeight: 200 }),
+    ).toBe(50);
+    expect(
+      calculateReaderScrollProgress({ scrollY: 1400, scrollHeight: 1200, innerHeight: 200 }),
+    ).toBe(100);
+  });
+
+  it('returns 100 percent when the document has no scrollable area', () => {
+    expect(calculateReaderScrollProgress({ scrollY: 0, scrollHeight: 600, innerHeight: 600 })).toBe(
+      100,
+    );
+  });
+});
+
+describe('ReaderContent scroll progress indicator', () => {
+  it('renders for unlocked chapter content', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={baseChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('aria-label="Reader scroll progress"');
+    expect(html).not.toContain('data-testid="reader-paywall"');
+  });
+
+  it('does not render for locked paywall chapters', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={lockedChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('data-testid="reader-paywall"');
+    expect(html).not.toContain('aria-label="Reader scroll progress"');
+  });
+});
 
 describe('prefetchAdjacentReaderRoutes', () => {
   it('prefetches each defined adjacent reader href once when reduced-data preferences are absent', () => {

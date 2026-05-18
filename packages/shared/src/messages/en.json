@@ -312,6 +312,7 @@
     "fontSerif": "Serif",
     "autoAdvance": "Auto-advance to next chapter",
     "progressUnavailable": "Reading progress sync is unavailable.",
+    "scrollProgress": "Reader scroll progress",
     "moreLikeThis": "More like this",
     "browseAllNovels": "Browse all novels",
     "noChapters": "No chapters found"
