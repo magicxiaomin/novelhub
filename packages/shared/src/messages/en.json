@@ -292,6 +292,7 @@
   "reader": {
     "back": "Back",
     "settings": "Settings",
+    "settingsHelp": "Changes apply before each chapter paints, so your reading view stays consistent.",
     "previousChapter": "Previous chapter",
     "nextChapter": "Next chapter",
     "chapters": "Chapters",
