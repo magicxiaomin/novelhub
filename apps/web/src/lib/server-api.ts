@@ -9,7 +9,7 @@
  * Returns null on 404 / 401 so callers can call `notFound()` cleanly
  * instead of try/catching.
  */
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
 import type * as NovelE2eFixtures from './novel-e2e-fixtures';
@@ -71,6 +71,7 @@ export async function fetchBookServer(id: string): Promise<BookDetail | null> {
     // Avoid Next's default fetch caching — book detail can change as
     // chapters land. ISR could be added later if traffic warrants.
     cache: 'no-store',
+    headers: serverReadHeaders(),
   });
   if (res.status === 404 || res.status === 401) return null;
   if (!res.ok) {
@@ -91,6 +92,7 @@ export async function fetchBooksServer(query?: {
 
   const res = await fetch(buildServerApiUrl('/books', query), {
     cache: 'no-store',
+    headers: serverReadHeaders(),
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch books: ${res.status}`);
@@ -104,6 +106,7 @@ export async function fetchBookCategoriesServer(): Promise<CategoryCount[]> {
 
   const res = await fetch(buildServerApiUrl('/books/categories'), {
     cache: 'no-store',
+    headers: serverReadHeaders(),
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch book categories: ${res.status}`);
@@ -117,6 +120,24 @@ const cookieHeader = (): string => {
   } catch {
     return '';
   }
+};
+
+const requestIdHeader = (): string | null => {
+  try {
+    const requestId = headers().get('x-request-id')?.trim();
+    return requestId || null;
+  } catch {
+    return null;
+  }
+};
+
+const serverReadHeaders = (): Record<string, string> => {
+  const outboundHeaders: Record<string, string> = {};
+  const cookie = cookieHeader();
+  if (cookie) outboundHeaders.cookie = cookie;
+  const requestId = requestIdHeader();
+  if (requestId) outboundHeaders['x-request-id'] = requestId;
+  return outboundHeaders;
 };
 
 export async function fetchBookChaptersServer(
@@ -135,7 +156,7 @@ export async function fetchBookChaptersServer(
     buildServerApiUrl(`/books/${encodeURIComponent(id)}/chapters`, { page, limit }),
     {
       cache: 'no-store',
-      headers: { cookie: cookieHeader() },
+      headers: serverReadHeaders(),
     },
   );
   if (res.status === 404 || res.status === 401) return null;
@@ -152,7 +173,7 @@ export async function fetchChapterServer(id: string): Promise<ChapterResponse | 
 
   const res = await fetch(buildServerApiUrl(`/chapters/${encodeURIComponent(id)}`), {
     cache: 'no-store',
-    headers: { cookie: cookieHeader() },
+    headers: serverReadHeaders(),
   });
   if (res.status === 404) return null;
   if (!res.ok) {

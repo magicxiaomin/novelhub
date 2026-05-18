@@ -1,23 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildServerApiUrl, fetchBookServer } from './server-api';
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(() => ({ toString: () => 'session=abc' })),
+  headers: vi.fn(() => ({
+    get: (name: string) => (name.toLowerCase() === 'x-request-id' ? 'req_ssr123' : null),
+  })),
+}));
+
+import {
+  buildServerApiUrl,
+  fetchBookCategoriesServer,
+  fetchBookChaptersServer,
+  fetchBookServer,
+  fetchBooksServer,
+  fetchChapterServer,
+} from './server-api';
 
 describe('server API fetch helpers', () => {
   const originalNextPublicApiUrl = process.env.NEXT_PUBLIC_API_URL;
   const originalNextPublicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const originalApiInternalUrl = process.env.API_INTERNAL_URL;
+  const originalNovelhubE2eNovelFixtures = process.env.NOVELHUB_E2E_NOVEL_FIXTURES;
   const realFetch = globalThis.fetch;
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_API_URL = 'http://api.test';
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.API_INTERNAL_URL;
+    delete process.env.NOVELHUB_E2E_NOVEL_FIXTURES;
   });
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_API_URL = originalNextPublicApiUrl;
     process.env.NEXT_PUBLIC_API_BASE_URL = originalNextPublicApiBaseUrl;
     process.env.API_INTERNAL_URL = originalApiInternalUrl;
+    process.env.NOVELHUB_E2E_NOVEL_FIXTURES = originalNovelhubE2eNovelFixtures;
     globalThis.fetch = realFetch;
     vi.restoreAllMocks();
   });
@@ -60,5 +77,27 @@ describe('server API fetch helpers', () => {
     expect(buildServerApiUrl('/books/featured', { limit: 10 })).toBe(
       'http://api.internal:4000/books/featured?limit=10',
     );
+  });
+
+  it('forwards incoming x-request-id on server read-path fetches with existing cookies', async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ items: [], page: 1, limit: 200, total: 0, totalPages: 0 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    ) as unknown as typeof fetch;
+
+    await fetchBookServer('book-1');
+    await fetchBooksServer();
+    await fetchBookCategoriesServer();
+    await fetchBookChaptersServer('book-1');
+    await fetchChapterServer('chapter-1');
+
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    expect(calls).toHaveLength(5);
+    for (const [, init] of calls) {
+      expect(init?.headers).toMatchObject({ cookie: 'session=abc', 'x-request-id': 'req_ssr123' });
+    }
   });
 });
