@@ -30,6 +30,7 @@ export default defineConfig({
           PATH: process.env.PATH,
           NOVELHUB_E2E_NOVEL_FIXTURES: '1',
           NOVELHUB_RUNTIME_ENV: 'ci-e2e',
+          NEXT_PUBLIC_R2_PUBLIC_HOST: 'novel-e2e-content.test',
           PRODUCT_MODE: process.env.PRODUCT_MODE,
         }),
         reuseExistingServer: !process.env.CI,
