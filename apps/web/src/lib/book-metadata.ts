@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { messages } from '@novelhub/shared';
 
+import { absoluteAppUrl } from './site-url';
 import type { BookDetail } from './types';
 
 export const SITE_DEFAULT_BOOK_COVER = '/og-default.png';
@@ -49,13 +50,18 @@ export const buildBookDetailMetadata = (book: BookDetail): Metadata => {
   const description = buildBookDescription(book);
   const imageUrl = resolveBookCoverImage(book);
   const image = { url: imageUrl, alt: coverAlt(book.title) };
+  const canonicalUrl = absoluteAppUrl(`/book/${encodeURIComponent(book.id)}`);
 
   return {
     title,
     description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title,
       description,
+      url: canonicalUrl,
       images: [image],
       type: 'book',
     },
