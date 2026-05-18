@@ -27,6 +27,18 @@ test('locked chapter subscription checkout posts the current reader URL as mocke
       }),
     });
   });
+  await page.route('**/unlocks**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], total: 0, page: 1, limit: 200 }),
+    });
+  });
+  await page.route('**/reading-progress**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], total: 0, page: 1, limit: 20 }),
+    });
+  });
   await page.route('**/payments/checkout/subscription', async (route) => {
     await route.fulfill({
       contentType: 'application/json',

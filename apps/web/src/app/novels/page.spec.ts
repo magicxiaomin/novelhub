@@ -9,14 +9,14 @@ describe('novels page metadata', () => {
     expect(metadata.description).toBe(messages.metadata.novels.description);
     expect(metadata.openGraph).toMatchObject({
       title: messages.metadata.novels.title,
-      description: metadata.description,
+      description: messages.metadata.novels.description,
       type: 'website',
       images: [{ url: '/og/novels.png', alt: messages.metadata.novels.ogAlt }],
     });
     expect(metadata.twitter).toMatchObject({
       card: 'summary_large_image',
       title: messages.metadata.novels.title,
-      description: metadata.description,
+      description: messages.metadata.novels.description,
       images: ['/og/novels.png'],
     });
   });

@@ -6,7 +6,6 @@ import type { BookDetail } from '@/lib/types';
 
 vi.mock('@/lib/server-api', () => ({
   fetchBookServer: vi.fn(),
-  fetchRelatedBooksServer: vi.fn().mockResolvedValue([]),
 }));
 
 const mockedFetchBookServer = vi.mocked(fetchBookServer);

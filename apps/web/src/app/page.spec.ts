@@ -9,14 +9,14 @@ describe('home page metadata', () => {
     expect(metadata.description).toContain('serialized web novels');
     expect(metadata.openGraph).toMatchObject({
       title: 'NovelHub — Read Addictive Web Novels',
-      description: metadata.description,
+      description: messages.metadata.description,
       type: 'website',
       images: [{ url: '/og/novelhub-home.png', alt: messages.metadata.homeOgAlt }],
     });
     expect(metadata.twitter).toMatchObject({
       card: 'summary_large_image',
       title: 'NovelHub — Read Addictive Web Novels',
-      description: metadata.description,
+      description: messages.metadata.description,
       images: ['/og/novelhub-home.png'],
     });
   });
