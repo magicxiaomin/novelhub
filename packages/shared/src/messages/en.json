@@ -271,7 +271,13 @@
     "pleaseTryAgain": "Please try again.",
     "bookNotFound": "Book not found",
     "bookNotFoundBody": "The book you're looking for might have been removed.",
-    "backToHome": "Back to home"
+    "novelsNotFound": "Novels unavailable",
+    "novelsNotFoundBody": "Browse will be back soon. Return home to keep exploring NovelHub.",
+    "readerNotFound": "Chapter not found",
+    "readerNotFoundBody": "This chapter may have moved or is no longer available.",
+    "backToHome": "Back to home",
+    "backToNovels": "Back to novels",
+    "routeBoundaryReset": "Try again"
   },
   "reader": {
     "back": "Back",
