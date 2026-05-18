@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import type { BookSummary } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { messages } from '@novelhub/shared';
 
 type Size = 'sm' | 'md';
 
@@ -12,6 +13,39 @@ const sizeClasses: Record<Size, { wrapper: string; cover: string; title: string 
   sm: { wrapper: 'w-28', cover: 'aspect-[3/4] w-28', title: 'text-sm' },
   md: { wrapper: 'w-36', cover: 'aspect-[3/4] w-36', title: 'text-sm' },
 };
+
+const statusLabels: Record<string, string> = {
+  completed: messages.book.statusCompleted,
+  complete: messages.book.statusCompleted,
+  ongoing: messages.book.statusOngoing,
+  serializing: messages.book.statusOngoing,
+};
+
+function formatStatus(status: BookSummary['status'] | undefined): string | null {
+  if (!status) {
+    return null;
+  }
+
+  return statusLabels[status.trim().toLowerCase()] ?? null;
+}
+
+function formatChapterCount(count: BookSummary['totalChapters'] | undefined): string | null {
+  if (typeof count !== 'number' || count <= 0) {
+    return null;
+  }
+
+  const label = count === 1 ? messages.book.chapter : messages.book.chaptersLower;
+  return `${count} ${label}`;
+}
+
+function formatFreeChapterCount(count: BookSummary['freeChapterCount'] | undefined): string | null {
+  if (typeof count !== 'number' || count <= 0) {
+    return null;
+  }
+
+  const label = count === 1 ? messages.book.freeChapter : messages.book.freeChapters;
+  return `${count} ${label}`;
+}
 
 export function BookCard({
   book,
@@ -23,6 +57,13 @@ export function BookCard({
   showCategory?: boolean;
 }): JSX.Element {
   const cls = sizeClasses[size];
+  const tags = Array.isArray(book.tags) ? book.tags.filter(Boolean).slice(0, 2) : [];
+  const status = formatStatus(book.status);
+  const chapterCount = formatChapterCount(book.totalChapters);
+  const freeChapterCount = formatFreeChapterCount(book.freeChapterCount);
+  const hasMetadata =
+    tags.length > 0 || status !== null || chapterCount !== null || freeChapterCount !== null;
+
   return (
     <Link
       href={`/book/${book.id}`}
@@ -48,9 +89,32 @@ export function BookCard({
           </Badge>
         ) : null}
       </div>
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <p className={cn('line-clamp-2 font-medium leading-tight', cls.title)}>{book.title}</p>
         <p className="line-clamp-1 text-xs text-muted-foreground">{book.author}</p>
+        {hasMetadata ? (
+          <div className="flex flex-col gap-1 text-[11px] leading-none text-muted-foreground">
+            {tags.length > 0 || status ? (
+              <div className="flex flex-wrap gap-1">
+                {tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-muted px-1.5 py-1 text-foreground/80">
+                    {tag}
+                  </span>
+                ))}
+                {status ? (
+                  <span className="rounded-full bg-primary/10 px-1.5 py-1 font-medium text-primary">
+                    {status}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            {chapterCount || freeChapterCount ? (
+              <p className="line-clamp-1">
+                {[chapterCount, freeChapterCount].filter(Boolean).join(' · ')}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </Link>
   );
