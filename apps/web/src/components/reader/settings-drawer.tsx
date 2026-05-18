@@ -1,7 +1,7 @@
 'use client';
 
+import React, { type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,7 @@ export function SettingsDrawer({
         <div className="mt-5 space-y-5">
           <SettingGroup label={messages.reader.fontSize}>
             <Segmented
+              label={messages.reader.fontSize}
               value={settings.fontSize}
               options={[
                 ['s', messages.reader.fontSmall],
@@ -68,6 +69,7 @@ export function SettingsDrawer({
 
           <SettingGroup label={messages.reader.lineHeight}>
             <Segmented
+              label={messages.reader.lineHeight}
               value={settings.lineHeight}
               options={[
                 ['compact', messages.reader.lineCompact],
@@ -80,6 +82,7 @@ export function SettingsDrawer({
 
           <SettingGroup label={messages.reader.theme}>
             <Segmented
+              label={messages.reader.theme}
               value={settings.theme}
               options={[
                 ['white', messages.reader.themeWhite],
@@ -92,6 +95,7 @@ export function SettingsDrawer({
 
           <SettingGroup label={messages.reader.fontFamily}>
             <Segmented
+              label={messages.reader.fontFamily}
               value={settings.fontFamily}
               options={[
                 ['sans', messages.reader.fontSans],
@@ -126,21 +130,28 @@ function SettingGroup({ label, children }: { label: string; children: ReactNode 
 }
 
 function Segmented<T extends string>({
+  label,
   value,
   options,
   onChange,
 }: {
+  label: string;
   value: T;
   options: Array<[T, string]>;
   onChange: (value: T) => void;
 }): JSX.Element {
   return (
-    <div className="grid grid-flow-col auto-cols-fr gap-1 rounded-lg bg-muted p-1">
+    <div
+      className="grid grid-flow-col auto-cols-fr gap-1 rounded-lg bg-muted p-1"
+      role="radiogroup"
+      aria-label={label}
+    >
       {options.map(([option, label]) => (
         <button
           key={option}
           type="button"
           onClick={() => onChange(option)}
+          aria-pressed={value === option}
           className={cn(
             'h-9 rounded-md px-2 text-sm font-medium transition-colors',
             value === option ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
