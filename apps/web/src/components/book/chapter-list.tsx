@@ -90,6 +90,11 @@ export function ChapterList({
           ))}
         </ol>
       )}
+      {chapterPage.isError ? (
+        <p className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {messages.book.chaptersLoadError}
+        </p>
+      ) : null}
       {hasMore ? (
         <button
           type="button"
@@ -98,9 +103,14 @@ export function ChapterList({
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border py-2 text-sm font-medium text-foreground/80 disabled:cursor-not-allowed disabled:opacity-70"
         >
           {chapterPage.isFetching ? (
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground" />
+            <span
+              className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+              aria-hidden="true"
+            />
           ) : null}
-          {messages.book.loadMoreChapters}
+          {chapterPage.isFetching
+            ? messages.book.loadingMoreChapters
+            : messages.book.loadMoreChapters}
         </button>
       ) : null}
     </section>

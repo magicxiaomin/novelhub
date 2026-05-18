@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
@@ -16,6 +17,23 @@ import {
 import { messages } from '@novelhub/shared';
 
 export const runtime = 'edge';
+
+export const metadata: Metadata = {
+  title: messages.metadata.novels.title,
+  description: messages.metadata.novels.description,
+  openGraph: {
+    title: messages.metadata.novels.title,
+    description: messages.metadata.novels.description,
+    type: 'website',
+    images: [{ url: '/og/novels.png', alt: messages.metadata.novels.ogAlt }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: messages.metadata.novels.title,
+    description: messages.metadata.novels.description,
+    images: ['/og/novels.png'],
+  },
+};
 
 const pageSize = 20;
 
