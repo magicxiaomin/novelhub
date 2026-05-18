@@ -60,8 +60,16 @@ test('reader adjacent navigation keeps rendered content visible and restores bac
   await page.goto(`/read/${bookId}/1`);
   const article = page.getByRole('article');
   await expect(article.getByRole('heading', { name: 'Free Chapter 1' })).toBeVisible();
+  await expect(article).toContainText('Free chapter 1 opens the acquisition funnel');
+  await page.waitForFunction(
+    () => document.documentElement.scrollHeight > window.innerHeight + 720,
+  );
+  // Initial progress restoration can schedule a short series of scrollTo calls;
+  // wait for it to settle before simulating the user's own scroll.
+  await page.waitForTimeout(1_100);
 
-  await page.evaluate(() => window.scrollTo(0, 720));
+  await page.mouse.wheel(0, 720);
+  await page.waitForFunction(() => window.scrollY > 0);
   const beforeY = await page.evaluate(() => window.scrollY);
   expect(beforeY).toBeGreaterThan(0);
 
@@ -74,6 +82,7 @@ test('reader adjacent navigation keeps rendered content visible and restores bac
   await expect(page).toHaveURL(new RegExp(`/read/${bookId}/2$`));
   await expect(article.getByRole('heading', { name: 'Free Chapter 2' })).toBeVisible();
   await expect(page.getByLabel('Loading chapter content')).toHaveCount(0);
+  await expect(article).toContainText('Free chapter 2 opens the acquisition funnel');
 
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/read/${bookId}/1$`));
