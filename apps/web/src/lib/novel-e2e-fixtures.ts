@@ -8,6 +8,7 @@ import type {
 } from './types';
 
 export const novelE2eFixtureBookId = '19500000-0000-4195-8195-000000000198';
+const legacyReaderFixtureBookId = '11111111-1111-4111-8111-111111111111';
 
 const coverSvg = encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect width="300" height="400" fill="#7c3aed"/><text x="24" y="210" fill="white" font-size="34" font-family="sans-serif">Novel Funnel</text></svg>',
@@ -88,6 +89,47 @@ const baseListBooks: BookSummary[] = [
   },
 ];
 
+const legacyReaderFixtureTitles = [
+  'A Truth Universally Acknowledged',
+  'Mr. Bennet Pays a Call',
+  'The Meryton Assembly',
+  'Sisters Confide',
+  'The Lucases at Longbourn',
+  'A Visit to Netherfield',
+  'The Officers Arrive in Meryton',
+  'Jane Falls Ill',
+  'A Letter Brings News',
+  'Conversations After Dinner',
+];
+
+const legacyReaderFixtureChapters: ChapterSummary[] = legacyReaderFixtureTitles.map(
+  (title, index) => ({
+    id: `${legacyReaderFixtureBookId}-${String(index + 1).padStart(2, '0')}`,
+    bookId: legacyReaderFixtureBookId,
+    order: index + 1,
+    title,
+    isFree: index < 3,
+    wordCount: 1100 + index,
+  }),
+);
+
+const legacyReaderFixtureBook: BookDetail = {
+  ...baseListBooks[0]!,
+  description:
+    'A deterministic Pride and Prejudice fixture retained for legacy anonymous browsing and reader smoke tests.',
+  chapters: legacyReaderFixtureChapters,
+};
+
+const fixtureBookDetails = new Map<string, BookDetail>([
+  [novelE2eFixtureBook.id, novelE2eFixtureBook],
+  [legacyReaderFixtureBook.id, legacyReaderFixtureBook],
+]);
+
+const fixtureChapterLists = new Map<string, ChapterSummary[]>([
+  [novelE2eFixtureBook.id, novelE2eFixtureChapters],
+  [legacyReaderFixtureBook.id, legacyReaderFixtureChapters],
+]);
+
 export const novelE2eFixtureBooks: BookSummary[] = [
   ...baseListBooks,
   ...Array.from({ length: 22 }, (_, index) => {
@@ -143,8 +185,30 @@ export const novelE2eFixtureCategories: CategoryCount[] = Array.from(
   ([category, count]) => ({ category, count }),
 );
 
+export function novelE2eFixtureBookDetail(bookId: string): BookDetail | null {
+  return fixtureBookDetails.get(bookId) ?? null;
+}
+
+export function novelE2eFixtureChapterListForBook(
+  bookId: string,
+  page: number,
+  limit: number,
+): Paginated<ChapterSummary> | null {
+  const chapters = fixtureChapterLists.get(bookId);
+  if (!chapters) return null;
+  const start = (page - 1) * limit;
+  return {
+    items: chapters.slice(start, start + limit),
+    total: chapters.length,
+    page,
+    limit,
+  };
+}
+
 export function novelE2eFixtureChapter(chapterId: string): ChapterResponse | null {
-  const summary = novelE2eFixtureChapters.find((chapter) => chapter.id === chapterId);
+  const summary = [...novelE2eFixtureChapters, ...legacyReaderFixtureChapters].find(
+    (chapter) => chapter.id === chapterId,
+  );
   if (!summary) return null;
   if (!summary.isFree) {
     return {
@@ -156,7 +220,7 @@ export function novelE2eFixtureChapter(chapterId: string): ChapterResponse | nul
       preview:
         'A locked preview teases the next twist and confirms that chapter four is beyond the three free chapter limit.',
       unlockOptions: {
-        coinCost: novelE2eFixtureBook.coinPerChapter,
+        coinCost: fixtureBookDetails.get(summary.bookId)?.coinPerChapter ?? 5,
         canUnlockWithCoins: false,
         canUnlockWithSubscription: false,
       },
@@ -169,9 +233,9 @@ export function novelE2eFixtureChapter(chapterId: string): ChapterResponse | nul
     chapterNumber: summary.order,
     title: summary.title,
     isLocked: false,
-    contentUrl: `https://novel-e2e-content.test/chapter-${summary.order}.txt`,
+    contentUrl: `https://novel-e2e-content.test/${summary.bookId}/chapter-${summary.order}.txt`,
     wordCount: summary.wordCount,
-    prevChapterId: novelE2eFixtureChapters[summary.order - 2]?.id ?? null,
-    nextChapterId: novelE2eFixtureChapters[summary.order]?.id ?? null,
+    prevChapterId: fixtureChapterLists.get(summary.bookId)?.[summary.order - 2]?.id ?? null,
+    nextChapterId: fixtureChapterLists.get(summary.bookId)?.[summary.order]?.id ?? null,
   };
 }
