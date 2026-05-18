@@ -34,6 +34,7 @@ import { readingProgressRoutes } from './worker/routes/reading-progress';
 import { unlocksRoutes } from './worker/routes/unlocks';
 import { webhookRoutes } from './worker/routes/webhook';
 import { makePrisma } from './worker/db/prisma';
+import { requestIdAndStructuredReadLog } from './worker/request-logging';
 import { Sentry, buildSentryOptions, captureWorkerException } from './worker/sentry';
 import type { AdminWorkerEnv } from './worker/services/admin-factory';
 import {
@@ -71,8 +72,8 @@ app.use('*', async (c, next) => {
     origin: (origin) => (origin && allowed.has(origin) ? origin : null),
     credentials: true,
     allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposeHeaders: ['Content-Length', 'X-Ratelimit-Remaining', 'X-Ratelimit-Reset'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id'],
+    exposeHeaders: ['Content-Length', 'X-Ratelimit-Remaining', 'X-Ratelimit-Reset', 'X-Request-Id'],
     maxAge: 600,
   })(c, next);
 });
@@ -109,6 +110,10 @@ app.get('/health', async (c) => {
 // resolves. Keeps connection lifetimes bounded so the pg.Pool can't leak
 // across miniflare isolate reuse.
 app.use('/auth/*', prismaMiddleware);
+app.use('/books', requestIdAndStructuredReadLog());
+app.use('/books/*', requestIdAndStructuredReadLog());
+app.use('/chapters', requestIdAndStructuredReadLog());
+app.use('/chapters/*', requestIdAndStructuredReadLog());
 app.use('/books/*', prismaMiddleware);
 app.use('/chapters/*', prismaMiddleware);
 app.use('/dramas/*', prismaMiddleware);

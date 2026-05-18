@@ -9,7 +9,7 @@
  * Returns null on 404 / 401 so callers can call `notFound()` cleanly
  * instead of try/catching.
  */
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 import { internalApiBaseUrl, publicApiBaseUrl } from './api-config';
 import type * as NovelE2eFixtures from './novel-e2e-fixtures';
@@ -119,6 +119,24 @@ const cookieHeader = (): string => {
   }
 };
 
+const requestIdHeader = (): string | null => {
+  try {
+    const requestId = headers().get('x-request-id')?.trim();
+    return requestId || null;
+  } catch {
+    return null;
+  }
+};
+
+const serverReadHeaders = (): Record<string, string> => {
+  const outboundHeaders: Record<string, string> = {};
+  const cookie = cookieHeader();
+  if (cookie) outboundHeaders.cookie = cookie;
+  const requestId = requestIdHeader();
+  if (requestId) outboundHeaders['x-request-id'] = requestId;
+  return outboundHeaders;
+};
+
 export async function fetchBookChaptersServer(
   id: string,
   page = 1,
@@ -135,7 +153,7 @@ export async function fetchBookChaptersServer(
     buildServerApiUrl(`/books/${encodeURIComponent(id)}/chapters`, { page, limit }),
     {
       cache: 'no-store',
-      headers: { cookie: cookieHeader() },
+      headers: serverReadHeaders(),
     },
   );
   if (res.status === 404 || res.status === 401) return null;
@@ -152,7 +170,7 @@ export async function fetchChapterServer(id: string): Promise<ChapterResponse | 
 
   const res = await fetch(buildServerApiUrl(`/chapters/${encodeURIComponent(id)}`), {
     cache: 'no-store',
-    headers: { cookie: cookieHeader() },
+    headers: serverReadHeaders(),
   });
   if (res.status === 404) return null;
   if (!res.ok) {
