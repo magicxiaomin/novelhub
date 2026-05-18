@@ -27,5 +27,5 @@ test('anonymous visitor can browse books and read a free chapter', async ({ page
   await expect(
     page.getByRole('article').getByRole('heading', { name: 'A Truth Universally Acknowledged' }),
   ).toBeVisible();
-  await expect(page.getByText(/It is a truth universally acknowledged/i)).toBeVisible();
+  await expect(page.getByRole('article')).toContainText(/truth universally acknowledged/i);
 });

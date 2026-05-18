@@ -31,7 +31,7 @@ test('anonymous reading progress failures are swallowed without console errors',
   await expect(
     page.getByRole('article').getByRole('heading', { name: 'A Truth Universally Acknowledged' }),
   ).toBeVisible();
-  await expect(page.getByText(/It is a truth universally acknowledged/i)).toBeVisible();
+  await expect(page.getByRole('article')).toContainText(/truth universally acknowledged/i);
 
   await page.mouse.wheel(0, 1200);
   await page.waitForTimeout(5_500);

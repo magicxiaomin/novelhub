@@ -21,6 +21,8 @@ import type {
   Paginated,
 } from '@/lib/types';
 
+export const runtime = 'edge';
+
 type ReaderPageProps = {
   params: {
     bookId: string;
