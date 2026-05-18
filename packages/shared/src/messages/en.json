@@ -36,6 +36,7 @@
   },
   "book": {
     "startReading": "Start Reading",
+    "resumeChapter": "Resume Chapter {chapterNumber}",
     "chapters": "Chapters",
     "words": "Words",
     "wordsLower": "words",

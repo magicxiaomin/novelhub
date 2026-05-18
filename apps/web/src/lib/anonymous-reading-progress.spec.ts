@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  loadAnonymousBookProgress,
   loadAnonymousChapterProgress,
   loadAnonymousReadingProgress,
   saveAnonymousReadingProgress,
@@ -73,6 +74,31 @@ describe('anonymous reading progress storage', () => {
 
     expect(loadAnonymousReadingProgress(storage)).toEqual([entry({ scrollPercent: 64 })]);
     expect(loadAnonymousChapterProgress(storage, 'book-1', 'chapter-1')?.scrollPercent).toBe(64);
+  });
+
+  it('returns the newest anonymous progress entry for a book', () => {
+    const storage = new MemoryStorage();
+
+    saveAnonymousReadingProgress(
+      storage,
+      entry({ bookId: 'book-1', chapterId: 'chapter-1', chapterNumber: 1 }),
+    );
+    saveAnonymousReadingProgress(
+      storage,
+      entry({ bookId: 'book-2', chapterId: 'chapter-2', chapterNumber: 2 }),
+    );
+    saveAnonymousReadingProgress(
+      storage,
+      entry({
+        bookId: 'book-1',
+        chapterId: 'chapter-3',
+        chapterNumber: 3,
+        updatedAt: '2026-05-19T00:00:00.000Z',
+      }),
+    );
+
+    expect(loadAnonymousBookProgress(storage, 'book-1')?.chapterNumber).toBe(3);
+    expect(loadAnonymousBookProgress(storage, 'missing')).toBeNull();
   });
 
   it('returns an empty shelf for corrupt payloads without logging', () => {
