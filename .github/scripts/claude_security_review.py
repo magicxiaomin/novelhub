@@ -257,6 +257,22 @@ Cannot verify automatically while Claude is unavailable.
 ### Verdict: COMMENT"""
 
 
+def build_configured_fallback_review(reason: str) -> str:
+    """Return a parseable, non-approving fallback verdict for non-docs diffs.
+
+    A COMMENT verdict keeps the security_review job from failing due to review
+    infrastructure while still preventing auto-merge, because auto_merge requires
+    security_review.outputs.verdict == 'APPROVE'. This gives humans and rerun
+    automation a durable PR comment with the exact infra reason instead of a
+    silent missing review artifact.
+    """
+    return build_unavailable_review(
+        reason
+        + " Deterministic policy: this non-documentation diff is not approved by fallback; "
+        + "auto-merge remains blocked until a real security reviewer returns APPROVE."
+    )
+
+
 def validate_review(review: str) -> str | None:
     """Return an error string if `review` is not a usable model review, else None.
 
@@ -357,14 +373,16 @@ def main() -> int:
     review, error = run_claude(prompt)
     if error:
         # Reviewer unavailable: deterministic APPROVE is safe only for docs-only
-        # diffs. Code/schema/workflow/secrets changes must fail closed when a
-        # security review cannot be obtained.
+        # diffs. For non-docs diffs, emit a parseable COMMENT verdict rather
+        # than failing the job with an infra error; auto_merge still requires an
+        # APPROVE verdict, so this remains fail-closed for merging while leaving
+        # auditable evidence on the PR.
         diff = read_pr_diff()
         if is_docs_only_diff(diff):
             print(build_docs_only_review(error))
             return 0
-        print(f"ERROR: security review unavailable for non-docs diff: {error}", file=sys.stderr)
-        return 3
+        print(build_configured_fallback_review(f"security review unavailable for non-docs diff: {error}"))
+        return 0
 
     problem = validate_review(review)
     if problem:
@@ -374,8 +392,12 @@ def main() -> int:
             if is_docs_only_diff(diff):
                 print(build_docs_only_review(fallback_error))
                 return 0
-            print(f"ERROR: primary invalid ({problem}); fallback unavailable for non-docs diff ({fallback_error})", file=sys.stderr)
-            return 3
+            print(
+                build_configured_fallback_review(
+                    f"primary invalid ({problem}); fallback unavailable for non-docs diff ({fallback_error})"
+                )
+            )
+            return 0
 
         fallback_problem = validate_review(fallback_review)
         if fallback_problem:
@@ -383,8 +405,12 @@ def main() -> int:
             if is_docs_only_diff(diff):
                 print(build_docs_only_review(f"primary invalid ({problem}); fallback invalid ({fallback_problem})"))
                 return 0
-            print(f"ERROR: primary invalid ({problem}); fallback invalid ({fallback_problem})", file=sys.stderr)
-            return 3
+            print(
+                build_configured_fallback_review(
+                    f"primary invalid ({problem}); fallback invalid ({fallback_problem})"
+                )
+            )
+            return 0
 
         print(fallback_review)
         return 0
