@@ -341,6 +341,31 @@ describe('ReaderContent pagination anchors', () => {
     expect(html).not.toContain('href="/read/book-1/2"');
   });
 
+  it('renders unlocked chapter body without showing the paywall', () => {
+    queryState.chapterContent = {
+      data: 'The unlocked chapter opens under moonlight.\n\nA second paragraph keeps readers moving.',
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    };
+
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={baseChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('Chapter 1');
+    expect(html).toContain('The unlocked chapter opens under moonlight.');
+    expect(html).toContain('A second paragraph keeps readers moving.');
+    expect(html).not.toContain('data-testid="reader-paywall"');
+    expect(html).not.toContain('Loading chapter content');
+  });
+
   it('renders an empty unlocked chapter without a paywall or loading placeholder', () => {
     queryState.chapterContent = { data: '', isSuccess: true, isLoading: false, isError: false };
 
