@@ -259,6 +259,14 @@ describe('ReaderContent scroll progress indicator', () => {
   });
 
   it('does not render for locked paywall chapters', () => {
+    const unlockedBodySentinel = 'UNLOCKED_BODY_SHOULD_NOT_RENDER_FOR_LOCKED_CHAPTER';
+    queryState.chapterContent = {
+      data: unlockedBodySentinel,
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    };
+
     const html = renderToStaticMarkup(
       <ReaderContent
         chapter={lockedChapter}
@@ -271,6 +279,7 @@ describe('ReaderContent scroll progress indicator', () => {
 
     expect(html).toContain('data-testid="reader-paywall"');
     expect(html).not.toContain('aria-label="Reader scroll progress"');
+    expect(html).not.toContain(unlockedBodySentinel);
   });
 });
 
