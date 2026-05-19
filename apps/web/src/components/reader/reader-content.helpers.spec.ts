@@ -46,6 +46,15 @@ describe('calculateReaderScrollProgress', () => {
       100,
     );
   });
+
+  it('treats zero-length reader content as complete rather than dividing by zero', () => {
+    expect(calculateReaderScrollProgress({ scrollY: 0, scrollHeight: 0, innerHeight: 0 })).toBe(
+      100,
+    );
+    expect(calculateReaderScrollProgress({ scrollY: 64, scrollHeight: 0, innerHeight: 640 })).toBe(
+      100,
+    );
+  });
 });
 
 describe('reader scroll restore helpers', () => {
