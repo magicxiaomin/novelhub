@@ -111,15 +111,15 @@ describe('novels route polish', () => {
   it('keeps filtered-zero state distinct, actionable, and announced politely', () => {
     const source = readNovelsRouteFile('page.tsx');
 
-    expect(messages.novels.filteredEmptyTitle).toBe('No novels match these filters');
-    expect(messages.novels.filteredEmptyBody).toContain('Try clearing filters');
-    expect(messages.novels.filteredEmptyTitle).not.toBe(messages.novels.emptyTitle);
-    expect(messages.novels.filteredEmptyBody).not.toBe(messages.novels.emptyBody);
-    expect(source).toContain('messages.novels.filteredEmptyTitle');
-    expect(source).toContain('messages.novels.filteredEmptyBody');
-    expect(source).toContain('role="status"');
-    expect(source).toContain('aria-live="polite"');
-    expect(source).toContain('<Link href="/novels">{messages.novels.clearFilters}</Link>');
+    expect(messages.novels.categoryOnlyEmptyTitle).toBe('No novels match this category');
+    expect(messages.novels.statusOnlyEmptyTitle).toBe('No novels match this status');
+    expect(messages.novels.categoryAndStatusEmptyTitle).toBe('No novels match these filters');
+    expect(messages.novels.categoryAndStatusEmptyBody).toContain('Try clearing filters');
+    expect(messages.novels.categoryAndStatusEmptyTitle).not.toBe(messages.novels.emptyTitle);
+    expect(messages.novels.categoryAndStatusEmptyBody).not.toBe(messages.novels.emptyBody);
+    expect(source).toContain('NovelsEmptyState');
+    expect(source).toContain('hasCategoryFilter={hasCategoryFilter}');
+    expect(source).toContain('hasStatusFilter={hasStatusFilter}');
   });
 
   it('keeps the truly-empty catalog state free of misleading filter reset copy', () => {
@@ -129,10 +129,8 @@ describe('novels route polish', () => {
     expect(messages.novels.emptyBody).toContain('New stories are coming soon');
     expect(messages.novels.emptyBody).not.toContain('filter');
     expect(messages.novels.emptyBody).not.toContain('Clear filters');
-    expect(source).toContain('const emptyStateTitle = hasActiveFilters');
-    expect(source).toContain('const emptyStateBody = hasActiveFilters');
-    expect(source).toContain('? messages.novels.filteredEmptyTitle');
-    expect(source).toContain('? messages.novels.filteredEmptyBody');
+    expect(source).toContain('hasCategoryFilter={hasCategoryFilter}');
+    expect(source).toContain('hasStatusFilter={hasStatusFilter}');
   });
 
   it('adds a retryable novels route error boundary that returns to novels', () => {
