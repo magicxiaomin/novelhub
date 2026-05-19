@@ -14,8 +14,10 @@ jest.mock('../services/catalog-factory', () => ({
 
 const mockedMakeBooksService = jest.mocked(makeBooksService);
 
+const bookId = '11111111-1111-4111-8111-111111111111';
+
 const bookSummary = {
-  id: '11111111-1111-4111-8111-111111111111',
+  id: bookId,
   title: 'Worker Contract Novel',
   author: 'Contract Author',
   coverUrl: 'https://cdn.test/cover.jpg',
@@ -73,6 +75,7 @@ describe('Worker books route contracts', () => {
   const search = jest.fn();
   const trending = jest.fn();
   const categories = jest.fn();
+  const listChapters = jest.fn();
 
   beforeEach(() => {
     list.mockResolvedValue({ items: [bookSummary], total: 21, page: 2, limit: 5 });
@@ -82,6 +85,12 @@ describe('Worker books route contracts', () => {
       { category: 'romance', count: 12 },
       { category: 'fantasy', count: 9 },
     ]);
+    listChapters.mockResolvedValue({
+      items: [{ id: '11111111-1111-4111-8111-111111111112', bookId, order: 1, isFree: true }],
+      total: 51,
+      page: 2,
+      limit: 50,
+    });
     mockedMakeBooksService.mockReturnValue({
       list,
       search,
@@ -89,7 +98,7 @@ describe('Worker books route contracts', () => {
       categories,
       featured: jest.fn(),
       getById: jest.fn(),
-      listChapters: jest.fn(),
+      listChapters,
       invalidateListCaches: jest.fn(),
     } as unknown as ReturnType<typeof makeBooksService>);
   });
@@ -164,6 +173,65 @@ describe('Worker books route contracts', () => {
       page: 3,
       limit: 7,
     });
+  });
+
+  it('passes /books/:id/chapters pagination query values to the books service and returns its result', async () => {
+    const app = buildApp();
+
+    const response = await app.request(`/books/${bookId}/chapters?page=2&limit=50`);
+
+    expect(response.status).toBe(200);
+    expect(listChapters).toHaveBeenCalledWith(bookId, { page: 2, limit: 50 });
+    await expect(response.json()).resolves.toEqual({
+      items: [{ id: '11111111-1111-4111-8111-111111111112', bookId, order: 1, isFree: true }],
+      total: 51,
+      page: 2,
+      limit: 50,
+    });
+  });
+
+  it('allows missing /books/:id/chapters query values and forwards an empty query object', async () => {
+    const app = buildApp();
+
+    const response = await app.request(`/books/${bookId}/chapters`);
+
+    expect(response.status).toBe(200);
+    expect(listChapters).toHaveBeenCalledWith(bookId, {});
+    await expect(response.json()).resolves.toEqual({
+      items: [{ id: '11111111-1111-4111-8111-111111111112', bookId, order: 1, isFree: true }],
+      total: 51,
+      page: 2,
+      limit: 50,
+    });
+  });
+
+  it.each(['limit=201', 'page=0', 'limit=abc'])(
+    'rejects invalid /books/:id/chapters query %s with a 400 Bad Request envelope',
+    async (query) => {
+      const app = buildApp();
+
+      const response = await app.request(`/books/${bookId}/chapters?${query}`);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        statusCode: 400,
+        error: 'Bad Request',
+      });
+      expect(listChapters).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects invalid /books/:id/chapters UUID params with a 400 Bad Request envelope', async () => {
+    const app = buildApp();
+
+    const response = await app.request('/books/not-a-uuid/chapters?page=2&limit=50');
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      statusCode: 400,
+      error: 'Bad Request',
+    });
+    expect(listChapters).not.toHaveBeenCalled();
   });
 
   it('keeps static /books/trending and /books/categories route shapes reachable before the id catch-all', async () => {
