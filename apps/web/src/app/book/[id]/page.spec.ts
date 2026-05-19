@@ -104,6 +104,15 @@ describe('book detail page render', () => {
     for (const stat of ['12', 'Chapters', '3K', 'Words', '★', 'Rating']) {
       expect(html).toContain(stat);
     }
+    expect(html).toContain(`src="${book.coverUrl}"`);
+    expect(html).toContain('alt=""');
+    expect(html).toContain(book.description);
+    expect(html).toContain('data-chapter-list="true"');
+    expect(html).toContain('data-related-books="true"');
+    expect(html).toContain('data-sticky-start-reading="true"');
+    expect(html).toContain('type="application/ld+json"');
+    expect(html).toContain('"@type":"Book"');
+    expect(html).toContain(`"name":"${book.title}"`);
   });
 
   it('calls notFound when the server fetch returns null', async () => {
