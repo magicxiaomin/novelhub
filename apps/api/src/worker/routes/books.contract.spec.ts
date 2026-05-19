@@ -30,6 +30,8 @@ const bookSummary = {
   coinPerChapter: 5,
 };
 
+const dramaEraKeys = ['isDrama', 'dramaScore', 'dramaTag', 'dramaCategory'];
+
 const buildApp = () => {
   const app = new Hono<{
     Bindings: WorkerEnv;
@@ -120,12 +122,19 @@ describe('Worker books route contracts', () => {
       page: 2,
       limit: 5,
     });
-    await expect(response.json()).resolves.toEqual({
+    const body = (await response.json()) as {
+      items: Array<Record<string, unknown>>;
+    } & Record<string, unknown>;
+    expect(body).toEqual({
       items: [bookSummary],
       total: 21,
       page: 2,
       limit: 5,
     });
+    for (const key of dramaEraKeys) {
+      expect(body).not.toHaveProperty(key);
+      expect(body.items[0]).not.toHaveProperty(key);
+    }
   });
 
   it('returns an empty paginated envelope from /books without reshaping it', async () => {
@@ -144,7 +153,7 @@ describe('Worker books route contracts', () => {
     });
   });
 
-  it.each(['page=0', 'limit=101', 'status=DRAFT', 'featured=yes'])(
+  it.each(['page=0', 'limit=101', 'status=DROPPED', 'featured=yes'])(
     'rejects invalid /books query %s with a 400 Bad Request envelope',
     async (query) => {
       const app = buildApp();
