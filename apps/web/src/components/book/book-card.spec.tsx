@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BookCard, BookCardSkeleton } from './book-card';
 import type { BookSummary } from '@/lib/types';
+import { messages } from '@novelhub/shared';
 
 const baseBook: BookSummary = {
   id: 'book-1',
@@ -107,14 +108,20 @@ describe('BookCardSkeleton', () => {
       const cardWrapperClass = firstClassAttribute(cardHtml);
       const skeletonWrapperClass = firstClassAttribute(skeletonHtml);
       const cardCoverClass = secondClassAttribute(cardHtml);
-      const skeletonCoverClass = secondClassAttribute(skeletonHtml);
+      const skeletonCoverClass = classAttributeFor(skeletonHtml, 'aspect-[3/4]');
 
       expect(skeletonWrapperClass).toBe(cardWrapperClass);
       expect(skeletonCoverClass).toContain('aspect-[3/4]');
       expect(skeletonCoverClass).toContain(size === 'sm' ? 'w-28' : 'w-36');
       expect(cardCoverClass).toContain(size === 'sm' ? 'w-28' : 'w-36');
-      expect(skeletonHtml).toContain('aria-hidden="true"');
       expect(skeletonHtml).toContain('data-testid="book-card-skeleton"');
+      expect(skeletonHtml).toContain('role="status"');
+      expect(skeletonHtml).toContain('aria-live="polite"');
+      expect(skeletonHtml).toContain('aria-busy="true"');
+      expect(skeletonHtml).toContain(
+        `class="sr-only">${messages.novels.loadingSkeletonLabel}</span>`,
+      );
+      expect(skeletonHtml).toMatch(/<div[^>]*data-testid="book-card-skeleton"(?![^>]*aria-hidden)/);
       expect(skeletonHtml).not.toContain('href=');
     },
   );
@@ -122,7 +129,7 @@ describe('BookCardSkeleton', () => {
   it('keeps animation gated behind motion-safe with an explicit reduced-motion fallback', () => {
     const html = renderToStaticMarkup(<BookCardSkeleton size="sm" />);
     const skeletonPieces = [
-      secondClassAttribute(html),
+      classAttributeFor(html, 'aspect-[3/4]'),
       classAttributeFor(html, 'h-8'),
       classAttributeFor(html, 'h-3 w-20'),
       classAttributeFor(html, 'h-5 w-10'),
@@ -131,6 +138,7 @@ describe('BookCardSkeleton', () => {
     ];
 
     expect(skeletonPieces).toHaveLength(6);
+    expect(html.match(/aria-hidden="true"/g)).toHaveLength(skeletonPieces.length);
     for (const className of skeletonPieces) {
       expect(className).toContain('motion-safe:animate-pulse');
       expect(className).toContain('motion-reduce:animate-none');
