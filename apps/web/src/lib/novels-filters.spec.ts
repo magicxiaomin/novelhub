@@ -26,12 +26,49 @@ describe('novels filters', () => {
   it('drops unsupported status values and invalid pages', () => {
     expect(parseNovelsFilters({ status: 'DRAFT', page: '0' })).toEqual({});
     expect(parseNovelsFilters({ status: ['ONGOING', 'COMPLETED'], page: 'abc' })).toEqual({});
+    expect(parseNovelsFilters({ status: '', page: '' })).toEqual({});
+    expect(parseNovelsFilters({ status: 'ongoing', page: '1' })).toEqual({});
+  });
+
+  it('drops repeated array params before parsing category, status, or page', () => {
+    expect(
+      parseNovelsFilters({
+        category: ['Werewolf', 'Billionaire'],
+        status: ['ONGOING', 'COMPLETED'],
+        page: ['2', '3'],
+      }),
+    ).toEqual({});
+  });
+
+  it('normalizes whitespace-only categories to the bare novels path', () => {
+    expect(parseNovelsFilters({ category: ' \t\n ' })).toEqual({});
+    expect(serializeNovelsFilters(parseNovelsFilters({ category: ' \t\n ' }))).toBe('/novels');
+  });
+
+  it('round-trips special-character categories through URLSearchParams encoding', () => {
+    const params = new URLSearchParams();
+    params.set('category', 'Sci-Fi & Fantasy/王');
+    params.set('status', 'ONGOING');
+    params.set('page', '2');
+
+    const filters = parseNovelsFilters({
+      category: params.get('category') ?? undefined,
+      status: params.get('status') ?? undefined,
+      page: params.get('page') ?? undefined,
+    });
+
+    expect(filters).toEqual({ category: 'Sci-Fi & Fantasy/王', status: 'ONGOING', page: 2 });
+    expect(serializeNovelsFilters(filters)).toBe(
+      '/novels?category=Sci-Fi+%26+Fantasy%2F%E7%8E%8B&status=ONGOING&page=2',
+    );
   });
 
   it('normalizes malformed and out-of-range page values to the first page', () => {
     expect(parseNovelsFilters({ page: '-2' })).toEqual({});
     expect(parseNovelsFilters({ page: '1.5' })).toEqual({});
     expect(parseNovelsFilters({ page: '999999999999' })).toEqual({});
+    expect(parseNovelsFilters({ page: '1000' })).toEqual({ page: 1000 });
+    expect(parseNovelsFilters({ page: '1001' })).toEqual({});
   });
 
   it('builds filter hrefs with page reset when category or status changes', () => {
@@ -103,9 +140,14 @@ describe('novels filters', () => {
     const query = toBooksListQuery({ category: 'Werewolf', status: 'ONGOING', page: 3 }, 20);
 
     expect(query).toEqual({ category: 'Werewolf', status: 'ONGOING', page: 3, limit: 20 });
+    expect(Object.keys(query)).toEqual(['category', 'status', 'page', 'limit']);
     expect(query).not.toHaveProperty('sort');
     expect(query).not.toHaveProperty('length');
     expect(query).not.toHaveProperty('recentlyUpdated');
     expect(query).not.toHaveProperty('featured');
+  });
+
+  it('adapts empty URL filters to the first worker books list page', () => {
+    expect(toBooksListQuery({}, 12)).toEqual({ page: 1, limit: 12 });
   });
 });
