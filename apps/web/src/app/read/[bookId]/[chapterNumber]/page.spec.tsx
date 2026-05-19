@@ -283,4 +283,88 @@ describe('reader page initial chapter selection fallback', () => {
     expect(fetchBookChaptersServer).toHaveBeenCalledWith(book.id, 1, 200);
     expect(fetchChapterServer).not.toHaveBeenCalled();
   });
+
+  it.each(['abc', '1abc', 'NaN'])(
+    'calls notFound before server fetches for malformed chapterNumber %s',
+    async (chapterNumber) => {
+      await expect(ReaderPage({ params: { bookId: book.id, chapterNumber } })).rejects.toThrow(
+        'not found',
+      );
+
+      expect(fetchBookServer).not.toHaveBeenCalled();
+      expect(fetchBookChaptersServer).not.toHaveBeenCalled();
+      expect(fetchChapterServer).not.toHaveBeenCalled();
+      expect(fetchBooksServer).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['1.5', '2.25'])(
+    'calls notFound before server fetches for non-integer chapterNumber %s',
+    async (chapterNumber) => {
+      await expect(ReaderPage({ params: { bookId: book.id, chapterNumber } })).rejects.toThrow(
+        'not found',
+      );
+
+      expect(fetchBookServer).not.toHaveBeenCalled();
+      expect(fetchBookChaptersServer).not.toHaveBeenCalled();
+      expect(fetchChapterServer).not.toHaveBeenCalled();
+      expect(fetchBooksServer).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['0', '-1'])(
+    'calls notFound before server fetches for non-positive chapterNumber %s',
+    async (chapterNumber) => {
+      await expect(ReaderPage({ params: { bookId: book.id, chapterNumber } })).rejects.toThrow(
+        'not found',
+      );
+
+      expect(fetchBookServer).not.toHaveBeenCalled();
+      expect(fetchBookChaptersServer).not.toHaveBeenCalled();
+      expect(fetchChapterServer).not.toHaveBeenCalled();
+      expect(fetchBooksServer).not.toHaveBeenCalled();
+    },
+  );
+
+  it('resolves chapter 1 from the first page boundary without fetching the current page again', async () => {
+    vi.mocked(fetchBookChaptersServer).mockResolvedValue(
+      chaptersPageWith([makeChapterSummary(1), makeChapterSummary(200)]),
+    );
+    vi.mocked(fetchChapterServer).mockResolvedValue({
+      ...chapter,
+      id: 'chapter-1',
+      chapterNumber: 1,
+      title: 'Chapter 1',
+    });
+
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '1' } });
+    const html = renderToStaticMarkup(element);
+
+    expect(fetchBookChaptersServer).toHaveBeenCalledTimes(1);
+    expect(fetchBookChaptersServer).toHaveBeenCalledWith(book.id, 1, 200);
+    expect(fetchChapterServer).toHaveBeenCalledWith('chapter-1');
+    expect(html).toContain('1,200');
+  });
+
+  it('fetches page 2 at the first current-page boundary above the initial 200 chapters', async () => {
+    vi.mocked(fetchBookChaptersServer)
+      .mockResolvedValueOnce(chaptersPageWith([makeChapterSummary(1), makeChapterSummary(200)]))
+      .mockResolvedValueOnce(
+        chaptersPageWith([makeChapterSummary(201), makeChapterSummary(400)], 2),
+      );
+    vi.mocked(fetchChapterServer).mockResolvedValue({
+      ...chapter,
+      id: 'chapter-201',
+      chapterNumber: 201,
+      title: 'Chapter 201',
+    });
+
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '201' } });
+    const html = renderToStaticMarkup(element);
+
+    expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(1, book.id, 1, 200);
+    expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(2, book.id, 2, 200);
+    expect(fetchChapterServer).toHaveBeenCalledWith('chapter-201');
+    expect(html).toContain('1,200,201,400');
+  });
 });
