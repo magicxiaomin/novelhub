@@ -51,22 +51,29 @@ function formatFreeChapterCount(count: BookSummary['freeChapterCount'] | undefin
 
 export function BookCardSkeleton({ size = 'md' }: { size?: Size } = {}): JSX.Element {
   const cls = sizeClasses[size];
+  const hiddenSkeletonProps = { 'aria-hidden': true } as const;
 
   return (
     <div
       className={cn('flex shrink-0 flex-col gap-2', cls.wrapper)}
-      aria-hidden="true"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
       data-testid="book-card-skeleton"
     >
-      <div className={cn('relative overflow-hidden rounded-xl', skeletonClass, cls.cover)} />
+      <span className="sr-only">{messages.novels.loadingSkeletonLabel}</span>
+      <div
+        {...hiddenSkeletonProps}
+        className={cn('relative overflow-hidden rounded-xl', skeletonClass, cls.cover)}
+      />
       <div className="flex flex-col gap-1">
-        <div className={cn('h-8 rounded-md', skeletonClass)} />
-        <div className={cn('h-3 w-20 rounded-md', skeletonClass)} />
+        <div {...hiddenSkeletonProps} className={cn('h-8 rounded-md', skeletonClass)} />
+        <div {...hiddenSkeletonProps} className={cn('h-3 w-20 rounded-md', skeletonClass)} />
         <div className="mt-1 flex gap-1">
-          <div className={cn('h-5 w-10 rounded-full', skeletonClass)} />
-          <div className={cn('h-5 w-12 rounded-full', skeletonClass)} />
+          <div {...hiddenSkeletonProps} className={cn('h-5 w-10 rounded-full', skeletonClass)} />
+          <div {...hiddenSkeletonProps} className={cn('h-5 w-12 rounded-full', skeletonClass)} />
         </div>
-        <div className={cn('h-3 w-24 rounded-md', skeletonClass)} />
+        <div {...hiddenSkeletonProps} className={cn('h-3 w-24 rounded-md', skeletonClass)} />
       </div>
     </div>
   );
