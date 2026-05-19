@@ -159,6 +159,21 @@ describe('reader settings', () => {
     expect(loadReaderSettings(storage)).toEqual(settings);
   });
 
+  it('propagates storage quota failures when saving reader settings', () => {
+    const quotaError = new DOMException('quota exceeded', 'QuotaExceededError');
+    const storage = {
+      setItem: vi.fn(() => {
+        throw quotaError;
+      }),
+    };
+
+    expect(() => saveReaderSettings(storage, DEFAULT_READER_SETTINGS)).toThrow(quotaError);
+    expect(storage.setItem).toHaveBeenCalledWith(
+      READER_SETTINGS_KEY,
+      JSON.stringify({ version: 1, settings: DEFAULT_READER_SETTINGS }),
+    );
+  });
+
   it('derives pre-paint CSS variables and attributes from sanitized settings', () => {
     expect(
       getReaderSettingsCssVars({
@@ -239,7 +254,6 @@ describe('reader settings', () => {
           },
         }),
       ),
-      setItem: vi.fn(),
     };
 
     vm.runInNewContext(getReaderSettingsBootstrapScript(), {
@@ -248,11 +262,63 @@ describe('reader settings', () => {
     });
 
     expect(localStorage.getItem).toHaveBeenCalledWith(READER_SETTINGS_KEY);
-    expect(localStorage.setItem).not.toHaveBeenCalled();
     expect(documentElement.dataset.readerTheme).toBe('dark');
     expect(documentElement.dataset.readerFontFamily).toBe('serif');
     expect(style.get('--reader-bg')).toBe('#1A1A1A');
     expect(style.get('--reader-font-size')).toBe('22px');
     expect(style.get('--reader-line-height')).toBe('1.9');
+  });
+
+  it('executes the pre-hydration bootstrap contract with defaults when persisted JSON is corrupted', () => {
+    const style = new Map<string, string>();
+    const documentElement = {
+      dataset: {} as Record<string, string>,
+      style: { setProperty: vi.fn((key: string, value: string) => style.set(key, value)) },
+    };
+    const localStorage = {
+      getItem: vi.fn(() => '{bad'),
+    };
+
+    expect(() =>
+      vm.runInNewContext(getReaderSettingsBootstrapScript(), {
+        document: { documentElement },
+        window: { localStorage },
+      }),
+    ).not.toThrow();
+
+    expect(localStorage.getItem).toHaveBeenCalledWith(READER_SETTINGS_KEY);
+    expect(documentElement.dataset.readerTheme).toBe(DEFAULT_READER_SETTINGS.theme);
+    expect(documentElement.dataset.readerFontFamily).toBe(DEFAULT_READER_SETTINGS.fontFamily);
+    expect(style.get('--reader-bg')).toBe('#FFFFFF');
+    expect(style.get('--reader-font-size')).toBe('17px');
+    expect(style.get('--reader-line-height')).toBe('1.7');
+  });
+
+  it('executes the pre-hydration bootstrap contract with defaults when localStorage throws', () => {
+    const style = new Map<string, string>();
+    const documentElement = {
+      dataset: {} as Record<string, string>,
+      style: { setProperty: vi.fn((key: string, value: string) => style.set(key, value)) },
+    };
+    const storageError = new DOMException('blocked', 'SecurityError');
+    const localStorage = {
+      getItem: vi.fn(() => {
+        throw storageError;
+      }),
+    };
+
+    expect(() =>
+      vm.runInNewContext(getReaderSettingsBootstrapScript(), {
+        document: { documentElement },
+        window: { localStorage },
+      }),
+    ).not.toThrow();
+
+    expect(localStorage.getItem).toHaveBeenCalledWith(READER_SETTINGS_KEY);
+    expect(documentElement.dataset.readerTheme).toBe(DEFAULT_READER_SETTINGS.theme);
+    expect(documentElement.dataset.readerFontFamily).toBe(DEFAULT_READER_SETTINGS.fontFamily);
+    expect(style.get('--reader-bg')).toBe('#FFFFFF');
+    expect(style.get('--reader-font-size')).toBe('17px');
+    expect(style.get('--reader-line-height')).toBe('1.7');
   });
 });
