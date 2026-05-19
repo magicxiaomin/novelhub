@@ -41,8 +41,11 @@ describe('novels and reader route boundaries', () => {
     }
   });
 
-  it('preserves the existing novels empty state copy path', () => {
-    const source = readAppFile('novels/page.tsx');
+  it('preserves the existing novels empty state copy through the server-safe component', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/components/novels/novels-empty-state.tsx'),
+      'utf8',
+    );
 
     expect(source).toContain('messages.novels.emptyTitle');
     expect(source).toContain('messages.novels.emptyBody');

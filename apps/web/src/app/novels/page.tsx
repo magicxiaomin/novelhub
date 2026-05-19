@@ -7,6 +7,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BookCard } from '@/components/book/book-card';
+import { NovelsEmptyState } from '@/components/novels/novels-empty-state';
 import { fetchBooksServer, fetchBookCategoriesServer } from '@/lib/server-api';
 import {
   buildNovelsHref,
@@ -77,13 +78,9 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
     redirect(buildNovelsHref(filters, { page: totalPages }));
   }
 
-  const hasActiveFilters = Boolean(filters.category || filters.status);
-  const emptyStateTitle = hasActiveFilters
-    ? messages.novels.filteredEmptyTitle
-    : messages.novels.emptyTitle;
-  const emptyStateBody = hasActiveFilters
-    ? messages.novels.filteredEmptyBody
-    : messages.novels.emptyBody;
+  const hasCategoryFilter = Boolean(filters.category);
+  const hasStatusFilter = Boolean(filters.status);
+  const hasActiveFilters = hasCategoryFilter || hasStatusFilter;
   const canonicalAffordance = buildCanonicalNovelsAffordance(searchParams);
 
   return (
@@ -151,19 +148,10 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
         </section>
 
         {books.items.length === 0 ? (
-          <div
-            className="mt-10 rounded-2xl border border-dashed p-8 text-center"
-            role="status"
-            aria-live="polite"
-          >
-            <h2 className="text-lg font-semibold">{emptyStateTitle}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{emptyStateBody}</p>
-            {hasActiveFilters ? (
-              <Button asChild className="mt-5">
-                <Link href="/novels">{messages.novels.clearFilters}</Link>
-              </Button>
-            ) : null}
-          </div>
+          <NovelsEmptyState
+            hasCategoryFilter={hasCategoryFilter}
+            hasStatusFilter={hasStatusFilter}
+          />
         ) : (
           <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4">
             {books.items.map((book) => (
