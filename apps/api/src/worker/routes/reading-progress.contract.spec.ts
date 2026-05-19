@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
+import { DomainError } from '../../common/domain.errors';
 import { COOKIE_ACCESS, type JwtPayload } from '../../modules/auth/auth.constants';
 import { JoseJwtClient } from '../../modules/auth/jose-jwt.client';
 import type { PrismaVariables } from '../db/prisma';
@@ -69,6 +70,16 @@ const buildApp = (prisma = buildPrisma()) => {
     await next();
   });
   app.onError((err, c) => {
+    if (err instanceof DomainError) {
+      return c.json(
+        {
+          statusCode: err.status,
+          message: err.message,
+          error: err.status === 400 ? 'Bad Request' : 'Error',
+        },
+        err.status,
+      );
+    }
     if (err instanceof HTTPException) {
       return c.json(
         {
@@ -162,6 +173,73 @@ describe('Worker reading-progress route contracts', () => {
     expect(findOne).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual(recentProgress);
   });
+
+  it.each([
+    [
+      'POST missing chapterId',
+      '/reading-progress',
+      { method: 'POST', body: { scrollPercent: 42 } },
+      'chapterId',
+    ],
+    [
+      'POST missing scrollPercent',
+      '/reading-progress',
+      { method: 'POST', body: { chapterId } },
+      'scrollPercent',
+    ],
+    [
+      'POST wrong primitive types',
+      '/reading-progress',
+      { method: 'POST', body: { chapterId: 123, scrollPercent: 'near-the-top' } },
+      'chapterId',
+    ],
+    [
+      'POST out-of-range negative scrollPercent',
+      '/reading-progress',
+      { method: 'POST', body: { chapterId, scrollPercent: -1 } },
+      'scrollPercent',
+    ],
+    [
+      'POST out-of-range high scrollPercent',
+      '/reading-progress',
+      { method: 'POST', body: { chapterId, scrollPercent: 101 } },
+      'scrollPercent',
+    ],
+    ['GET malformed bookId', '/reading-progress?bookId=not-a-uuid', { method: 'GET' }, 'bookId'],
+    [
+      'GET malformed chapterId',
+      '/reading-progress?chapterId=not-a-uuid',
+      { method: 'GET' },
+      'chapterId',
+    ],
+  ] as const)(
+    'returns 400 for validation boundary %s without constructing the service',
+    async (_name, path, request, messageFragment) => {
+      const app = buildApp();
+      const token = await makeToken({ sub: userId, email: 'reader@example.com', type: 'access' });
+      const init: RequestInit = {
+        method: request.method,
+        headers: { cookie: makeCookie(token) },
+      };
+      if ('body' in request) {
+        init.headers = { ...init.headers, 'content-type': 'application/json' };
+        init.body = JSON.stringify(request.body);
+      }
+
+      const response = await app.request(path, init, env);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: expect.stringContaining(messageFragment),
+      });
+      expect(mockedMakeReadingProgressService).not.toHaveBeenCalled();
+      expect(save).not.toHaveBeenCalled();
+      expect(findOne).not.toHaveBeenCalled();
+      expect(listRecent).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     ['missing token', undefined, buildPrisma()],
