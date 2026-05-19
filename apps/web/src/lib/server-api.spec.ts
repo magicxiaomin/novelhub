@@ -100,4 +100,41 @@ describe('server API fetch helpers', () => {
       expect(init?.headers).toMatchObject({ cookie: 'session=abc', 'x-request-id': 'req_ssr123' });
     }
   });
+
+  it.each([401, 404])('returns null when fetchBookServer receives %s', async (status) => {
+    globalThis.fetch = vi.fn(async () => new Response(null, { status })) as unknown as typeof fetch;
+
+    await expect(fetchBookServer('book-missing')).resolves.toBeNull();
+  });
+
+  it('throws when fetchBookServer receives a server error', async () => {
+    globalThis.fetch = vi.fn(
+      async () => new Response(null, { status: 500 }),
+    ) as unknown as typeof fetch;
+
+    await expect(fetchBookServer('book-500')).rejects.toThrow('Failed to fetch book book-500: 500');
+  });
+
+  it('parses BookDetail when fetchBookServer receives a successful response', async () => {
+    const detail = {
+      id: 'book-ok',
+      title: 'Server Contract',
+      author: 'NovelHub',
+      coverUrl: '/cover.png',
+      category: 'Fantasy',
+      tags: [],
+      status: 'ongoing',
+      isFeatured: false,
+      totalChapters: 12,
+      freeChapterCount: 3,
+      coinPerChapter: 10,
+      description: 'Fetched detail.',
+      chapters: [],
+    };
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify(detail), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    await expect(fetchBookServer(detail.id)).resolves.toEqual(detail);
+  });
 });
