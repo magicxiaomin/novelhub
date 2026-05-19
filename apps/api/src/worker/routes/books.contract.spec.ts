@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 
+import { DomainError } from '../../common/domain.errors';
 import type { PrismaVariables } from '../db/prisma';
 import type { AuthVariables } from '../middleware/auth';
 import { makeBooksService } from '../services/catalog-factory';
@@ -34,6 +36,33 @@ const buildApp = () => {
   app.use('*', async (c, next) => {
     c.set('prisma', {} as PrismaVariables['prisma']);
     await next();
+  });
+  app.onError((err, c) => {
+    if (err instanceof DomainError) {
+      return c.json(
+        {
+          statusCode: err.status,
+          message: err.message,
+          error: err.status === 400 ? 'Bad Request' : 'Error',
+          ...(err.context ?? {}),
+        },
+        err.status,
+      );
+    }
+    if (err instanceof HTTPException) {
+      return c.json(
+        {
+          statusCode: err.status,
+          message: err.message,
+          error: err.status === 401 ? 'Unauthorized' : 'Error',
+        },
+        err.status,
+      );
+    }
+    return c.json(
+      { statusCode: 500, message: 'Internal Server Error', error: 'Internal Server Error' },
+      500,
+    );
   });
   app.route('/books', booksRoutes);
   return app;
@@ -89,6 +118,38 @@ describe('Worker books route contracts', () => {
       limit: 5,
     });
   });
+
+  it('returns an empty paginated envelope from /books without reshaping it', async () => {
+    list.mockResolvedValueOnce({ items: [], total: 0, page: 1, limit: 10 });
+    const app = buildApp();
+
+    const response = await app.request('/books?page=1&limit=10');
+
+    expect(response.status).toBe(200);
+    expect(list).toHaveBeenCalledWith({ page: 1, limit: 10 });
+    await expect(response.json()).resolves.toEqual({
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+  });
+
+  it.each(['page=0', 'limit=101', 'status=DRAFT', 'featured=yes'])(
+    'rejects invalid /books query %s with a 400 Bad Request envelope',
+    async (query) => {
+      const app = buildApp();
+
+      const response = await app.request(`/books?${query}`);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        statusCode: 400,
+        error: 'Bad Request',
+      });
+      expect(list).not.toHaveBeenCalled();
+    },
+  );
 
   it('passes /books/search q/page/limit query values to the books service and returns paginated shape', async () => {
     const app = buildApp();
