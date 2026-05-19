@@ -137,4 +137,65 @@ describe('server API fetch helpers', () => {
 
     await expect(fetchBookServer(detail.id)).resolves.toEqual(detail);
   });
+
+  it('fetches book chapters server-side with no-store cache and forwarded read headers', async () => {
+    const chapters = {
+      items: [
+        {
+          id: 'chapter-1',
+          bookId: 'book/with spaces',
+          order: 1,
+          title: 'Contract Chapter',
+          isFree: true,
+          wordCount: 1000,
+        },
+      ],
+      total: 1,
+      page: 4,
+      limit: 20,
+    };
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify(chapters), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    await expect(fetchBookChaptersServer('book/with spaces', 4, 20)).resolves.toEqual(chapters);
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://api.test/books/book%2Fwith%20spaces/chapters?page=4&limit=20',
+      {
+        cache: 'no-store',
+        headers: { cookie: 'session=abc', 'x-request-id': 'req_ssr123' },
+      },
+    );
+  });
+
+  it('defaults server-side book chapters fetches to page 1 and limit 200', async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ items: [], total: 0, page: 1, limit: 200 }), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    await fetchBookChaptersServer('book-1');
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://api.test/books/book-1/chapters?page=1&limit=200',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+  });
+
+  it.each([401, 404])('returns null when fetchBookChaptersServer receives %s', async (status) => {
+    globalThis.fetch = vi.fn(async () => new Response(null, { status })) as unknown as typeof fetch;
+
+    await expect(fetchBookChaptersServer('book-missing')).resolves.toBeNull();
+  });
+
+  it('throws when fetchBookChaptersServer receives a server error', async () => {
+    globalThis.fetch = vi.fn(
+      async () => new Response(null, { status: 500 }),
+    ) as unknown as typeof fetch;
+
+    await expect(fetchBookChaptersServer('book-500')).rejects.toThrow(
+      'Failed to fetch chapters for book book-500: 500',
+    );
+  });
 });
