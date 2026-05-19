@@ -16,6 +16,46 @@ jest.mock('../middleware/auth', () => ({
   }),
 }));
 
+const DRAMA_DEPRECATED_BODY = {
+  code: 'DRAMA_DEPRECATED',
+  message: 'Short-drama endpoints are deprecated during the novels-only pivot.',
+} as const;
+
+type CoveredDramaRoute = {
+  name: string;
+  method: 'GET' | 'POST';
+  path: string;
+  body?: unknown;
+};
+
+// Mirrors docs/pivot/quarantine-register.md and docs/pivot/drama-deprecation-contract.md.
+const coveredDramaRoutes: CoveredDramaRoute[] = [
+  { name: 'drama browse', method: 'GET', path: '/dramas' },
+  { name: 'drama detail', method: 'GET', path: '/dramas/shadow-heiress' },
+  {
+    name: 'episode playback',
+    method: 'GET',
+    path: '/episodes/11111111-1111-4111-8111-111111111111/playback',
+  },
+  {
+    name: 'episode unlock',
+    method: 'POST',
+    path: '/episodes/11111111-1111-4111-8111-111111111111/unlock',
+  },
+  { name: 'drama progress read', method: 'GET', path: '/drama-progress' },
+  {
+    name: 'drama progress write',
+    method: 'POST',
+    path: '/drama-progress',
+    body: {
+      episodeId: '11111111-1111-4111-8111-111111111111',
+      positionSeconds: 42,
+      durationSeconds: 60,
+      completed: false,
+    },
+  },
+];
+
 const buildApp = (env: Partial<WorkerEnv> = {}) => {
   const app = new Hono<{
     Bindings: WorkerEnv;
@@ -36,13 +76,24 @@ const buildApp = (env: Partial<WorkerEnv> = {}) => {
   };
 };
 
+const requestCoveredDramaRoute = (app: ReturnType<typeof buildApp>, route: CoveredDramaRoute) =>
+  app.request(route.path, {
+    method: route.method,
+    ...(route.body
+      ? {
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(route.body),
+        }
+      : {}),
+  });
+
 const expectDramaDeprecated = async (response: Response) => {
   expect(response.status).toBe(410);
+  expect(response.status).not.toBe(200);
+  expect(response.status).not.toBe(201);
+  expect(response.status >= 300 && response.status < 400).toBe(false);
   expect(response.headers.get('x-novelhub-deprecated')).toBe('drama');
-  await expect(response.json()).resolves.toEqual({
-    code: 'DRAMA_DEPRECATED',
-    message: 'Short-drama endpoints are deprecated during the novels-only pivot.',
-  });
+  await expect(response.json()).resolves.toEqual(DRAMA_DEPRECATED_BODY);
 };
 
 describe('Worker drama route product-mode contracts', () => {
@@ -50,31 +101,28 @@ describe('Worker drama route product-mode contracts', () => {
     jest.clearAllMocks();
   });
 
-  it('deprecates public drama endpoints when the cutoff is enabled before constructing the drama service', async () => {
+  it.each(coveredDramaRoutes)(
+    'deprecates $name ($method $path) with the shared drama quarantine envelope',
+    async (route) => {
+      const app = buildApp();
+
+      await expectDramaDeprecated(await requestCoveredDramaRoute(app, route));
+    },
+  );
+
+  it('does not allow any covered drama route family to return success or redirects', async () => {
     const app = buildApp();
 
-    await expectDramaDeprecated(await app.request('/dramas'));
-    await expectDramaDeprecated(await app.request('/dramas/shadow-heiress'));
-    await expectDramaDeprecated(
-      await app.request('/episodes/11111111-1111-4111-8111-111111111111/playback'),
+    const responses = await Promise.all(
+      coveredDramaRoutes.map((route) => requestCoveredDramaRoute(app, route)),
     );
-    await expectDramaDeprecated(
-      await app.request('/episodes/11111111-1111-4111-8111-111111111111/unlock', {
-        method: 'POST',
-      }),
-    );
-    await expectDramaDeprecated(await app.request('/drama-progress'));
-    await expectDramaDeprecated(
-      await app.request('/drama-progress', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          episodeId: '11111111-1111-4111-8111-111111111111',
-          positionSeconds: 42,
-          durationSeconds: 60,
-          completed: false,
-        }),
-      }),
-    );
+
+    expect(responses).toHaveLength(coveredDramaRoutes.length);
+    for (const response of responses) {
+      expect(response.status).not.toBe(200);
+      expect(response.status).not.toBe(201);
+      expect(response.status >= 300 && response.status < 400).toBe(false);
+      expect(response.status).toBe(410);
+    }
   });
 });
