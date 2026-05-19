@@ -43,6 +43,8 @@ The entitlement-related coverage snapshot is recorded in `docs/pivot/novels-funn
 
 This document is not a new coverage claim and does not create new gap tickets.
 
+For a non-normative descriptive appendix of current entitlement edge cases, see `docs/pivot/entitlement-edge-case-appendix.md`.
+
 ## Preserved blockers and exclusions
 
 - #233 / Kanban `t_030c3f29` remains the external launch verification blocker for Meta/Pixel/CAPI/Stripe/staging checks. This matrix does not resolve or bypass it.
