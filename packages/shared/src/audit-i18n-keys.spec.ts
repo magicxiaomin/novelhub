@@ -1,13 +1,27 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildI18nKeyAuditReport } from './audit-i18n-keys';
 
 describe('buildI18nKeyAuditReport', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const tempDir of tempDirs.splice(0)) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  const createTempRepo = (prefix: string): string => {
+    const repoRoot = mkdtempSync(join(tmpdir(), prefix));
+    tempDirs.push(repoRoot);
+    return repoRoot;
+  };
+
   it('returns report-only active, quarantined, and missing buckets without orphanStyle or message mutation', () => {
-    const repoRoot = mkdtempSync(join(tmpdir(), 'novelhub-i18n-audit-'));
+    const repoRoot = createTempRepo('novelhub-i18n-audit-');
     const sourceDir = join(repoRoot, 'apps', 'web', 'src');
     mkdirSync(sourceDir, { recursive: true });
     writeFileSync(
@@ -33,7 +47,7 @@ describe('buildI18nKeyAuditReport', () => {
     const report = buildI18nKeyAuditReport({ repoRoot, messages: messagesJson });
 
     expect(JSON.stringify(messagesJson)).toBe(before);
-    expect(report.schemaVersion).toBe(1);
+    expect(report.schemaVersion).toBe(2);
     expect(report.buckets as Record<string, unknown>).not.toHaveProperty('orphanStyle');
     expect(report.summary as Record<string, unknown>).not.toHaveProperty('orphanStyle');
     expect(report.buckets.active).toEqual([
@@ -59,12 +73,12 @@ describe('buildI18nKeyAuditReport', () => {
       missing: 1,
     });
     expect(report.limitations).toContain(
-      'Unreferenced non-quarantine message keys are intentionally outside schemaVersion 1 report buckets.',
+      'Unreferenced non-quarantine message keys are intentionally outside schemaVersion 2 report buckets.',
     );
   });
 
   it('uses the sidecar override when docs/pivot/i18n-quarantine-prefixes.json is present', () => {
-    const repoRoot = mkdtempSync(join(tmpdir(), 'novelhub-i18n-audit-sidecar-'));
+    const repoRoot = createTempRepo('novelhub-i18n-audit-sidecar-');
     const sourceDir = join(repoRoot, 'apps', 'web', 'src');
     const sidecarDir = join(repoRoot, 'docs', 'pivot');
     mkdirSync(sourceDir, { recursive: true });
@@ -94,7 +108,7 @@ describe('buildI18nKeyAuditReport', () => {
   });
 
   it('falls back to the hard-coded quarantine prefix list when the sidecar is missing', () => {
-    const repoRoot = mkdtempSync(join(tmpdir(), 'novelhub-i18n-audit-fallback-'));
+    const repoRoot = createTempRepo('novelhub-i18n-audit-fallback-');
 
     const report = buildI18nKeyAuditReport({
       repoRoot,
@@ -109,7 +123,7 @@ describe('buildI18nKeyAuditReport', () => {
   });
 
   it('keeps video, stream, and series out of the default sidecar when no en.json keys back them', () => {
-    const repoRoot = mkdtempSync(join(tmpdir(), 'novelhub-i18n-audit-prefixes-'));
+    const repoRoot = createTempRepo('novelhub-i18n-audit-prefixes-');
     const sidecarDir = join(repoRoot, 'docs', 'pivot');
     mkdirSync(sidecarDir, { recursive: true });
     writeFileSync(
@@ -128,6 +142,5 @@ describe('buildI18nKeyAuditReport', () => {
 
     expect(report.buckets.quarantinedOnly).toEqual([]);
     expect(report.limitations.join('\n')).toContain('Unreferenced non-quarantine message keys');
-    rmSync(repoRoot, { recursive: true, force: true });
   });
 });

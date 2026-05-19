@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedBy": "scripts/audit-i18n-keys.ts",
   "buckets": {
     "active": [
@@ -2241,6 +2241,6 @@
     "Static heuristic only: dynamic message-key composition is not resolved.",
     "Report-only audit: findings do not imply automatic deletion or reactivation.",
     "Quarantine classification is prefix-based and intentionally conservative.",
-    "Unreferenced non-quarantine message keys are intentionally outside schemaVersion 1 report buckets."
+    "Unreferenced non-quarantine message keys are intentionally outside schemaVersion 2 report buckets."
   ]
 }

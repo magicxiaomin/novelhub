@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
-// schemaVersion 1 contract: additive-only for new fields; bucket renames or removals require schemaVersion 2.
-// The #444 orphanStyle removal closes an original schemaVersion 1 contract gap and is not a future-shape change.
+// schemaVersion 2 contract: replaces the original orphanStyle bucket with
+// quarantinedReferenced so referenced quarantined keys stay visible.
 
 export type I18nAuditBucketItem = {
   key: string;
@@ -11,7 +11,7 @@ export type I18nAuditBucketItem = {
 };
 
 export type I18nAuditReport = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedBy: 'scripts/audit-i18n-keys.ts';
   buckets: {
     active: I18nAuditBucketItem[];
@@ -53,11 +53,11 @@ const TEST_FILE_RE = /(?:^|[\\/])[^\\/]+\.(?:spec|test)\.tsx?$/;
 /**
  * Builds the report-only i18n key audit.
  *
- * schemaVersion 1 exposes stable bucket names: active, quarantinedOnly,
+ * schemaVersion 2 exposes stable bucket names: active, quarantinedOnly,
  * quarantinedReferenced, and missing. New fields may be added without a version bump, but
- * future bucket renames/removals require schemaVersion 2. quarantinedReferenced makes
+ * future bucket renames/removals require schemaVersion 3. quarantinedReferenced makes
  * quarantine-prefix keys visible when non-test, non-quarantined source files still reference
- * them; unreferenced non-quarantine message keys are intentionally outside the v1 report.
+ * them; unreferenced non-quarantine message keys are intentionally outside the v2 report.
  *
  * Quarantine prefixes are read from docs/pivot/i18n-quarantine-prefixes.json when present,
  * falling back to drama, dramas, episode, episodes, playback, watch. The default sidecar
@@ -95,7 +95,7 @@ export function buildI18nKeyAuditReport(options: BuildAuditOptions): I18nAuditRe
     .sort(compareByKey);
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedBy: 'scripts/audit-i18n-keys.ts',
     buckets: { active, quarantinedOnly, quarantinedReferenced, missing },
     summary: {
@@ -108,7 +108,7 @@ export function buildI18nKeyAuditReport(options: BuildAuditOptions): I18nAuditRe
       'Static heuristic only: dynamic message-key composition is not resolved.',
       'Report-only audit: findings do not imply automatic deletion or reactivation.',
       'Quarantine classification is prefix-based and intentionally conservative.',
-      'Unreferenced non-quarantine message keys are intentionally outside schemaVersion 1 report buckets.',
+      'Unreferenced non-quarantine message keys are intentionally outside schemaVersion 2 report buckets.',
     ],
   };
 }

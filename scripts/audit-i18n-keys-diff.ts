@@ -1,26 +1,20 @@
-import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
+import messagesJson from '../packages/shared/src/messages/en.json';
+import { buildI18nKeyAuditReport } from '../packages/shared/src/audit-i18n-keys';
+
 const repoRoot = process.cwd();
 const baselinePath = resolve(repoRoot, 'packages/shared/src/audit-i18n-keys.baseline.json');
-
-const current = spawnSync('pnpm', ['--silent', 'audit:i18n'], {
-  cwd: repoRoot,
-  encoding: 'utf8',
-});
-
-if (current.status !== 0) {
-  process.stderr.write(current.stderr || current.stdout);
-  process.exit(current.status ?? 1);
-}
 
 if (!existsSync(baselinePath)) {
   process.stderr.write(`Missing baseline: ${relative(repoRoot, baselinePath)}\n`);
   process.exit(1);
 }
 
-const actual = ensureTrailingNewline(current.stdout);
+const actual = ensureTrailingNewline(
+  JSON.stringify(buildI18nKeyAuditReport({ repoRoot, messages: messagesJson }), null, 2),
+);
 const expected = ensureTrailingNewline(readFileSync(baselinePath, 'utf8'));
 
 if (actual === expected) {
