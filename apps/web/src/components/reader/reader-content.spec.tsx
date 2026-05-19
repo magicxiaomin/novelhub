@@ -1,13 +1,25 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+
+const queryState = vi.hoisted(() => ({
+  chapterContent: {
+    data: undefined as string | undefined,
+    isSuccess: false,
+    isLoading: false,
+    isError: false,
+  },
+}));
 
 vi.mock('next/link', () => ({ default: 'a' }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
 }));
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: undefined, isSuccess: false, isLoading: false, isError: false }),
+  useQuery: ({ queryKey }: { queryKey?: unknown[] }) =>
+    queryKey?.[0] === 'chapterContent'
+      ? queryState.chapterContent
+      : { data: { items: [] }, isSuccess: true, isLoading: false, isError: false },
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 vi.mock('@/components/paywall/paywall', () => ({
@@ -109,6 +121,24 @@ const initialChapters: Paginated<ChapterSummary> = {
   page: 1,
   limit: 200,
 };
+
+const chapterSummary = (order: number, id = `chapter-${order}`): ChapterSummary => ({
+  id,
+  bookId: baseChapter.bookId,
+  order,
+  title: `Chapter ${order}`,
+  isFree: true,
+  wordCount: 1000 + order,
+});
+
+beforeEach(() => {
+  queryState.chapterContent = {
+    data: undefined,
+    isSuccess: false,
+    isLoading: false,
+    isError: false,
+  };
+});
 
 describe('calculateReaderScrollProgress', () => {
   it('clamps live scroll progress between 0 and 100 percent', () => {
@@ -241,6 +271,92 @@ describe('ReaderContent scroll progress indicator', () => {
 
     expect(html).toContain('data-testid="reader-paywall"');
     expect(html).not.toContain('aria-label="Reader scroll progress"');
+  });
+});
+
+describe('ReaderContent pagination anchors', () => {
+  it('renders the first-page next anchor from the next chapter id', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={{ ...baseChapter, nextChapterId: 'chapter-2' }}
+        initialChapters={{ ...initialChapters, items: [chapterSummary(1), chapterSummary(2)] }}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('href="/read/book-1/2"');
+    expect(html).toContain('Next chapter');
+  });
+
+  it('omits the last-page next anchor when there is no next chapter id', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={{ ...baseChapter, id: 'chapter-3', chapterNumber: 3, nextChapterId: null }}
+        initialChapters={{
+          ...initialChapters,
+          items: [chapterSummary(1), chapterSummary(2), chapterSummary(3)],
+          total: 3,
+        }}
+        currentUrl="/read/book-1/3"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).not.toContain('href="/read/book-1/4"');
+  });
+
+  it('clamps an out-of-range next anchor by omitting links for unknown chapter ids', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={{ ...baseChapter, nextChapterId: 'chapter-999' }}
+        initialChapters={{ ...initialChapters, items: [chapterSummary(1)], total: 1 }}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).not.toContain('chapter-999');
+  });
+
+  it('uses chapter order rather than array index when building pagination hrefs', () => {
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={{ ...baseChapter, nextChapterId: 'chapter-12' }}
+        initialChapters={{
+          ...initialChapters,
+          items: [chapterSummary(10, 'chapter-10'), chapterSummary(12, 'chapter-12')],
+          total: 12,
+        }}
+        currentUrl="/read/book-1/10"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('href="/read/book-1/12"');
+    expect(html).not.toContain('href="/read/book-1/2"');
+  });
+
+  it('renders an empty unlocked chapter without a paywall or loading placeholder', () => {
+    queryState.chapterContent = { data: '', isSuccess: true, isLoading: false, isError: false };
+
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={baseChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(html).toContain('Chapter 1');
+    expect(html).not.toContain('data-testid="reader-paywall"');
+    expect(html).not.toContain('Loading chapter content');
   });
 });
 
