@@ -34,6 +34,82 @@ describe('ContinueReadingRailContent', () => {
     expect(html).not.toContain('Start a free chapter to save your spot on this device.');
   });
 
+  it('rounds progress text at zero and positive fractional boundaries without rendering an error state', () => {
+    const html = renderToStaticMarkup(
+      <ContinueReadingRailContent
+        entries={[
+          entry({
+            bookId: 'zero-progress-book',
+            chapterId: 'zero-progress-chapter',
+            chapterNumber: 1,
+            scrollPercent: 0,
+            bookTitle: 'Zero Progress',
+          }),
+          entry({
+            bookId: 'rounded-progress-book',
+            chapterId: 'rounded-progress-chapter',
+            chapterNumber: 2,
+            scrollPercent: 42.6,
+            bookTitle: 'Rounded Progress',
+          }),
+        ]}
+      />,
+    );
+
+    expect(html).toContain('Zero Progress');
+    expect(html).toContain('Chapter 1 · 0%');
+    expect(html).toContain('Rounded Progress');
+    expect(html).toContain('Chapter 2 · 43%');
+    expect(html.toLowerCase()).not.toContain('error');
+  });
+
+  it('characterizes out-of-range progress text without clamping or visible error UI', () => {
+    const html = renderToStaticMarkup(
+      <ContinueReadingRailContent
+        entries={[
+          entry({
+            bookId: 'negative-progress-book',
+            chapterId: 'negative-progress-chapter',
+            chapterNumber: 3,
+            scrollPercent: -4.4,
+            bookTitle: 'Negative Progress',
+          }),
+          entry({
+            bookId: 'overflow-progress-book',
+            chapterId: 'overflow-progress-chapter',
+            chapterNumber: 4,
+            scrollPercent: 120.5,
+            bookTitle: 'Overflow Progress',
+          }),
+        ]}
+      />,
+    );
+
+    expect(html).toContain('Negative Progress');
+    expect(html).toContain('Chapter 3 · -4%');
+    expect(html).toContain('Overflow Progress');
+    expect(html).toContain('Chapter 4 · 121%');
+    expect(html.toLowerCase()).not.toContain('error');
+  });
+
+  it('URL-encodes book ids containing reserved URL characters', () => {
+    const html = renderToStaticMarkup(
+      <ContinueReadingRailContent
+        entries={[
+          entry({
+            bookId: 'book/with?reserved#chars & spaces',
+            chapterId: 'encoded-book-chapter',
+            chapterNumber: 5,
+            bookTitle: 'Encoded Book',
+          }),
+        ]}
+      />,
+    );
+
+    expect(html).toContain('Encoded Book');
+    expect(html).toContain('href="/read/book%2Fwith%3Freserved%23chars%20%26%20spaces/5"');
+  });
+
   it('renders at most one card per book before applying the 10-card cap', () => {
     const entries = [
       entry({
@@ -81,6 +157,40 @@ describe('ContinueReadingRailContent', () => {
     expect(html).toContain('Book 10');
     expect(html).not.toContain('Book 11');
     expect(html).not.toContain('Book 12');
+  });
+
+  it('keeps the first duplicate in input order when duplicate entries are adjacent', () => {
+    const html = renderToStaticMarkup(
+      <ContinueReadingRailContent
+        entries={[
+          entry({
+            bookId: 'same-book',
+            chapterId: 'same-book-first-chapter',
+            chapterNumber: 3,
+            bookTitle: 'Same Book First',
+          }),
+          entry({
+            bookId: 'same-book',
+            chapterId: 'same-book-second-chapter',
+            chapterNumber: 4,
+            bookTitle: 'Same Book Second',
+          }),
+          entry({
+            bookId: 'next-book',
+            chapterId: 'next-book-chapter',
+            chapterNumber: 5,
+            bookTitle: 'Next Book',
+          }),
+        ]}
+      />,
+    );
+
+    expect(html.match(/href="\/read\//g)).toHaveLength(2);
+    expect(html).toContain('Same Book First');
+    expect(html).toContain('href="/read/same-book/3"');
+    expect(html).not.toContain('Same Book Second');
+    expect(html).toContain('Next Book');
+    expect(html.indexOf('Same Book First')).toBeLessThan(html.indexOf('Next Book'));
   });
 
   it('keeps newest-first shelf order, latest-per-book dedup, and cap after dedup', () => {
