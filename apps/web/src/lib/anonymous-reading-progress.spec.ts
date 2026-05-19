@@ -168,6 +168,35 @@ describe('anonymous reading progress storage', () => {
     expect(loadAnonymousChapterProgress(storage, 'book-1', 'chapter-1')).toBeNull();
   });
 
+  it('rejects persisted progress rows that are missing a chapter id', () => {
+    const storage = new MemoryStorage();
+    const missingChapterId = entry() as Omit<ReadingProgressEntry, 'chapterId'> & {
+      chapterId?: string;
+    };
+    delete missingChapterId.chapterId;
+    storage.setItem(ANONYMOUS_READING_PROGRESS_KEY, JSON.stringify([missingChapterId]));
+
+    expect(loadAnonymousReadingProgress(storage)).toEqual([]);
+    expect(loadAnonymousBookProgress(storage, 'book-1')).toBeNull();
+    expect(loadAnonymousChapterProgress(storage, 'book-1', 'chapter-1')).toBeNull();
+  });
+
+  it('does not reuse stale book progress for a different current chapter', () => {
+    const storage = new MemoryStorage();
+    saveAnonymousReadingProgress(
+      storage,
+      entry({
+        chapterId: 'chapter-1',
+        chapterNumber: 1,
+        scrollPercent: 73,
+        updatedAt: '2026-05-19T00:00:00.000Z',
+      }),
+    );
+
+    expect(loadAnonymousBookProgress(storage, 'book-1')?.chapterId).toBe('chapter-1');
+    expect(loadAnonymousChapterProgress(storage, 'book-1', 'chapter-2')).toBeNull();
+  });
+
   it('keeps the v1 record shape unchanged on the happy path', () => {
     const storage = new MemoryStorage();
     const progress = entry({ scrollPercent: 88 });
