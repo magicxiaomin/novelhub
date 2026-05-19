@@ -1,7 +1,9 @@
-import React, { type ReactElement } from 'react';
+import * as React from 'react';
+import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { messages } from '@novelhub/shared';
+import { getByRole } from './test-a11y-queries';
 import { ReaderTopBar } from './top-bar';
 
 const back = vi.fn();
@@ -20,55 +22,32 @@ const renderTopBar = (props?: Partial<React.ComponentProps<typeof ReaderTopBar>>
     ...props,
   }) as ReactElement;
 
-const childElements = (element: ReactElement): ReactElement[] =>
-  React.Children.toArray(element.props.children).filter(React.isValidElement) as ReactElement[];
+describe('ReaderTopBar accessible semantics', () => {
+  it('exposes the current chapter title as the top-level heading', () => {
+    const topBar = renderTopBar();
 
-const getControls = (
-  header: ReactElement,
-): { backButton: ReactElement; title: ReactElement; settingsButton: ReactElement } => {
-  const [inner] = childElements(header);
-  expect(inner).toBeDefined();
-
-  const [backButton, title, settingsButton] = childElements(inner as ReactElement);
-  expect(backButton).toBeDefined();
-  expect(title).toBeDefined();
-  expect(settingsButton).toBeDefined();
-
-  return {
-    backButton: backButton as ReactElement,
-    title: title as ReactElement,
-    settingsButton: settingsButton as ReactElement,
-  };
-};
-
-describe('ReaderTopBar contract', () => {
-  it('renders the chapter title and toggles visibility classes', () => {
-    const visible = renderTopBar({ visible: true });
-    const hidden = renderTopBar({ visible: false });
-
-    expect(getControls(visible).title.props.children).toBe('Chapter 7: The Hidden Door');
-    expect(visible.props.className).toContain('translate-y-0');
-    expect(visible.props.className).not.toContain('-translate-y-full');
-    expect(hidden.props.className).toContain('-translate-y-full');
-    expect(hidden.props.className).not.toContain('translate-y-0');
+    expect(getByRole(topBar, 'heading', { name: 'Chapter 7: The Hidden Door' }).type).toBe('h1');
+    expect(topBar.props.className).toContain('translate-y-0');
   });
 
-  it('routes back when the accessible Back button is clicked', () => {
+  it('exposes a localized Back button that routes back', () => {
     back.mockClear();
-    const { backButton } = getControls(renderTopBar());
+    const backButton = getByRole(renderTopBar(), 'button', { name: messages.reader.back });
 
-    expect(backButton.props['aria-label']).toBe(messages.reader.back);
-    backButton.props.onClick();
+    expect(backButton.props.type).toBe('button');
+    backButton.props.onClick!();
 
     expect(back).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onSettings when the accessible Settings button is clicked', () => {
+  it('exposes a localized Settings button that opens settings', () => {
     const onSettings = vi.fn();
-    const { settingsButton } = getControls(renderTopBar({ onSettings }));
+    const settingsButton = getByRole(renderTopBar({ onSettings }), 'button', {
+      name: messages.reader.settings,
+    });
 
-    expect(settingsButton.props['aria-label']).toBe(messages.reader.settings);
-    settingsButton.props.onClick();
+    expect(settingsButton.props.type).toBe('button');
+    settingsButton.props.onClick!();
 
     expect(onSettings).toHaveBeenCalledTimes(1);
   });

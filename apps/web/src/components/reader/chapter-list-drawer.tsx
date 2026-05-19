@@ -79,6 +79,7 @@ export function ChapterListDrawer({
                     'flex w-full items-center gap-3 border-b px-4 py-3 text-left active:bg-muted',
                     current ? 'bg-brand/10 text-brand' : 'text-foreground',
                   )}
+                  aria-current={current ? 'true' : undefined}
                 >
                   <span className="w-8 shrink-0 text-sm font-semibold tabular-nums">
                     {chapter.order}
