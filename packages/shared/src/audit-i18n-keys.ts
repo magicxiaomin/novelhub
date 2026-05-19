@@ -1,5 +1,8 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+
+// schemaVersion 1 contract: additive-only for new fields; bucket renames or removals require schemaVersion 2.
+// The #444 orphanStyle removal closes an original schemaVersion 1 contract gap and is not a future-shape change.
 
 export type I18nAuditBucketItem = {
   key: string;
@@ -13,14 +16,14 @@ export type I18nAuditReport = {
   buckets: {
     active: I18nAuditBucketItem[];
     quarantinedOnly: I18nAuditBucketItem[];
+    quarantinedReferenced: I18nAuditBucketItem[];
     missing: I18nAuditBucketItem[];
-    orphanStyle: I18nAuditBucketItem[];
   };
   summary: {
     active: number;
     quarantinedOnly: number;
+    quarantinedReferenced: number;
     missing: number;
-    orphanStyle: number;
   };
   limitations: string[];
 };
@@ -30,27 +33,60 @@ type MessagesTree = Record<string, unknown>;
 type BuildAuditOptions = {
   repoRoot: string;
   messages: MessagesTree;
+  quarantinePrefixesPath?: string;
 };
 
 const SCAN_DIRS = ['apps', 'packages'];
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx']);
-const QUARANTINED_PREFIXES = ['drama', 'dramas', 'episode', 'episodes', 'playback', 'watch'];
+const FALLBACK_QUARANTINED_PREFIXES = [
+  'drama',
+  'dramas',
+  'episode',
+  'episodes',
+  'playback',
+  'watch',
+];
+const QUARANTINE_PREFIXES_SIDECAR = 'docs/pivot/i18n-quarantine-prefixes.json';
 const MESSAGE_REFERENCE_RE = /\bmessages(?:Json)?((?:\.[A-Za-z_$][\w$]*)+)/g;
 const TEST_FILE_RE = /(?:^|[\\/])[^\\/]+\.(?:spec|test)\.tsx?$/;
 
+/**
+ * Builds the report-only i18n key audit.
+ *
+ * schemaVersion 1 exposes stable bucket names: active, quarantinedOnly,
+ * quarantinedReferenced, and missing. New fields may be added without a version bump, but
+ * future bucket renames/removals require schemaVersion 2. quarantinedReferenced makes
+ * quarantine-prefix keys visible when non-test, non-quarantined source files still reference
+ * them; unreferenced non-quarantine message keys are intentionally outside the v1 report.
+ *
+ * Quarantine prefixes are read from docs/pivot/i18n-quarantine-prefixes.json when present,
+ * falling back to drama, dramas, episode, episodes, playback, watch. The default sidecar
+ * omits video, stream, and series because no packages/shared/src/messages/en.json keys exist
+ * for those prefixes at ebb2ef4; add them when corresponding keys are introduced.
+ */
 export function buildI18nKeyAuditReport(options: BuildAuditOptions): I18nAuditReport {
   const repoRoot = resolve(options.repoRoot);
   const messageKeys = new Set(flattenLeafKeys(options.messages));
+  const quarantinePrefixes = loadQuarantinePrefixes(repoRoot, options.quarantinePrefixesPath);
   const references = collectMessageReferences(repoRoot, messageKeys);
 
   const active = [...references.entries()]
-    .filter(([key]) => messageKeys.has(key) && !isQuarantined(key))
+    .filter(([key]) => messageKeys.has(key) && !isQuarantined(key, quarantinePrefixes))
     .map(([key, refs]) => ({ key, references: [...refs].sort() }))
     .sort(compareByKey);
 
   const quarantinedOnly = [...messageKeys]
-    .filter((key) => isQuarantined(key) && !references.has(key))
+    .filter((key) => isQuarantined(key, quarantinePrefixes) && !references.has(key))
     .map((key) => ({ key, reason: `matches quarantined prefix "${key.split('.')[0]}"` }))
+    .sort(compareByKey);
+
+  const quarantinedReferenced = [...references.entries()]
+    .filter(([key]) => messageKeys.has(key) && isQuarantined(key, quarantinePrefixes))
+    .map(([key, refs]) => ({
+      key,
+      references: [...refs].sort(),
+      reason: `matches quarantined prefix "${key.split('.')[0]}" but is still statically referenced`,
+    }))
     .sort(compareByKey);
 
   const missing = [...references.entries()]
@@ -58,27 +94,39 @@ export function buildI18nKeyAuditReport(options: BuildAuditOptions): I18nAuditRe
     .map(([key, refs]) => ({ key, references: [...refs].sort() }))
     .sort(compareByKey);
 
-  const orphanStyle = [...messageKeys]
-    .filter((key) => !references.has(key) && !isQuarantined(key))
-    .map((key) => ({ key, reason: 'message key has no static messages.* reference' }))
-    .sort(compareByKey);
-
   return {
     schemaVersion: 1,
     generatedBy: 'scripts/audit-i18n-keys.ts',
-    buckets: { active, quarantinedOnly, missing, orphanStyle },
+    buckets: { active, quarantinedOnly, quarantinedReferenced, missing },
     summary: {
       active: active.length,
       quarantinedOnly: quarantinedOnly.length,
+      quarantinedReferenced: quarantinedReferenced.length,
       missing: missing.length,
-      orphanStyle: orphanStyle.length,
     },
     limitations: [
       'Static heuristic only: dynamic message-key composition is not resolved.',
       'Report-only audit: findings do not imply automatic deletion or reactivation.',
       'Quarantine classification is prefix-based and intentionally conservative.',
+      'Unreferenced non-quarantine message keys are intentionally outside schemaVersion 1 report buckets.',
     ],
   };
+}
+
+function loadQuarantinePrefixes(repoRoot: string, explicitPath?: string): string[] {
+  const sidecarPath = explicitPath ?? resolve(repoRoot, QUARANTINE_PREFIXES_SIDECAR);
+  if (!existsSync(sidecarPath)) {
+    return FALLBACK_QUARANTINED_PREFIXES;
+  }
+
+  const parsed = JSON.parse(readFileSync(sidecarPath, 'utf8')) as unknown;
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((item) => typeof item === 'string' && item.length > 0)
+  ) {
+    throw new Error(`${relative(repoRoot, sidecarPath)} must be a JSON array of non-empty strings`);
+  }
+  return parsed;
 }
 
 function collectMessageReferences(
@@ -188,9 +236,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isQuarantined(key: string): boolean {
+function isQuarantined(key: string, quarantinePrefixes: string[]): boolean {
   const topLevelKey = key.split('.')[0] ?? '';
-  return QUARANTINED_PREFIXES.includes(topLevelKey);
+  return quarantinePrefixes.includes(topLevelKey);
 }
 
 function compareByKey(a: I18nAuditBucketItem, b: I18nAuditBucketItem): number {
