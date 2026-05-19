@@ -1,8 +1,8 @@
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import * as React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { messages } from '@novelhub/shared';
+import { getByRole } from './test-a11y-queries';
 import { ReaderBottomBar } from './bottom-bar';
 
 vi.mock('next/link', () => ({ default: 'a' }));
@@ -18,57 +18,55 @@ vi.mock('@/lib/utils', () => ({
 
 vi.stubGlobal('React', React);
 
-const renderBottomBar = (props?: Partial<React.ComponentProps<typeof ReaderBottomBar>>): string =>
-  renderToStaticMarkup(
-    <ReaderBottomBar
-      visible
-      prevHref="/read/book-1/1"
-      nextHref="/read/book-1/3"
-      onChapters={() => undefined}
-      onSettings={() => undefined}
-      {...props}
-    />,
-  );
+const renderBottomBar = (props?: Partial<React.ComponentProps<typeof ReaderBottomBar>>) => (
+  <ReaderBottomBar
+    visible
+    prevHref="/read/book-1/1"
+    nextHref="/read/book-1/3"
+    onChapters={() => undefined}
+    onSettings={() => undefined}
+    {...props}
+  />
+);
 
-describe('ReaderBottomBar rendering contract', () => {
-  it('renders previous, chapters, settings, and next controls with localized aria labels', () => {
-    const html = renderBottomBar();
-
-    expect(html).toContain(`aria-label="${messages.reader.chapters}"`);
-    expect(html).toContain(`aria-label="${messages.reader.previousChapter}"`);
-    expect(html).toContain(`aria-label="${messages.reader.settings}"`);
-    expect(html).toContain(`aria-label="${messages.reader.nextChapter}"`);
-    expect(html).toContain('data-icon="chevron-left"');
-    expect(html).toContain('data-icon="list"');
-    expect(html).toContain('data-icon="settings"');
-    expect(html).toContain('data-icon="chevron-right"');
+describe('ReaderBottomBar accessible semantics', () => {
+  it('labels the bottom chapter navigation landmark', () => {
+    expect(
+      getByRole(renderBottomBar(), 'navigation', { name: messages.reader.chapters }).type,
+    ).toBe('nav');
   });
 
-  it('renders previous and next controls as navigable links when hrefs are present', () => {
-    const html = renderBottomBar({
-      prevHref: '/read/book-1/1',
-      nextHref: '/read/book-1/3',
-    });
+  it('exposes previous and next chapter links when hrefs are present', () => {
+    const bottomBar = renderBottomBar();
 
-    expect(html).toContain('href="/read/book-1/1"');
-    expect(html).toContain('href="/read/book-1/3"');
-    expect(html).toContain('<a href="/read/book-1/1"');
-    expect(html).toContain('<a href="/read/book-1/3"');
-  });
-
-  it('renders previous and next controls as disabled non-link placeholders when hrefs are absent', () => {
-    const html = renderBottomBar({
-      prevHref: null,
-      nextHref: null,
-    });
-
-    expect(html).not.toContain('<a');
-    expect(html).not.toContain('href=');
-    expect(html).toContain(
-      `<span class="grid h-11 place-items-center rounded-lg text-muted-foreground opacity-50" aria-label="${messages.reader.previousChapter}"`,
+    expect(getByRole(bottomBar, 'link', { name: messages.reader.previousChapter }).props.href).toBe(
+      '/read/book-1/1',
     );
-    expect(html).toContain(
-      `<span class="grid h-11 place-items-center rounded-lg text-muted-foreground opacity-50" aria-label="${messages.reader.nextChapter}"`,
+    expect(getByRole(bottomBar, 'link', { name: messages.reader.nextChapter }).props.href).toBe(
+      '/read/book-1/3',
+    );
+  });
+
+  it('exposes chapter and settings buttons by localized accessible names', () => {
+    const onChapters = vi.fn();
+    const onSettings = vi.fn();
+    const bottomBar = renderBottomBar({ onChapters, onSettings });
+
+    getByRole(bottomBar, 'button', { name: messages.reader.chapters }).props.onClick!();
+    getByRole(bottomBar, 'button', { name: messages.reader.settings }).props.onClick!();
+
+    expect(onChapters).toHaveBeenCalledTimes(1);
+    expect(onSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes unavailable previous and next controls from link navigation', () => {
+    const bottomBar = renderBottomBar({ prevHref: null, nextHref: null });
+
+    expect(() => getByRole(bottomBar, 'link', { name: messages.reader.previousChapter })).toThrow(
+      'found 0',
+    );
+    expect(() => getByRole(bottomBar, 'link', { name: messages.reader.nextChapter })).toThrow(
+      'found 0',
     );
   });
 });
