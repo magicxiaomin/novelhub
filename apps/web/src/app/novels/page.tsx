@@ -15,10 +15,10 @@ import {
   toBooksListQuery,
   type NovelsSearchParams,
 } from '@/lib/novels-filters';
+import { shouldRedirectToCanonicalNovelsHref } from '@/lib/novels-canonical-redirect';
 import {
   buildCanonicalNovelsAffordance,
   novelsCanonicalPath,
-  shouldRedirectToCanonicalNovelsHref,
   shouldShowCanonicalNovelsAffordance,
 } from './canonical-affordance';
 import { messages } from '@novelhub/shared';

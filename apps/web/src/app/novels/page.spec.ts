@@ -6,9 +6,9 @@ import { describe, expect, it } from 'vitest';
 import { generateMetadata } from './page';
 import {
   buildCanonicalNovelsAffordance,
-  shouldRedirectToCanonicalNovelsHref,
   shouldShowCanonicalNovelsAffordance,
 } from './canonical-affordance';
+import { shouldRedirectToCanonicalNovelsHref } from '@/lib/novels-canonical-redirect';
 import { messages } from '@novelhub/shared';
 
 const novelsRouteDir = join(process.cwd(), 'src/app/novels');
