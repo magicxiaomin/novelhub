@@ -67,10 +67,32 @@ describe('formatters', () => {
   it('transaction helpers: expose sign and color for positive, zero, and negative amounts', () => {
     expect(formatTransactionAmount(20)).toBe('+20');
     expect(formatTransactionAmount(0)).toBe('0');
+    expect(formatTransactionAmount(-0)).toBe('0');
     expect(formatTransactionAmount(-5)).toBe('-5');
     expect(getTransactionAmountClass(1)).toBe('text-emerald-600');
     expect(getTransactionAmountClass(0)).toBe('text-emerald-600');
+    expect(getTransactionAmountClass(-0)).toBe('text-emerald-600');
     expect(getTransactionAmountClass(-1)).toBe('text-red-600');
+  });
+
+  it('transaction helpers: preserve large magnitudes without locale separators or rounding', () => {
+    expect(formatTransactionAmount(1234567890)).toBe('+1234567890');
+    expect(formatTransactionAmount(-9876543210)).toBe('-9876543210');
+    expect(formatTransactionAmount(1.25)).toBe('+1.25');
+    expect(formatTransactionAmount(-1.25)).toBe('-1.25');
+  });
+
+  it('transaction helpers: stringify non-finite amounts and classify by numeric sign comparison', () => {
+    expect(formatTransactionAmount(Number.POSITIVE_INFINITY)).toBe('+Infinity');
+    expect(formatTransactionAmount(Number.NEGATIVE_INFINITY)).toBe('-Infinity');
+    expect(formatTransactionAmount(Number.NaN)).toBe('NaN');
+    expect(getTransactionAmountClass(Number.POSITIVE_INFINITY)).toBe('text-emerald-600');
+    expect(getTransactionAmountClass(Number.NEGATIVE_INFINITY)).toBe('text-red-600');
+    expect(getTransactionAmountClass(Number.NaN)).toBe('text-red-600');
+  });
+
+  it('formatAccountDate: throws for invalid date input instead of applying a fallback', () => {
+    expect(() => formatAccountDate('not-a-date')).toThrow(RangeError);
   });
 
   it('formatSubscriptionPlanName: uses shared subscription plan label fallbacks', () => {
