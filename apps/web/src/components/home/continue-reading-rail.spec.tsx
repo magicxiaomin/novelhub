@@ -82,4 +82,67 @@ describe('ContinueReadingRailContent', () => {
     expect(html).not.toContain('Book 11');
     expect(html).not.toContain('Book 12');
   });
+
+  it('keeps newest-first shelf order, latest-per-book dedup, and cap after dedup', () => {
+    const entries = [
+      entry({
+        bookId: 'book-newest',
+        chapterId: 'chapter-newest',
+        chapterNumber: 9,
+        bookTitle: 'Newest Book',
+        updatedAt: '2026-05-19T12:00:00.000Z',
+      }),
+      entry({
+        bookId: 'book-duplicate',
+        chapterId: 'chapter-latest',
+        chapterNumber: 8,
+        bookTitle: 'Duplicate Latest',
+        updatedAt: '2026-05-19T11:00:00.000Z',
+      }),
+      entry({
+        bookId: 'book-middle',
+        chapterId: 'chapter-middle',
+        chapterNumber: 7,
+        bookTitle: 'Middle Book',
+        updatedAt: '2026-05-19T10:00:00.000Z',
+      }),
+      entry({
+        bookId: 'book-duplicate',
+        chapterId: 'chapter-older',
+        chapterNumber: 6,
+        bookTitle: 'Duplicate Older',
+        updatedAt: '2026-05-18T10:00:00.000Z',
+      }),
+      ...[
+        '2026-05-17T08:00:00.000Z',
+        '2026-05-17T07:00:00.000Z',
+        '2026-05-17T06:00:00.000Z',
+        '2026-05-17T05:00:00.000Z',
+        '2026-05-17T04:00:00.000Z',
+        '2026-05-17T03:00:00.000Z',
+        '2026-05-17T02:00:00.000Z',
+        '2026-05-17T01:00:00.000Z',
+        '2026-05-17T00:00:00.000Z',
+      ].map((updatedAt, index) =>
+        entry({
+          bookId: `book-fill-${index + 1}`,
+          chapterId: `chapter-fill-${index + 1}`,
+          chapterNumber: index + 1,
+          bookTitle: `Fill Book ${index + 1}`,
+          updatedAt,
+        }),
+      ),
+    ];
+
+    const html = renderToStaticMarkup(<ContinueReadingRailContent entries={entries} />);
+
+    expect(html.match(/href="\/read\//g)).toHaveLength(10);
+    expect(html.indexOf('Newest Book')).toBeLessThan(html.indexOf('Duplicate Latest'));
+    expect(html.indexOf('Duplicate Latest')).toBeLessThan(html.indexOf('Middle Book'));
+    expect(html).toContain('href="/read/book-duplicate/8"');
+    expect(html).not.toContain('Duplicate Older');
+    expect(html).toContain('Fill Book 7');
+    expect(html).not.toContain('Fill Book 8');
+    expect(html).not.toContain('Fill Book 9');
+  });
 });
