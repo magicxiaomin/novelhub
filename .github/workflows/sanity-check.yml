@@ -52,6 +52,10 @@ jobs:
         if: steps.detect.outputs.ready == 'true'
         run: pnpm test
 
+      - name: i18n audit baseline diff
+        if: steps.detect.outputs.ready == 'true'
+        run: pnpm audit:i18n:diff
+
       - name: Identify ticket from branch
         id: ticket
         if: steps.detect.outputs.ready == 'true' && github.event_name == 'pull_request'

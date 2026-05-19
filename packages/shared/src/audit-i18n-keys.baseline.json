@@ -1,0 +1,2246 @@
+{
+  "schemaVersion": 2,
+  "generatedBy": "scripts/audit-i18n-keys.ts",
+  "buckets": {
+    "active": [
+      {
+        "key": "account.cancelsOn",
+        "references": [
+          "apps/web/src/lib/account-subscription.ts"
+        ]
+      },
+      {
+        "key": "account.coins",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.comingSoon",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.contact",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.deleteAccount",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.deleteCancel",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.deleteConfirm",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.deleteError",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.deletePlaceholder",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.deleteSuccess",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.deleteTitle",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.deleteWarning",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.emptyHistory",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.englishOnly",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.getMoreCoins",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.historyProgress",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx",
+          "apps/web/src/app/me/me-resume-reading-card.tsx"
+        ]
+      },
+      {
+        "key": "account.invalidPassword",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx"
+        ]
+      },
+      {
+        "key": "account.language",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.logout",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.logoutError",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.manageSubscription",
+        "references": [
+          "apps/web/src/lib/account-subscription.ts"
+        ]
+      },
+      {
+        "key": "account.notifications",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.pastDueBody",
+        "references": [
+          "apps/web/src/lib/account-subscription.ts"
+        ]
+      },
+      {
+        "key": "account.pastDueGraceEndsOn",
+        "references": [
+          "apps/web/src/lib/account-subscription.ts"
+        ]
+      },
+      {
+        "key": "account.pastDueManagePayment",
+        "references": [
+          "apps/web/src/lib/account-subscription.ts"
+        ]
+      },
+      {
+        "key": "account.pastDueTitle",
+        "references": [
+          "apps/web/src/lib/account-subscription.ts"
+        ]
+      },
+      {
+        "key": "account.portalError",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.privacy",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.readingHistory",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.renewsOn",
+        "references": [
+          "apps/web/src/lib/account-subscription.ts"
+        ]
+      },
+      {
+        "key": "account.resumeReading",
+        "references": [
+          "apps/web/src/app/me/me-resume-reading-card.tsx"
+        ]
+      },
+      {
+        "key": "account.settings",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.subscribeCta",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.subscribePrompt",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.subscription",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.terms",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx"
+        ]
+      },
+      {
+        "key": "account.title",
+        "references": [
+          "apps/web/src/app/me/me-client.tsx",
+          "apps/web/src/app/me/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.ban",
+        "references": [
+          "apps/web/src/app/admin/users/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.cancel",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.confirm",
+        "references": [
+          "apps/web/src/app/admin/chapters/[id]/page.tsx",
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.create",
+        "references": [
+          "apps/web/src/app/admin/chapters/import/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.delete",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.edit",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx",
+          "apps/web/src/app/admin/chapters/page.tsx",
+          "apps/web/src/app/admin/users/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.save",
+        "references": [
+          "apps/web/src/app/admin/chapters/[id]/page.tsx",
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.send",
+        "references": [
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.actions.unban",
+        "references": [
+          "apps/web/src/app/admin/users/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.books.cover",
+        "references": [
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.books.delete.confirm",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.books.delete.description",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.books.delete.title",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.books.edit",
+        "references": [
+          "apps/web/src/app/admin/books/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.books.new",
+        "references": [
+          "apps/web/src/app/admin/books/new/page.tsx",
+          "apps/web/src/app/admin/books/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.books.title",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx",
+          "apps/web/src/app/admin/chapters/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.bookId",
+        "references": [
+          "apps/web/src/app/admin/chapters/import/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.columns.free",
+        "references": [
+          "apps/web/src/app/admin/chapters/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.columns.order",
+        "references": [
+          "apps/web/src/app/admin/chapters/[id]/page.tsx",
+          "apps/web/src/app/admin/chapters/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.columns.title",
+        "references": [
+          "apps/web/src/app/admin/chapters/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.edit",
+        "references": [
+          "apps/web/src/app/admin/chapters/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.import",
+        "references": [
+          "apps/web/src/app/admin/chapters/import/page.tsx",
+          "apps/web/src/app/admin/chapters/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.imported",
+        "references": [
+          "apps/web/src/app/admin/chapters/import/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.importPartial",
+        "references": [
+          "apps/web/src/app/admin/chapters/import/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.parsed",
+        "references": [
+          "apps/web/src/app/admin/chapters/import/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.regex",
+        "references": [
+          "apps/web/src/app/admin/chapters/import/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.chapters.title",
+        "references": [
+          "apps/web/src/app/admin/chapters/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.payingUsers",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.revenue",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.roas",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.signups",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.title",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.topBooks.empty",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.topBooks.title",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.dashboard.weekly",
+        "references": [
+          "apps/web/src/app/admin/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.author",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx",
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.category",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx",
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.coinPerChapter",
+        "references": [
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.content",
+        "references": [
+          "apps/web/src/app/admin/chapters/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.coverUrl",
+        "references": [
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.description",
+        "references": [
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.freeChapterCount",
+        "references": [
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.isFree",
+        "references": [
+          "apps/web/src/app/admin/chapters/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.status",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx",
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.tags",
+        "references": [
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.fields.title",
+        "references": [
+          "apps/web/src/app/admin/books/page.tsx",
+          "apps/web/src/app/admin/chapters/[id]/page.tsx",
+          "apps/web/src/app/admin/push/page.tsx",
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.nav.books",
+        "references": [
+          "apps/web/src/app/admin/layout.tsx"
+        ]
+      },
+      {
+        "key": "admin.nav.chapters",
+        "references": [
+          "apps/web/src/app/admin/layout.tsx"
+        ]
+      },
+      {
+        "key": "admin.nav.dashboard",
+        "references": [
+          "apps/web/src/app/admin/layout.tsx"
+        ]
+      },
+      {
+        "key": "admin.nav.orders",
+        "references": [
+          "apps/web/src/app/admin/layout.tsx"
+        ]
+      },
+      {
+        "key": "admin.nav.push",
+        "references": [
+          "apps/web/src/app/admin/layout.tsx"
+        ]
+      },
+      {
+        "key": "admin.nav.users",
+        "references": [
+          "apps/web/src/app/admin/layout.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.columns.amount",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.columns.created",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.columns.email",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.columns.session",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.columns.status",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.columns.type",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.search",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.status",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.orders.title",
+        "references": [
+          "apps/web/src/app/admin/orders/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.push.body",
+        "references": [
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.push.confirmTitle",
+        "references": [
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.push.segmentAll",
+        "references": [
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.push.title",
+        "references": [
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.push.url",
+        "references": [
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.table.empty",
+        "references": [
+          "apps/web/src/components/ui/data-table.tsx"
+        ]
+      },
+      {
+        "key": "admin.table.filter",
+        "references": [
+          "apps/web/src/components/ui/data-table.tsx"
+        ]
+      },
+      {
+        "key": "admin.table.next",
+        "references": [
+          "apps/web/src/components/ui/data-table.tsx"
+        ]
+      },
+      {
+        "key": "admin.table.page",
+        "references": [
+          "apps/web/src/components/ui/data-table.tsx"
+        ]
+      },
+      {
+        "key": "admin.table.previous",
+        "references": [
+          "apps/web/src/components/ui/data-table.tsx"
+        ]
+      },
+      {
+        "key": "admin.users.columns.admin",
+        "references": [
+          "apps/web/src/app/admin/users/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.users.columns.banned",
+        "references": [
+          "apps/web/src/app/admin/users/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.users.columns.coins",
+        "references": [
+          "apps/web/src/app/admin/users/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.users.columns.email",
+        "references": [
+          "apps/web/src/app/admin/users/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.users.detail",
+        "references": [
+          "apps/web/src/app/admin/users/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.users.search",
+        "references": [
+          "apps/web/src/app/admin/users/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.users.title",
+        "references": [
+          "apps/web/src/app/admin/users/page.tsx"
+        ]
+      },
+      {
+        "key": "admin.validation.coverUrlRequired",
+        "references": [
+          "apps/web/src/components/admin/book-form.tsx"
+        ]
+      },
+      {
+        "key": "admin.validation.httpsUrl",
+        "references": [
+          "apps/web/src/app/admin/push/page.tsx"
+        ]
+      },
+      {
+        "key": "auth.backToSignin",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.confirmNewPassword",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      },
+      {
+        "key": "auth.confirmPassword",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.email",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.emailRegistered",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.forgotPassword",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.genericError",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.googleError",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.googleNotConfigured",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.home",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      },
+      {
+        "key": "auth.invalidCredentials",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.newPassword",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      },
+      {
+        "key": "auth.password",
+        "references": [
+          "apps/web/src/components/account/delete-account-dialog.tsx",
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.requestNewLink",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      },
+      {
+        "key": "auth.resetBody",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.resetMissingToken",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      },
+      {
+        "key": "auth.resetPageTitle",
+        "references": [
+          "apps/web/src/app/reset-password/page.tsx",
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      },
+      {
+        "key": "auth.resetSent",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.resetSubmit",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx",
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.resetSuccess",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      },
+      {
+        "key": "auth.resetTitle",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.signinTab",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.signupTab",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.signupTitle",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.submitSignin",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.submitSignup",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.title",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.validationConfirm",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx",
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.validationEmail",
+        "references": [
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "auth.validationPassword",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx",
+          "apps/web/src/components/account/delete-account-dialog.tsx",
+          "apps/web/src/components/auth/auth-modal.tsx"
+        ]
+      },
+      {
+        "key": "book.about",
+        "references": [
+          "apps/web/src/app/book/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "book.byAuthor",
+        "references": [
+          "apps/web/src/app/book/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "book.chapter",
+        "references": [
+          "apps/web/src/components/book/book-card.tsx"
+        ]
+      },
+      {
+        "key": "book.chapters",
+        "references": [
+          "apps/web/src/app/book/[id]/page.tsx",
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.chaptersLoadError",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.chaptersLower",
+        "references": [
+          "apps/web/src/components/book/book-card.tsx"
+        ]
+      },
+      {
+        "key": "book.emptyChaptersBody",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.emptyChaptersTitle",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.free",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.freeChapter",
+        "references": [
+          "apps/web/src/components/book/book-card.tsx"
+        ]
+      },
+      {
+        "key": "book.freeChapters",
+        "references": [
+          "apps/web/src/components/book/book-card.tsx"
+        ]
+      },
+      {
+        "key": "book.loadingMoreChapters",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.loadMoreChapters",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.locked",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.rating",
+        "references": [
+          "apps/web/src/app/book/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "book.readMore",
+        "references": [
+          "apps/web/src/components/book/collapsible-description.tsx"
+        ]
+      },
+      {
+        "key": "book.resumeChapter",
+        "references": [
+          "apps/web/src/components/book/sticky-cta.tsx"
+        ]
+      },
+      {
+        "key": "book.showLess",
+        "references": [
+          "apps/web/src/components/book/collapsible-description.tsx"
+        ]
+      },
+      {
+        "key": "book.startReading",
+        "references": [
+          "apps/web/src/components/book/sticky-cta.tsx"
+        ]
+      },
+      {
+        "key": "book.statusCompleted",
+        "references": [
+          "apps/web/src/components/book/book-card.tsx"
+        ]
+      },
+      {
+        "key": "book.statusOngoing",
+        "references": [
+          "apps/web/src/components/book/book-card.tsx"
+        ]
+      },
+      {
+        "key": "book.words",
+        "references": [
+          "apps/web/src/app/book/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "book.wordsLower",
+        "references": [
+          "apps/web/src/components/book/chapter-list.tsx"
+        ]
+      },
+      {
+        "key": "book.youMayAlsoLike",
+        "references": [
+          "apps/web/src/components/book/related-books.tsx"
+        ]
+      },
+      {
+        "key": "brand.name",
+        "references": [
+          "apps/web/src/components/layout/top-header.tsx"
+        ]
+      },
+      {
+        "key": "checkin.alreadyClaimed",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "checkin.claimBody",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "checkin.claimCta",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "checkin.claimedBody",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "checkin.claimedCta",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "checkin.error",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "checkin.success",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "checkin.title",
+        "references": [
+          "apps/web/src/components/home/checkin-card.tsx"
+        ]
+      },
+      {
+        "key": "consent.accept",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.analytics",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.body",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.customize",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.customizeTitle",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.marketing",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.necessary",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.reject",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "consent.save",
+        "references": [
+          "apps/web/src/components/consent/consent-banner.tsx"
+        ]
+      },
+      {
+        "key": "contact.body",
+        "references": [
+          "apps/web/src/app/contact/page.tsx"
+        ]
+      },
+      {
+        "key": "contact.email",
+        "references": [
+          "apps/web/src/app/contact/page.tsx"
+        ]
+      },
+      {
+        "key": "contact.name",
+        "references": [
+          "apps/web/src/app/contact/page.tsx"
+        ]
+      },
+      {
+        "key": "contact.sent",
+        "references": [
+          "apps/web/src/app/contact/page.tsx"
+        ]
+      },
+      {
+        "key": "contact.subject",
+        "references": [
+          "apps/web/src/app/contact/page.tsx"
+        ]
+      },
+      {
+        "key": "contact.submit",
+        "references": [
+          "apps/web/src/app/contact/page.tsx"
+        ]
+      },
+      {
+        "key": "errors.backToHome",
+        "references": [
+          "apps/web/src/app/book/[id]/not-found.tsx",
+          "apps/web/src/app/novels/not-found.tsx"
+        ]
+      },
+      {
+        "key": "errors.backToNovels",
+        "references": [
+          "apps/web/src/app/novels/error.tsx",
+          "apps/web/src/app/read/[bookId]/[chapterNumber]/error.tsx",
+          "apps/web/src/app/read/[bookId]/[chapterNumber]/not-found.tsx"
+        ]
+      },
+      {
+        "key": "errors.bookNotFound",
+        "references": [
+          "apps/web/src/app/book/[id]/not-found.tsx",
+          "apps/web/src/app/book/[id]/page.tsx"
+        ]
+      },
+      {
+        "key": "errors.bookNotFoundBody",
+        "references": [
+          "apps/web/src/app/book/[id]/not-found.tsx"
+        ]
+      },
+      {
+        "key": "errors.novelsNotFound",
+        "references": [
+          "apps/web/src/app/novels/not-found.tsx"
+        ]
+      },
+      {
+        "key": "errors.novelsNotFoundBody",
+        "references": [
+          "apps/web/src/app/novels/not-found.tsx"
+        ]
+      },
+      {
+        "key": "errors.novelsRouteError",
+        "references": [
+          "apps/web/src/app/novels/error.tsx"
+        ]
+      },
+      {
+        "key": "errors.novelsRouteErrorBody",
+        "references": [
+          "apps/web/src/app/novels/error.tsx"
+        ]
+      },
+      {
+        "key": "errors.pleaseTryAgain",
+        "references": [
+          "apps/web/src/app/error.tsx",
+          "apps/web/src/app/read/[bookId]/[chapterNumber]/error.tsx"
+        ]
+      },
+      {
+        "key": "errors.readerNotFound",
+        "references": [
+          "apps/web/src/app/read/[bookId]/[chapterNumber]/not-found.tsx"
+        ]
+      },
+      {
+        "key": "errors.readerNotFoundBody",
+        "references": [
+          "apps/web/src/app/read/[bookId]/[chapterNumber]/not-found.tsx"
+        ]
+      },
+      {
+        "key": "errors.routeBoundaryReset",
+        "references": [
+          "apps/web/src/app/novels/error.tsx",
+          "apps/web/src/app/read/[bookId]/[chapterNumber]/error.tsx"
+        ]
+      },
+      {
+        "key": "errors.somethingWrong",
+        "references": [
+          "apps/web/src/app/error.tsx",
+          "apps/web/src/app/read/[bookId]/[chapterNumber]/error.tsx"
+        ]
+      },
+      {
+        "key": "errors.tryAgain",
+        "references": [
+          "apps/web/src/app/error.tsx"
+        ]
+      },
+      {
+        "key": "footer.about",
+        "references": [
+          "apps/web/src/components/layout/footer.tsx"
+        ]
+      },
+      {
+        "key": "footer.aria",
+        "references": [
+          "apps/web/src/components/layout/footer.tsx"
+        ]
+      },
+      {
+        "key": "footer.contact",
+        "references": [
+          "apps/web/src/components/layout/footer.tsx"
+        ]
+      },
+      {
+        "key": "footer.dmca",
+        "references": [
+          "apps/web/src/components/layout/footer.tsx"
+        ]
+      },
+      {
+        "key": "footer.privacy",
+        "references": [
+          "apps/web/src/components/layout/footer.tsx"
+        ]
+      },
+      {
+        "key": "footer.refund",
+        "references": [
+          "apps/web/src/components/layout/footer.tsx"
+        ]
+      },
+      {
+        "key": "footer.terms",
+        "references": [
+          "apps/web/src/components/layout/footer.tsx"
+        ]
+      },
+      {
+        "key": "header.account",
+        "references": [
+          "apps/web/src/components/layout/top-header.tsx"
+        ]
+      },
+      {
+        "key": "header.search",
+        "references": [
+          "apps/web/src/components/layout/top-header.tsx"
+        ]
+      },
+      {
+        "key": "header.signIn",
+        "references": [
+          "apps/web/src/components/layout/top-header.tsx"
+        ]
+      },
+      {
+        "key": "home.continueReading",
+        "references": [
+          "apps/web/src/components/home/continue-reading-rail.tsx"
+        ]
+      },
+      {
+        "key": "home.newReleases",
+        "references": [
+          "apps/web/src/components/home/novel-home-page.tsx"
+        ]
+      },
+      {
+        "key": "home.progress",
+        "references": [
+          "apps/web/src/components/home/continue-reading-rail.tsx"
+        ]
+      },
+      {
+        "key": "home.seeAll",
+        "references": [
+          "apps/web/src/components/home/book-rail.tsx"
+        ]
+      },
+      {
+        "key": "home.trending",
+        "references": [
+          "apps/web/src/components/home/novel-home-page.tsx"
+        ]
+      },
+      {
+        "key": "legal.aboutTitle",
+        "references": [
+          "apps/web/src/app/about/page.tsx"
+        ]
+      },
+      {
+        "key": "legal.contactTitle",
+        "references": [
+          "apps/web/src/app/contact/page.tsx"
+        ]
+      },
+      {
+        "key": "legal.dmcaTitle",
+        "references": [
+          "apps/web/src/app/dmca/page.tsx"
+        ]
+      },
+      {
+        "key": "legal.privacyTitle",
+        "references": [
+          "apps/web/src/app/privacy/page.tsx"
+        ]
+      },
+      {
+        "key": "legal.refundTitle",
+        "references": [
+          "apps/web/src/app/refund/page.tsx"
+        ]
+      },
+      {
+        "key": "legal.termsTitle",
+        "references": [
+          "apps/web/src/app/terms/page.tsx"
+        ]
+      },
+      {
+        "key": "metadata.coverAltTemplate",
+        "references": [
+          "apps/web/src/lib/book-metadata.ts",
+          "apps/web/src/lib/reader-metadata.ts"
+        ]
+      },
+      {
+        "key": "metadata.description",
+        "references": [
+          "apps/web/src/app/layout.tsx",
+          "apps/web/src/app/page.tsx",
+          "apps/web/src/lib/book-metadata.ts"
+        ]
+      },
+      {
+        "key": "metadata.homeOgAlt",
+        "references": [
+          "apps/web/src/app/page.tsx"
+        ]
+      },
+      {
+        "key": "metadata.novels.description",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "metadata.novels.ogAlt",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "metadata.novels.title",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "metadata.title",
+        "references": [
+          "apps/web/src/app/layout.tsx",
+          "apps/web/src/app/page.tsx"
+        ]
+      },
+      {
+        "key": "nav.home",
+        "references": [
+          "apps/web/src/components/layout/bottom-nav.tsx"
+        ]
+      },
+      {
+        "key": "nav.library",
+        "references": [
+          "apps/web/src/components/layout/bottom-nav.tsx"
+        ]
+      },
+      {
+        "key": "nav.me",
+        "references": [
+          "apps/web/src/components/layout/bottom-nav.tsx"
+        ]
+      },
+      {
+        "key": "nav.primary",
+        "references": [
+          "apps/web/src/components/layout/bottom-nav.tsx"
+        ]
+      },
+      {
+        "key": "novels.allCategories",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.allStatuses",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.categoryAndStatusEmptyBody",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.categoryAndStatusEmptyTitle",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.categoryFilterLabel",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.categoryOnlyEmptyBody",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.categoryOnlyEmptyTitle",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.clearFilters",
+        "references": [
+          "apps/web/src/app/novels/page.tsx",
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.emptyBody",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.emptyTitle",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.filteredViewCanonicalCta",
+        "references": [
+          "apps/web/src/app/novels/canonical-affordance.ts"
+        ]
+      },
+      {
+        "key": "novels.filtersLabel",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.loadingSkeletonLabel",
+        "references": [
+          "apps/web/src/app/novels/loading.tsx",
+          "apps/web/src/components/book/book-card.tsx"
+        ]
+      },
+      {
+        "key": "novels.nextPage",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.pageCount",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.paginationLabel",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.previousPage",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.statusCompleted",
+        "references": [
+          "apps/web/src/lib/novels-filters.ts"
+        ]
+      },
+      {
+        "key": "novels.statusFilterLabel",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.statusOngoing",
+        "references": [
+          "apps/web/src/lib/novels-filters.ts"
+        ]
+      },
+      {
+        "key": "novels.statusOnlyEmptyBody",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.statusOnlyEmptyTitle",
+        "references": [
+          "apps/web/src/components/novels/novels-empty-state.tsx"
+        ]
+      },
+      {
+        "key": "novels.subtitle",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "novels.title",
+        "references": [
+          "apps/web/src/app/novels/page.tsx"
+        ]
+      },
+      {
+        "key": "payment.completed",
+        "references": [
+          "apps/web/src/components/paywall/payment-success-client.tsx"
+        ]
+      },
+      {
+        "key": "payment.confirming",
+        "references": [
+          "apps/web/src/app/payment/success/page.tsx",
+          "apps/web/src/components/paywall/payment-success-client.tsx"
+        ]
+      },
+      {
+        "key": "payment.failed",
+        "references": [
+          "apps/web/src/components/paywall/payment-success-client.tsx"
+        ]
+      },
+      {
+        "key": "payment.home",
+        "references": [
+          "apps/web/src/components/paywall/payment-success-client.tsx"
+        ]
+      },
+      {
+        "key": "payment.library",
+        "references": [
+          "apps/web/src/components/paywall/payment-success-client.tsx"
+        ]
+      },
+      {
+        "key": "payment.missingSession",
+        "references": [
+          "apps/web/src/components/paywall/payment-success-client.tsx"
+        ]
+      },
+      {
+        "key": "payment.retry",
+        "references": [
+          "apps/web/src/components/paywall/payment-success-client.tsx"
+        ]
+      },
+      {
+        "key": "paywall.benefitAllBooks",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "paywall.benefitCancel",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "paywall.benefitUnlimited",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "paywall.bestValue",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "paywall.buyCoins",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.buyCoinsNow",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.checkoutError",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.entryCopy",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.maybeLater",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.monthly",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "paywall.perMonth",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "paywall.perWeek",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "paywall.privacy",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.refund",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.subscribe",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.subscribeNow",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.terms",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.title",
+        "references": [
+          "apps/web/src/components/paywall/paywall.tsx"
+        ]
+      },
+      {
+        "key": "paywall.weekly",
+        "references": [
+          "apps/web/src/components/paywall/subscribe-tab.tsx"
+        ]
+      },
+      {
+        "key": "push.allow",
+        "references": [
+          "apps/web/src/components/push/push-prompt.tsx"
+        ]
+      },
+      {
+        "key": "push.body",
+        "references": [
+          "apps/web/src/components/push/push-prompt.tsx"
+        ]
+      },
+      {
+        "key": "push.bonusError",
+        "references": [
+          "apps/web/src/components/push/push-prompt.tsx"
+        ]
+      },
+      {
+        "key": "push.bonusSuccess",
+        "references": [
+          "apps/web/src/components/push/push-prompt.tsx"
+        ]
+      },
+      {
+        "key": "push.deny",
+        "references": [
+          "apps/web/src/components/push/push-prompt.tsx"
+        ]
+      },
+      {
+        "key": "push.title",
+        "references": [
+          "apps/web/src/components/push/push-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.dismiss",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.gotIt",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.installBody",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.installCta",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.installTitle",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.iosBody",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.iosImageAlt",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "pwa.iosTitle",
+        "references": [
+          "apps/web/src/components/pwa/install-prompt.tsx"
+        ]
+      },
+      {
+        "key": "reader.autoAdvance",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.back",
+        "references": [
+          "apps/web/src/components/reader/top-bar.tsx"
+        ]
+      },
+      {
+        "key": "reader.browseAllNovels",
+        "references": [
+          "apps/web/src/components/reader/more-like-this.tsx"
+        ]
+      },
+      {
+        "key": "reader.chapterDescription",
+        "references": [
+          "apps/web/src/lib/reader-metadata.ts"
+        ]
+      },
+      {
+        "key": "reader.chapters",
+        "references": [
+          "apps/web/src/components/reader/bottom-bar.tsx",
+          "apps/web/src/components/reader/chapter-list-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.contentError",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.drawerClose",
+        "references": [
+          "apps/web/src/components/reader/chapter-list-drawer.tsx",
+          "apps/web/src/components/reader/reader-content.tsx",
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontExtraLarge",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontFamily",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontLarge",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontMedium",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontSans",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontSerif",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontSize",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.fontSmall",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.free",
+        "references": [
+          "apps/web/src/components/reader/chapter-list-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.keyboardShortcutDismiss",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.keyboardShortcutHelp",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.keyboardShortcutNext",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.keyboardShortcutPrevious",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.keyboardShortcuts",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.keyboardShortcutsHelp",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.keyboardShortcutsHint",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.lineCompact",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.lineDefault",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.lineHeight",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.lineLoose",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.loadingContent",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.locked",
+        "references": [
+          "apps/web/src/components/reader/chapter-list-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.moreLikeThis",
+        "references": [
+          "apps/web/src/components/reader/more-like-this.tsx"
+        ]
+      },
+      {
+        "key": "reader.nextChapter",
+        "references": [
+          "apps/web/src/components/reader/bottom-bar.tsx",
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.noChapters",
+        "references": [
+          "apps/web/src/components/reader/chapter-list-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.previousChapter",
+        "references": [
+          "apps/web/src/components/reader/bottom-bar.tsx",
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.progressUnavailable",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.scrollProgress",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.settings",
+        "references": [
+          "apps/web/src/components/reader/bottom-bar.tsx",
+          "apps/web/src/components/reader/settings-drawer.tsx",
+          "apps/web/src/components/reader/top-bar.tsx"
+        ]
+      },
+      {
+        "key": "reader.settingsHelp",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.theme",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.themeDark",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.themeSepia",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.themeWhite",
+        "references": [
+          "apps/web/src/components/reader/settings-drawer.tsx"
+        ]
+      },
+      {
+        "key": "reader.toggleControls",
+        "references": [
+          "apps/web/src/components/reader/reader-content.tsx"
+        ]
+      },
+      {
+        "key": "reader.unlocked",
+        "references": [
+          "apps/web/src/components/reader/chapter-list-drawer.tsx"
+        ]
+      },
+      {
+        "key": "recharge.balance",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.buyCoins",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.buyCoinsNow",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.checkoutError",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.daysAgo",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.emptyTransactions",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.hoursAgo",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.justNow",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.minutesAgo",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.subscribe",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.subscribeNow",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.title",
+        "references": [
+          "apps/web/src/app/recharge/page.tsx",
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.transactions",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "recharge.type_UNKNOWN",
+        "references": [
+          "apps/web/src/app/recharge/recharge-client.tsx"
+        ]
+      },
+      {
+        "key": "resetPassword.networkError",
+        "references": [
+          "apps/web/src/app/reset-password/reset-password-client.tsx"
+        ]
+      }
+    ],
+    "quarantinedOnly": [],
+    "quarantinedReferenced": [],
+    "missing": []
+  },
+  "summary": {
+    "active": 363,
+    "quarantinedOnly": 0,
+    "quarantinedReferenced": 0,
+    "missing": 0
+  },
+  "limitations": [
+    "Static heuristic only: dynamic message-key composition is not resolved.",
+    "Report-only audit: findings do not imply automatic deletion or reactivation.",
+    "Quarantine classification is prefix-based and intentionally conservative.",
+    "Unreferenced non-quarantine message keys are intentionally outside schemaVersion 2 report buckets."
+  ]
+}

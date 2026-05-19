@@ -4,6 +4,8 @@
   "private": true,
   "packageManager": "pnpm@10.33.2",
   "scripts": {
+    "audit:i18n": "tsx scripts/audit-i18n-keys.ts",
+    "audit:i18n:diff": "tsx scripts/audit-i18n-keys-diff.ts",
     "build": "pnpm --filter @novelhub/shared build && pnpm -r --if-present --filter './apps/**' build",
     "dev": "pnpm --parallel --filter @novelhub/web --filter @novelhub/api dev",
     "lint": "pnpm -r --if-present lint",

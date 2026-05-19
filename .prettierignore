@@ -5,3 +5,4 @@ build
 out
 coverage
 pnpm-lock.yaml
+packages/shared/src/audit-i18n-keys.baseline.json
