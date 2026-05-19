@@ -1,8 +1,8 @@
 # Novels-only funnel
 
-Linked issues: #195, #196, #204, #215, #216, #217, #218, #219
+Linked issues: #195, #196, #204, #215, #216, #217, #218, #219, #233, #418, #420, #421, #422, #423, #424, #429
 
-This document defines the active NovelHub acquisition funnel after the novels-only pivot. It is the reference path for product copy, routing, QA, telemetry, and launch readiness until a later ADR changes direction.
+This document defines the active NovelHub acquisition funnel after the novels-only pivot. It is the reference path for product copy, routing, QA, telemetry, and launch readiness until a later ADR changes direction. External launch verification remains tracked separately by #233 and Kanban `t_030c3f29`; those blockers are still open and are not resolved by this docs map.
 
 ## Canonical funnel
 
@@ -20,6 +20,28 @@ ad landing -> novel detail -> free chapters -> paywall -> purchase/unlock -> lib
 | Paywall         | Explain why the next chapter is locked and present payment options.    | Reader paywall for locked chapters.                                                                         | User chooses subscription or coin unlock path.                                         | Paywall should be chapter-focused and preserve reading context.                                      |
 | Purchase/unlock | Complete monetization action.                                          | Stripe subscription/checkout or coin unlock flow.                                                           | Subscription becomes active, coins are purchased/spent, or chapter unlock is recorded. | Every coin balance change must create a transaction row; Stripe webhook signatures remain mandatory. |
 | Library         | Return to owned or in-progress reading.                                | Account/library/continue-reading surfaces.                                                                  | User resumes unlocked chapters or subscribed content.                                  | Library should reflect entitlement state without exposing drama content.                             |
+
+## Surface map
+
+| Surface | Active role in the novels-only funnel | Current documentation boundary |
+| --- | --- | --- |
+| Reader | Hosts free chapter sampling, locked-chapter paywalls, entitlement-aware access, and return-to-reading context. | Reader work should stay aligned with the chapter unlock rules below and avoid drama episode playback paths. |
+| Continue-reading / shelf | Gives users a way back to in-progress or owned novel chapters after reading or unlocking. | Treat these as novel/account recovery surfaces; do not introduce a drama shelf while the pivot is active. |
+| Account / purchases | Shows subscription, coin, and transaction state that supports chapter unlock decisions. | Keep account copy and formatting novel-entitlement oriented; Stripe live/payment mutation remains out of scope for R&D waves. |
+| Novel discovery / detail | Converts ad or organic traffic into a first free chapter read. | Campaign, SEO, and share copy should point to novels and novel chapters, not short-drama routes. |
+
+## Wave 2T characterization baseline
+
+The current test-characterization baseline for the novels-only pivot is the merged Wave 2T set:
+
+| PR | Outcome | Surface |
+| --- | --- | --- |
+| #420 | Characterized continue-reading rail boundaries. | Continue-reading / shelf |
+| #421 | Characterized exported reader helper behavior. | Reader |
+| #422 | Characterized novels filter parser and list-query adapter edges. | Novel discovery / detail |
+| #423 | Characterized formatter boundaries. | Account / purchases |
+
+Known gaps remain separate from this baseline: #418 is still open for consent-banner UI transition coverage pending the dependency-policy decision, and #233 / Kanban `t_030c3f29` remain open external launch blockers.
 
 ## Entitlement rules carried forward
 
