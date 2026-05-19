@@ -45,6 +45,12 @@ Known gaps remain separate from this baseline: #418 is still open for consent-ba
 
 Recent closures: Wave 2U closed in `docs/pivot/wave-2u-closure.md`, covering parent #424 and PRs #431-#435 as the current traceability ledger for Wave 2V planning.
 
+## Wave 2V baseline
+
+Wave 2V closed in `docs/pivot/wave-2v-closure.md`, covering parent #436 and PRs #441-#444 at SHA `ebb2ef4`.
+That ledger is retrospective only: it records shipped Wave 2V docs, Node-mode characterization, mocked worker-route contracts, and report-only i18n audit work.
+The same unresolved blockers remain separate from the baseline: #418 / Kanban `t_f06112fb` for consent-banner JSDOM/client coverage and #233 / Kanban `t_030c3f29` for external Meta/Pixel/CAPI/Stripe verification.
+
 ## Entitlement rules carried forward
 
 The novels-only funnel keeps the existing chapter unlock model:
