@@ -43,7 +43,7 @@ The entitlement-related coverage snapshot is recorded in `docs/pivot/novels-funn
 
 This document is not a new coverage claim and does not create new gap tickets.
 
-For a non-normative descriptive appendix of current entitlement edge cases, see `docs/pivot/entitlement-edge-case-appendix.md`.
+For a non-normative descriptive appendix of current entitlement edge cases, see `docs/pivot/entitlement-edge-case-appendix.md`. For non-normative matrix-row traceability against existing coverage references, see `docs/pivot/entitlement-matrix-traceability.md`.
 
 ## Preserved blockers and exclusions
 
