@@ -21,6 +21,67 @@ module.exports = {
   },
   overrides: [
     {
+      files: ['apps/web/src/**/*.{ts,tsx}'],
+      excludedFiles: ['**/*.spec.ts', '**/*.spec.tsx', '**/*.test.ts', '**/*.test.tsx'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  '*drama*',
+                  '**/*drama*',
+                  '../**/*drama*',
+                  '**/drama',
+                  '**/drama-*',
+                  '**/dramas',
+                  '**/dramas/*',
+                ],
+                message:
+                  'Short-drama modules are quarantined and must not be imported by active web surfaces.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      files: ['apps/api/src/**/*.{ts,tsx}'],
+      excludedFiles: [
+        '**/*.spec.ts',
+        '**/*.test.ts',
+        'apps/api/src/worker.ts',
+        'apps/api/src/worker/routes/drama*.ts',
+        'apps/api/src/worker/routes/dramas.ts',
+        'apps/api/src/worker/routes/episodes.ts',
+        'apps/api/src/modules/admin/admin.controller.ts',
+        'apps/api/src/modules/admin/dto/drama*.ts',
+      ],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  '*drama*',
+                  '**/*drama*',
+                  '../**/*drama*',
+                  '**/drama',
+                  '**/drama-*',
+                  '**/dramas',
+                  '**/dramas/*',
+                ],
+                message:
+                  'Short-drama modules are quarantined and must not be imported by active API surfaces.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
       files: ['apps/web/**/*.{ts,tsx}'],
       extends: ['next/core-web-vitals'],
       settings: {
