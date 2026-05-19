@@ -367,4 +367,47 @@ describe('reader page initial chapter selection fallback', () => {
     expect(fetchChapterServer).toHaveBeenCalledWith('chapter-201');
     expect(html).toContain('1,200,201,400');
   });
+
+  it('fetches and resolves the last-page boundary chapter when total is not a multiple of the page size', async () => {
+    vi.mocked(fetchBookChaptersServer)
+      .mockResolvedValueOnce({
+        ...chaptersPageWith([makeChapterSummary(1), makeChapterSummary(200)]),
+        total: 401,
+      })
+      .mockResolvedValueOnce({
+        ...chaptersPageWith([makeChapterSummary(401)], 3),
+        total: 401,
+      });
+    vi.mocked(fetchChapterServer).mockResolvedValue({
+      ...chapter,
+      id: 'chapter-401',
+      chapterNumber: 401,
+      title: 'Chapter 401',
+    });
+
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '401' } });
+    const html = renderToStaticMarkup(element);
+
+    expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(1, book.id, 1, 200);
+    expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(2, book.id, 3, 200);
+    expect(fetchChapterServer).toHaveBeenCalledWith('chapter-401');
+    expect(html).toContain('1,200,401');
+  });
+
+  it('treats an out-of-range chapter anchor as not found after checking the computed page', async () => {
+    vi.mocked(fetchBookChaptersServer)
+      .mockResolvedValueOnce({
+        ...chaptersPageWith([makeChapterSummary(1), makeChapterSummary(200)]),
+        total: 401,
+      })
+      .mockResolvedValueOnce({ ...chaptersPageWith([], 5), total: 401 });
+
+    await expect(ReaderPage({ params: { bookId: book.id, chapterNumber: '999' } })).rejects.toThrow(
+      'not found',
+    );
+
+    expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(1, book.id, 1, 200);
+    expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(2, book.id, 5, 200);
+    expect(fetchChapterServer).not.toHaveBeenCalled();
+  });
 });
