@@ -47,7 +47,7 @@ For a non-normative descriptive appendix of current entitlement edge cases, see 
 
 ## Preserved blockers and exclusions
 
-- #233 / Kanban `t_030c3f29` remains the external launch verification blocker for Meta/Pixel/CAPI/Stripe/staging checks. This matrix does not resolve or bypass it.
-- #418 / Kanban `t_f06112fb` remains the consent-banner JSDOM/client coverage dependency-policy blocker. This matrix does not resolve or bypass it.
+- #233 / Kanban `t_030c3f29` remains the only active external blocker for Meta/Pixel/CAPI/Stripe/staging checks. This matrix does not resolve or bypass it.
+- #418 is closed by PR #518 (`75f282a`) per `docs/pivot/novels-funnel-coverage.md`; it is not an active blocker for this matrix.
 - Drama routes, episode playback, drama unlocks, drama progress, drama admin, and drama media remain out-of-funnel for the novels-only pivot per `docs/pivot/quarantine-register.md`.
 - No code, entitlement constants, TypeScript types, package manifests, lockfiles, runtime payment behavior, Stripe configuration, secrets, environment variables, database schema, R2 data, or production infrastructure are changed by this snapshot.
