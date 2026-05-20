@@ -1,10 +1,23 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { extname, relative, resolve } from 'node:path';
 
 const QUARANTINE_REGISTER_PATH = 'docs/pivot/quarantine-register.md';
 const VALID_DISPOSITIONS = ['retain', 'hide', 'gate', 'propose-later', 'removed'] as const;
 const LOCAL_PATH_RE = /(?:^|[\s(`])([A-Za-z0-9._@-]+(?:\/[A-Za-z0-9._@[\]-]+)+)(?=$|[\s`),.;:])/g;
 const CONCRETE_LOCAL_PATH_PREFIXES = ['apps/', 'packages/', 'tests/', 'docs/', 'scripts/'];
+const IMPORT_AUDIT_PREFIXES = ['apps/', 'packages/', 'tests/', 'scripts/'];
+const IMPORT_SPECIFIER_RE =
+  /(?:import\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?|export\s+(?:type\s+)?[\s\S]*?\s+from\s+|require\s*\(|import\s*\()(['"])([^'"]+)\1/g;
+const SOURCE_FILE_EXTENSIONS = new Set([
+  '.cjs',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.mts',
+  '.ts',
+  '.tsx',
+]);
 
 type QuarantineDisposition = (typeof VALID_DISPOSITIONS)[number];
 
@@ -24,8 +37,13 @@ export type QuarantineRegisterIssue = {
   rowNumber: number;
   section: string;
   artifact: string;
-  reason: 'removed-path-reappeared' | 'non-removed-path-absent' | 'no-local-path-citation';
+  reason:
+    | 'removed-path-reappeared'
+    | 'non-removed-path-absent'
+    | 'no-local-path-citation'
+    | 'non-removed-path-imported';
   path?: string;
+  sourcePath?: string;
 };
 
 export type QuarantineRegisterAuditResult = QuarantineRegisterParseResult & {
@@ -134,6 +152,15 @@ export function auditQuarantineRegister(
   const parsed = parseQuarantineRegisterMarkdown(readFileSync(registerPath, 'utf8'));
   const failures: QuarantineRegisterIssue[] = [];
   const warnings: QuarantineRegisterIssue[] = [];
+  const quarantinedPaths = new Set(parsed.rows.flatMap((row) => row.paths));
+  const presentNonRemovedPaths = parsed.rows.flatMap((row) =>
+    row.disposition === 'removed'
+      ? []
+      : row.paths
+          .filter((path) => IMPORT_AUDIT_PREFIXES.some((prefix) => path.startsWith(prefix)))
+          .filter((path) => existsSync(resolve(repoRoot, path)))
+          .map((path) => ({ row, path })),
+  );
 
   for (const row of parsed.rows) {
     if (row.paths.length === 0) {
@@ -146,6 +173,20 @@ export function auditQuarantineRegister(
         failures.push(toIssue(row, 'removed-path-reappeared', path));
       } else if (row.disposition !== 'removed' && !exists) {
         warnings.push(toIssue(row, 'non-removed-path-absent', path));
+      }
+    }
+  }
+
+  for (const source of listImportAuditSourceFiles(repoRoot)) {
+    if (quarantinedPaths.has(source)) {
+      continue;
+    }
+    const content = readFileSync(resolve(repoRoot, source), 'utf8');
+    for (const importedPath of extractImportedLocalPaths(content)) {
+      for (const { row, path } of presentNonRemovedPaths) {
+        if (importedPath === path) {
+          failures.push(toIssue(row, 'non-removed-path-imported', path, source));
+        }
       }
     }
   }
@@ -172,13 +213,69 @@ function toIssue(
   row: QuarantineRegisterRow,
   reason: QuarantineRegisterIssue['reason'],
   path?: string,
+  sourcePath?: string,
 ): QuarantineRegisterIssue {
-  return { rowNumber: row.rowNumber, section: row.section, artifact: row.artifact, path, reason };
+  return {
+    rowNumber: row.rowNumber,
+    section: row.section,
+    artifact: row.artifact,
+    path,
+    reason,
+    sourcePath,
+  };
 }
 
 function formatIssue(issue: QuarantineRegisterIssue): string {
   const pathPart = issue.path ? ` | ${issue.path}` : '';
-  return `row ${issue.rowNumber} | ${issue.section} | ${issue.reason}${pathPart}`;
+  const sourcePart = issue.sourcePath ? ` | imported by ${issue.sourcePath}` : '';
+  return `row ${issue.rowNumber} | ${issue.section} | ${issue.reason}${pathPart}${sourcePart}`;
+}
+
+function listImportAuditSourceFiles(repoRoot: string): string[] {
+  const files: string[] = [];
+  for (const prefix of IMPORT_AUDIT_PREFIXES) {
+    const absolutePath = resolve(repoRoot, prefix);
+    if (existsSync(absolutePath)) {
+      collectSourceFiles(repoRoot, absolutePath, files);
+    }
+  }
+  return files.sort();
+}
+
+function collectSourceFiles(repoRoot: string, absolutePath: string, files: string[]): void {
+  const stat = statSync(absolutePath);
+  if (stat.isDirectory()) {
+    for (const entry of readdirSync(absolutePath)) {
+      if (
+        entry === 'node_modules' ||
+        entry === '.next' ||
+        entry === 'dist' ||
+        entry === 'coverage'
+      ) {
+        continue;
+      }
+      collectSourceFiles(repoRoot, resolve(absolutePath, entry), files);
+    }
+    return;
+  }
+  if (stat.isFile() && SOURCE_FILE_EXTENSIONS.has(extname(absolutePath))) {
+    files.push(toRepoRelativePath(repoRoot, absolutePath));
+  }
+}
+
+function extractImportedLocalPaths(content: string): string[] {
+  const paths = new Set<string>();
+  for (const match of content.matchAll(IMPORT_SPECIFIER_RE)) {
+    const specifier = match[2] ?? '';
+    if (IMPORT_AUDIT_PREFIXES.some((prefix) => specifier.startsWith(prefix))) {
+      paths.add(specifier);
+    }
+  }
+  return [...paths];
+}
+
+function toRepoRelativePath(repoRoot: string, absolutePath: string): string {
+  return relative(repoRoot, absolutePath).replace(/\\/g, '/');
 }
 
 function parseTableRow(line: string): string[] | null {

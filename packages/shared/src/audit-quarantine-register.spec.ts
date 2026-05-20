@@ -134,7 +134,83 @@ describe('auditQuarantineRegister', () => {
     });
   });
 
-  it('warns without failing for absent non-removed cited paths and citation-less rows', () => {
+  it('passes for present non-removed quarantined paths that are not imported elsewhere', () => {
+    const repoRoot = createTempRepo();
+    mkdirSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'dramas'), { recursive: true });
+    mkdirSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'novels'), { recursive: true });
+    writeFileSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'dramas', 'page.tsx'), 'export {}');
+    writeFileSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'novels', 'page.tsx'), 'export {}');
+    writeFileSync(
+      join(repoRoot, 'docs', 'pivot', 'quarantine-register.md'),
+      [
+        '## Web routes and UI',
+        '| Artifact | Disposition | Rationale / follow-up note |',
+        '| --- | --- | --- |',
+        '| `apps/web/src/app/dramas/page.tsx` | gate | Gate route. |',
+      ].join('\n'),
+    );
+
+    expect(auditQuarantineRegister({ repoRoot })).toEqual({
+      ok: true,
+      rows: [
+        {
+          rowNumber: 4,
+          section: 'Web routes and UI',
+          artifact: '`apps/web/src/app/dramas/page.tsx`',
+          disposition: 'gate',
+          paths: ['apps/web/src/app/dramas/page.tsx'],
+        },
+      ],
+      failures: [],
+      warnings: [],
+    });
+  });
+
+  it('fails when non-quarantined sources import present non-removed quarantined paths', () => {
+    const repoRoot = createTempRepo();
+    mkdirSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'dramas'), { recursive: true });
+    mkdirSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'novels'), { recursive: true });
+    writeFileSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'dramas', 'page.tsx'), 'export {}');
+    writeFileSync(
+      join(repoRoot, 'apps', 'web', 'src', 'app', 'novels', 'page.tsx'),
+      "import DramaPage from 'apps/web/src/app/dramas/page.tsx';\nexport default DramaPage;",
+    );
+    writeFileSync(
+      join(repoRoot, 'docs', 'pivot', 'quarantine-register.md'),
+      [
+        '## Web routes and UI',
+        '| Artifact | Disposition | Rationale / follow-up note |',
+        '| --- | --- | --- |',
+        '| `apps/web/src/app/dramas/page.tsx` | gate | Gate route. |',
+      ].join('\n'),
+    );
+
+    expect(auditQuarantineRegister({ repoRoot })).toEqual({
+      ok: false,
+      rows: [
+        {
+          rowNumber: 4,
+          section: 'Web routes and UI',
+          artifact: '`apps/web/src/app/dramas/page.tsx`',
+          disposition: 'gate',
+          paths: ['apps/web/src/app/dramas/page.tsx'],
+        },
+      ],
+      failures: [
+        {
+          rowNumber: 4,
+          section: 'Web routes and UI',
+          artifact: '`apps/web/src/app/dramas/page.tsx`',
+          path: 'apps/web/src/app/dramas/page.tsx',
+          reason: 'non-removed-path-imported',
+          sourcePath: 'apps/web/src/app/novels/page.tsx',
+        },
+      ],
+      warnings: [],
+    });
+  });
+
+  it('warns without failing for absent non-removed cited paths, citation-less rows, and absent removed rows', () => {
     const repoRoot = createTempRepo();
     writeFileSync(
       join(repoRoot, 'docs', 'pivot', 'quarantine-register.md'),
@@ -144,6 +220,7 @@ describe('auditQuarantineRegister', () => {
         '| --- | --- | --- |',
         '| `apps/web/src/app/dramas/page.tsx` | gate | Gate route. |',
         '| HLS URLs and poster URLs in drama fixtures | retain | External media only. |',
+        '| `tests/e2e/specs/drama-regression.spec.ts` | removed | Removed. |',
       ].join('\n'),
     );
 
@@ -163,6 +240,13 @@ describe('auditQuarantineRegister', () => {
           artifact: 'HLS URLs and poster URLs in drama fixtures',
           disposition: 'retain',
           paths: [],
+        },
+        {
+          rowNumber: 6,
+          section: 'Web routes and UI',
+          artifact: '`tests/e2e/specs/drama-regression.spec.ts`',
+          disposition: 'removed',
+          paths: ['tests/e2e/specs/drama-regression.spec.ts'],
         },
       ],
       failures: [],
