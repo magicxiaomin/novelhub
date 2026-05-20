@@ -97,6 +97,11 @@ describe('auditFunnelCoverage', () => {
         '| Funnel stage | Surface | Covering spec path(s) or blocker |',
         '| --- | --- | --- |',
         '| Ad landing | Home | `apps/web/src/app/page.spec.ts`, `docs/pivot/funnel.md` |',
+        '',
+        '| Surface | Coverage or status |',
+        '| --- | --- |',
+        '| External launch verification | none — blocked on #233 / Kanban `t_030c3f29`. |',
+        '| Consent banner | blocked on #418 — pure-logic `packages/shared/src/consent.spec.ts` only. |',
       ].join('\n'),
     );
 
@@ -128,6 +133,90 @@ describe('auditFunnelCoverage', () => {
           rowNumber: 3,
           stage: 'Paywall',
           path: 'apps/web/src/components/paywall/paywall.spec.tsx',
+        },
+      ],
+      blockerIssues: [
+        {
+          blocker: '#233',
+          rowLabel: 'External launch verification',
+          reason: 'missing blocker row',
+        },
+        {
+          blocker: '#418',
+          rowLabel: 'Consent banner',
+          reason: 'missing blocker row',
+        },
+      ],
+    });
+  });
+
+  it('fails synthetic fixtures when required blocker rows remove #233 or #418', () => {
+    const repoRoot = createTempRepo();
+    writeFileSync(join(repoRoot, 'docs', 'pivot', 'funnel.md'), 'doc');
+    writeFileSync(
+      join(repoRoot, 'docs', 'pivot', 'novels-funnel-coverage.md'),
+      [
+        '| Funnel stage | Surface | Covering spec path(s) or blocker |',
+        '| --- | --- | --- |',
+        '| Ad landing | Home | `docs/pivot/funnel.md` |',
+        '',
+        '| Surface | Coverage or status |',
+        '| --- | --- |',
+        '| External launch verification | none — blocked on Kanban `t_030c3f29`. |',
+        '| Consent banner | blocked on Kanban `t_f06112fb`. |',
+      ].join('\n'),
+    );
+
+    expect(auditFunnelCoverage({ repoRoot })).toMatchObject({
+      ok: false,
+      blockerIssues: [
+        {
+          blocker: '#233',
+          rowNumber: 7,
+          rowLabel: 'External launch verification',
+          reason: 'missing required open blocker reference',
+        },
+        {
+          blocker: '#418',
+          rowNumber: 8,
+          rowLabel: 'Consent banner',
+          reason: 'missing required open blocker reference',
+        },
+      ],
+    });
+  });
+
+  it('fails synthetic fixtures when required blocker rows reword #233 or #418 as resolved', () => {
+    const repoRoot = createTempRepo();
+    writeFileSync(join(repoRoot, 'docs', 'pivot', 'funnel.md'), 'doc');
+    writeFileSync(
+      join(repoRoot, 'docs', 'pivot', 'novels-funnel-coverage.md'),
+      [
+        '| Funnel stage | Surface | Covering spec path(s) or blocker |',
+        '| --- | --- | --- |',
+        '| Ad landing | Home | `docs/pivot/funnel.md` |',
+        '',
+        '| Surface | Coverage or status |',
+        '| --- | --- |',
+        '| External launch verification | #233 resolved by launch checklist coverage. |',
+        '| Consent banner | #418 is closed; covered by `packages/shared/src/consent.spec.ts`. |',
+      ].join('\n'),
+    );
+
+    expect(auditFunnelCoverage({ repoRoot })).toMatchObject({
+      ok: false,
+      blockerIssues: [
+        {
+          blocker: '#233',
+          rowNumber: 7,
+          rowLabel: 'External launch verification',
+          reason: 'blocker row marks required blocker as resolved',
+        },
+        {
+          blocker: '#418',
+          rowNumber: 8,
+          rowLabel: 'Consent banner',
+          reason: 'blocker row marks required blocker as resolved',
         },
       ],
     });

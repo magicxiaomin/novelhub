@@ -5,6 +5,12 @@ const COVERAGE_DOC_PATH = 'docs/pivot/novels-funnel-coverage.md';
 const COVERING_SPEC_HEADER = 'covering spec path(s) or blocker';
 const LOCAL_PATH_RE = /(?:^|[\s(`])([A-Za-z0-9._@-]+(?:\/[A-Za-z0-9._@[\]-]+)+)(?=$|[\s`),.;:])/g;
 const CONCRETE_LOCAL_PATH_PREFIXES = ['apps/', 'packages/', 'tests/', 'docs/', 'scripts/'];
+const REQUIRED_OPEN_BLOCKERS = [
+  { blocker: '#233', rowLabel: 'External launch verification' },
+  { blocker: '#418', rowLabel: 'Consent banner' },
+] as const;
+const RESOLVED_BLOCKER_RE = /\b(?:resolved|closed|fixed|done|complete(?:d)?|no longer blocked)\b/i;
+const OPEN_BLOCKER_RE = /\b(?:blocked|blocker|open|unresolved)\b/i;
 
 export type FunnelCoverageRow = {
   rowNumber: number;
@@ -18,6 +24,16 @@ export type MissingFunnelCoveragePath = {
   path: string;
 };
 
+export type FunnelCoverageBlockerIssue = {
+  blocker: string;
+  rowLabel: string;
+  reason:
+    | 'missing blocker row'
+    | 'missing required open blocker reference'
+    | 'blocker row marks required blocker as resolved';
+  rowNumber?: number;
+};
+
 export type FunnelCoverageParseResult = {
   rows: FunnelCoverageRow[];
 };
@@ -25,6 +41,7 @@ export type FunnelCoverageParseResult = {
 export type FunnelCoverageAuditResult = FunnelCoverageParseResult & {
   ok: boolean;
   missingPaths: MissingFunnelCoveragePath[];
+  blockerIssues: FunnelCoverageBlockerIssue[];
 };
 
 export type AuditFunnelCoverageOptions = {
@@ -102,17 +119,20 @@ export function auditFunnelCoverage(
 ): FunnelCoverageAuditResult {
   const repoRoot = resolve(options.repoRoot);
   const coveragePath = options.coveragePath ?? resolve(repoRoot, COVERAGE_DOC_PATH);
-  const parsed = parseFunnelCoverageMarkdown(readFileSync(coveragePath, 'utf8'));
+  const markdown = readFileSync(coveragePath, 'utf8');
+  const parsed = parseFunnelCoverageMarkdown(markdown);
   const missingPaths = parsed.rows.flatMap((row) =>
     row.paths
       .filter((path) => !existsSync(resolve(repoRoot, path)))
       .map((path) => ({ rowNumber: row.rowNumber, stage: row.stage, path })),
   );
+  const blockerIssues = collectRequiredOpenBlockerIssues(markdown);
 
   return {
-    ok: missingPaths.length === 0,
+    ok: missingPaths.length === 0 && blockerIssues.length === 0,
     rows: parsed.rows,
     missingPaths,
+    blockerIssues,
   };
 }
 
@@ -128,7 +148,68 @@ export function formatFunnelCoverageAudit(result: FunnelCoverageAuditResult): st
   return [
     `FAIL: ${result.missingPaths.length} parsed concrete coverage path(s) are missing.`,
     ...result.missingPaths.map((item) => `row ${item.rowNumber} | ${item.stage} | ${item.path}`),
+    ...result.blockerIssues.map((item) => {
+      const rowPrefix = item.rowNumber === undefined ? 'missing row' : `row ${item.rowNumber}`;
+      return `${rowPrefix} | ${item.rowLabel} | ${item.blocker} | ${item.reason}`;
+    }),
   ].join('\n');
+}
+
+function collectRequiredOpenBlockerIssues(markdown: string): FunnelCoverageBlockerIssue[] {
+  const blockerRows = collectMarkdownTableRows(markdown);
+  const issues: FunnelCoverageBlockerIssue[] = [];
+
+  for (const required of REQUIRED_OPEN_BLOCKERS) {
+    const row = blockerRows.find(
+      (candidate) => normalizeCellText(candidate.label) === normalizeCellText(required.rowLabel),
+    );
+    if (!row) {
+      issues.push({
+        blocker: required.blocker,
+        rowLabel: required.rowLabel,
+        reason: 'missing blocker row',
+      });
+      continue;
+    }
+
+    const status = row.cells.slice(1).join(' ');
+    if (RESOLVED_BLOCKER_RE.test(status)) {
+      issues.push({
+        blocker: required.blocker,
+        rowNumber: row.rowNumber,
+        rowLabel: required.rowLabel,
+        reason: 'blocker row marks required blocker as resolved',
+      });
+      continue;
+    }
+    if (!status.includes(required.blocker) || !OPEN_BLOCKER_RE.test(status)) {
+      issues.push({
+        blocker: required.blocker,
+        rowNumber: row.rowNumber,
+        rowLabel: required.rowLabel,
+        reason: 'missing required open blocker reference',
+      });
+    }
+  }
+
+  return issues;
+}
+
+function collectMarkdownTableRows(markdown: string): Array<{
+  rowNumber: number;
+  label: string;
+  cells: string[];
+}> {
+  const lines = markdown.split(/\r?\n/);
+  const rows: Array<{ rowNumber: number; label: string; cells: string[] }> = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const cells = parseTableRow(lines[index] ?? '');
+    if (!cells || cells.every(isSeparatorCell)) {
+      continue;
+    }
+    rows.push({ rowNumber: index + 1, label: stripInlineMarkdown(cells[0] ?? ''), cells });
+  }
+  return rows;
 }
 
 function parseTableRow(line: string): string[] | null {
