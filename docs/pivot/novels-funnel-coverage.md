@@ -1,14 +1,14 @@
 # Novels funnel coverage map
 
-Snapshot as of: f4eea6110cb231eac853f2ef930697c72245766d
+Snapshot as of: 6d7947317bb170133b1591104453449a2656fe7c
 
-This is a factual coverage snapshot for the novels-only funnel. It is not a roadmap and does not create new gap tickets.
+This is a factual coverage snapshot for the novels-only funnel after the Wave 2AG docs refresh. It is not a roadmap and does not create new gap tickets.
 
 References: `docs/adr/0001-novels-only-pivot.md`, `docs/pivot/funnel.md`, `docs/pivot/quarantine-register.md`, `docs/pivot/wave-2v-closure.md`, `docs/pivot/wave-2ae-closure.md`, `docs/pivot/drama-deprecation-contract.md`, `docs/pivot/entitlement-matrix.md`, `docs/pivot/entitlement-edge-case-appendix.md`.
 
 Unresolved active external blocker preserved by this snapshot: #233 / Kanban `t_030c3f29` for external launch verification. This PR does not resolve or bypass #233; it remains open and out of scope. Live GitHub evidence shows #418 closed by adjacent merged PR #518 (`75f282a`) for consent-banner transition characterization, so #418 is no longer listed as an active blocker.
 
-Wave 2AG landed evidence included in this snapshot: merged PR #535 (`5c3f73c6`) extended `apps/web/src/components/paywall/paywall.spec.tsx` for paywall checkout edge cases, and merged PR #533 (`f4eea611`) added `apps/web/src/lib/api-config.spec.ts` for API config environment precedence.
+Wave 2AG landed evidence included in this snapshot: merged PR #535 (`5c3f73c6`) extended `apps/web/src/components/paywall/paywall.spec.tsx` for paywall checkout edge cases, merged PR #533 (`f4eea611`) added `apps/web/src/lib/api-config.spec.ts` for API config environment precedence, and merged PR #536 (`6d79473`) refreshed this docs-only coverage snapshot against those Wave 2AG merges.
 
 ## Canonical funnel stages
 
