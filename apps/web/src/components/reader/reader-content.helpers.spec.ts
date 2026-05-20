@@ -62,6 +62,12 @@ describe('reader scroll restore helpers', () => {
     expect(readerScrollRestoreKey('/read/book-1/2')).toBe('novelhub:reader-scroll:/read/book-1/2');
   });
 
+  it('keeps raw route path text in the restore key without normalization', () => {
+    expect(readerScrollRestoreKey('/read/book%2Fwith%20space/12')).toBe(
+      'novelhub:reader-scroll:/read/book%2Fwith%20space/12',
+    );
+  });
+
   it('loads a finite non-negative primary scroll value and consumes both restore slots', () => {
     const key = readerScrollRestoreKey('/read/book-1/2');
     const storage = createMemoryStorage([
@@ -91,6 +97,18 @@ describe('reader scroll restore helpers', () => {
     expect(
       loadReaderScrollRestoreY('/read/book-1/4', createMemoryStorage([[invalidKey, 'NaN']])),
     ).toBeNull();
+  });
+
+  it('consumes both slots and does not fall back when a present primary scroll value is invalid', () => {
+    const key = readerScrollRestoreKey('/read/book-1/5');
+    const storage = createMemoryStorage([
+      [key, 'NaN'],
+      [`${key}:last`, '48'],
+    ]);
+
+    expect(loadReaderScrollRestoreY('/read/book-1/5', storage)).toBeNull();
+    expect(storage.removeItem).toHaveBeenCalledWith(key);
+    expect(storage.removeItem).toHaveBeenCalledWith(`${key}:last`);
   });
 });
 
@@ -122,6 +140,29 @@ describe('prefetchAdjacentReaderRoutes', () => {
       Object.defineProperty(globalThis, 'navigator', {
         configurable: true,
         value: originalNavigator,
+      });
+    }
+
+    expect(router.prefetch).not.toHaveBeenCalled();
+  });
+
+  it('skips route prefetches for reduced-data media query preferences', () => {
+    const router = { prefetch: vi.fn() };
+    const originalMatchMedia = globalThis.matchMedia;
+    Object.defineProperty(globalThis, 'matchMedia', {
+      configurable: true,
+      value: vi.fn((query: string) => ({ matches: query === '(prefers-reduced-data: reduce)' })),
+    });
+
+    try {
+      prefetchAdjacentReaderRoutes(router, {
+        prevHref: '/read/book-1/1',
+        nextHref: '/read/book-1/3',
+      });
+    } finally {
+      Object.defineProperty(globalThis, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
       });
     }
 
