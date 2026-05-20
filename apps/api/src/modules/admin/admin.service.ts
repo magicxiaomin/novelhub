@@ -12,6 +12,11 @@ import type { BulkChapterDto, BulkImportOptionsDto, UpdateChapterDto } from './d
 import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './dto/query.types';
 import { clampFreeChapterLimit, configuredFreeChapterLimit } from './free-chapter-limit';
 
+type CleanableStorageClient = StorageClient & {
+  deleteText?: (key: string) => Promise<void>;
+  deleteObject?: (key: string) => Promise<void>;
+};
+
 const DEFAULT_DELIMITER = '\n\n---\n\n';
 const MAX_CHAPTER_CONTENT_BYTES = 204800;
 const ALLOWED_COVER_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
@@ -67,7 +72,7 @@ const globalCrypto = (globalThis as unknown as { crypto: { randomUUID(): string 
 
 export class AdminService {
   private readonly prisma: PrismaClient;
-  private readonly storage: StorageClient;
+  private readonly storage: CleanableStorageClient;
   private readonly cache: CacheClient;
   private readonly books: BooksService;
   private readonly publicR2Host: string | undefined;
@@ -82,6 +87,22 @@ export class AdminService {
     this.cache = deps.cache;
     this.books = deps.books;
     this.publicR2Host = deps.publicR2Host;
+  }
+
+  private async cleanupUploadedChapterKeys(keys: string[]): Promise<string[]> {
+    const remove = this.storage.deleteText ?? this.storage.deleteObject;
+    if (!remove) return [];
+
+    const cleaned: string[] = [];
+    for (const key of keys) {
+      try {
+        await remove.call(this.storage, key);
+        cleaned.push(key);
+      } catch (err) {
+        log.error(`failed to clean uploaded chapter key: ${key}`, err);
+      }
+    }
+    return cleaned;
   }
 
   async createBook(dto: CreateBookDto): Promise<{ id: string }> {
@@ -255,54 +276,70 @@ export class AdminService {
 
     let baseOrder = book.totalChapters;
     if (options.replace) {
-      // Soft-delete existing chapters by setting deletedAt; new chapters
-      // will reuse `order` starting from 1.
+      // Soft-delete existing chapters but keep their globally unique
+      // (book_id, order) slots reserved; append replacement imports after
+      // all retained tombstones to avoid P2002 without a schema migration.
       await this.prisma.chapter.updateMany({
         where: { bookId, deletedAt: null },
         data: { deletedAt: new Date() },
       });
-      baseOrder = 0;
+      const max = await this.prisma.chapter.aggregate({
+        where: { bookId },
+        _max: { order: true },
+      });
+      baseOrder = max._max.order ?? 0;
     }
 
     let created = 0;
-    for (const [i, section] of sections.entries()) {
-      const order = baseOrder + i + 1;
-      const lines = section.split('\n');
-      const firstLine = lines[0]?.trim() ?? '';
-      const hasTitle = firstLine.length > 0 && firstLine.length < 120;
-      const title = hasTitle ? firstLine : `Chapter ${order}`;
-      const body = hasTitle ? lines.slice(1).join('\n').trim() : section;
-      if (body.length === 0) continue;
+    const uploadedKeys: string[] = [];
+    try {
+      for (const [i, section] of sections.entries()) {
+        const order = baseOrder + i + 1;
+        const lines = section.split('\n');
+        const firstLine = lines[0]?.trim() ?? '';
+        const hasTitle = firstLine.length > 0 && firstLine.length < 120;
+        const title = hasTitle ? firstLine : `Chapter ${order}`;
+        const body = hasTitle ? lines.slice(1).join('\n').trim() : section;
+        if (body.length === 0) continue;
 
-      const isFree = order <= book.freeChapterCount;
+        const isFree = order <= book.freeChapterCount;
 
-      const chapter = await this.prisma.chapter.create({
-        data: {
-          bookId,
-          order,
-          title,
-          contentUrl: '',
-          wordCount: wordCount(body),
-          isFree,
-        },
-        select: { id: true },
+        const chapter = await this.prisma.chapter.create({
+          data: {
+            bookId,
+            order,
+            title,
+            contentUrl: '',
+            wordCount: wordCount(body),
+            isFree,
+          },
+          select: { id: true },
+        });
+        const key = `chapters/${bookId}/${chapter.id}.txt`;
+        await this.storage.uploadText(key, body);
+        uploadedKeys.push(key);
+        await this.prisma.chapter.update({
+          where: { id: chapter.id },
+          data: { contentUrl: key },
+        });
+        // pre-warm the preview so the first read of a locked chapter is cheap
+        await this.cache.set(`chapter:preview:${chapter.id}`, body.slice(0, 100));
+        created += 1;
+      }
+
+      const newTotal = options.replace ? created : book.totalChapters + created;
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: { totalChapters: newTotal },
       });
-      const key = `chapters/${bookId}/${chapter.id}.txt`;
-      await this.storage.uploadText(key, body);
-      await this.prisma.chapter.update({
-        where: { id: chapter.id },
-        data: { contentUrl: key },
-      });
-      // pre-warm the preview so the first read of a locked chapter is cheap
-      await this.cache.set(`chapter:preview:${chapter.id}`, body.slice(0, 100));
-      created += 1;
+    } catch (err) {
+      const cleaned = await this.cleanupUploadedChapterKeys(uploadedKeys);
+      log.error(
+        `bulkImportChapters failed after R2 upload; cleaned uploaded keys: ${cleaned.join(', ')}`,
+        err,
+      );
+      throw err;
     }
-
-    const newTotal = options.replace ? created : book.totalChapters + created;
-    await this.prisma.book.update({
-      where: { id: bookId },
-      data: { totalChapters: newTotal },
-    });
     await this.books.invalidateListCaches();
     return { created };
   }
@@ -338,7 +375,7 @@ export class AdminService {
     try {
       createdRows = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const max = await tx.chapter.aggregate({
-          where: { bookId, deletedAt: null },
+          where: { bookId },
           _max: { order: true },
         });
         const baseOrder = max._max.order ?? 0;
@@ -365,10 +402,11 @@ export class AdminService {
         return rows;
       });
     } catch (err) {
+      const cleaned = await this.cleanupUploadedChapterKeys(uploads.map((upload) => upload.key));
       log.error(
-        `bulkCreateChapters transaction failed after R2 upload; orphan keys: ${uploads
-          .map((upload) => upload.key)
-          .join(', ')}`,
+        `bulkCreateChapters transaction failed after R2 upload; cleaned uploaded keys: ${cleaned.join(
+          ', ',
+        )}`,
         err,
       );
       throw err;
