@@ -2,7 +2,7 @@
 
 Linked issues: #195, #196, #204, #215, #216, #217, #218, #219, #233, #418, #420, #421, #422, #423, #424, #429
 
-This document defines the active NovelHub acquisition funnel after the novels-only pivot. It is the reference path for product copy, routing, QA, telemetry, and launch readiness until a later ADR changes direction. External launch verification remains tracked separately by #233 and Kanban `t_030c3f29`; those blockers are still open and are not resolved by this docs map.
+This document defines the active NovelHub acquisition funnel after the novels-only pivot. It is the reference path for product copy, routing, QA, telemetry, and launch readiness until a later ADR changes direction. External launch verification remains tracked separately by #233 and Kanban `t_030c3f29`; that blocker is still open and is not resolved by this docs map.
 
 ## Canonical funnel
 
@@ -41,7 +41,8 @@ The current test-characterization baseline for the novels-only pivot is the merg
 | #422 | Characterized novels filter parser and list-query adapter edges. | Novel discovery / detail |
 | #423 | Characterized formatter boundaries.                              | Account / purchases      |
 
-Known gaps remain separate from this baseline: #418 is still open for consent-banner UI transition coverage pending the dependency-policy decision, and #233 / Kanban `t_030c3f29` remain open external launch blockers.
+Known gaps remain separate from this baseline: #418 consent-banner UI transition coverage is closed by PR #518 (`75f282a`) per `docs/pivot/novels-funnel-coverage.md`.
+#233 / Kanban `t_030c3f29` remains the only active external launch blocker.
 
 Recent closures: Wave 2U closed in `docs/pivot/wave-2u-closure.md`, covering parent #424 and PRs #431-#435 as the current traceability ledger for Wave 2V planning.
 
@@ -49,7 +50,8 @@ Recent closures: Wave 2U closed in `docs/pivot/wave-2u-closure.md`, covering par
 
 Wave 2V closed in `docs/pivot/wave-2v-closure.md`, covering parent #436 and PRs #441-#444 at SHA `ebb2ef4`.
 That ledger is retrospective only: it records shipped Wave 2V docs, Node-mode characterization, mocked worker-route contracts, and report-only i18n audit work.
-The same unresolved blockers remain separate from the baseline: #418 / Kanban `t_f06112fb` for consent-banner JSDOM/client coverage and #233 / Kanban `t_030c3f29` for external Meta/Pixel/CAPI/Stripe verification.
+The same coverage split remains separate from the baseline: #418 / Kanban `t_f06112fb` consent-banner JSDOM/client coverage is closed by PR #518 (`75f282a`).
+#233 / Kanban `t_030c3f29` remains open for external Meta/Pixel/CAPI/Stripe verification.
 
 ## Entitlement rules carried forward
 
@@ -64,7 +66,8 @@ The novels-only funnel keeps the existing chapter unlock model:
 
 `docs/pivot/entitlement-matrix.md` restates this funnel's four-rule entitlement model as a non-normative snapshot; it does not add new states, product behavior, runtime code, database schema, payment handling, copy, tests, or launch-readiness claims. `docs/pivot/entitlement-matrix-traceability.md` is the matching non-normative/descriptive appendix that maps existing entitlement-matrix rows to coverage references already listed in `docs/pivot/novels-funnel-coverage.md`; it does not create new coverage claims, product requirements, gap tickets, schema changes, payment changes, or runtime behavior.
 
-The unresolved blockers stay separate from this cross-reference: #233 / Kanban `t_030c3f29` remains open for external launch verification, and #418 / Kanban `t_f06112fb` remains open for consent-banner JSDOM/client coverage pending dependency-policy approval.
+The cross-reference keeps #233 / Kanban `t_030c3f29` separate as open external launch verification.
+Adjacent #418 / Kanban `t_f06112fb` consent-banner JSDOM/client coverage is closed by PR #518 (`75f282a`) per `docs/pivot/novels-funnel-coverage.md`.
 
 ## Out-of-funnel surfaces
 
