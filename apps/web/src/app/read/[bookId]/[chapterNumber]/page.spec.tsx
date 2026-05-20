@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import ReaderPage from './page';
+import ReaderPage, { generateMetadata } from './page';
 import {
   fetchBookChaptersServer,
   fetchBooksServer,
@@ -188,6 +188,34 @@ describe('reader page more like this', () => {
     expect(html.match(/type="application\/ld\+json"/g)).toHaveLength(1);
   });
 
+  it('passes a locked ChapterResponse through to ReaderContent without re-evaluating entitlement state', async () => {
+    const lockedChapter: ChapterResponse = {
+      id: chapter.id,
+      bookId: chapter.bookId,
+      chapterNumber: chapter.chapterNumber,
+      title: chapter.title,
+      isLocked: true,
+      preview: 'Preview remains server-provided.',
+      unlockOptions: {
+        coinCost: 30,
+        canUnlockWithCoins: true,
+        canUnlockWithSubscription: true,
+      },
+    };
+    vi.mocked(fetchChapterServer).mockResolvedValue(lockedChapter);
+
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '1' } });
+    renderToStaticMarkup(element);
+
+    expect(fetchChapterServer).toHaveBeenCalledWith('chapter-1');
+    expect(readerContentSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapter: lockedChapter,
+        currentUrl: '/read/current-book/1',
+      }),
+    );
+  });
+
   it('keeps the reader available when related books cannot be fetched', async () => {
     vi.mocked(fetchBooksServer).mockRejectedValue(new Error('related books unavailable'));
 
@@ -312,7 +340,7 @@ describe('reader page initial chapter selection fallback', () => {
 
   it.each(['abc', '1abc', 'NaN'])(
     'calls notFound before server fetches for malformed chapterNumber %s',
-    async (chapterNumber) => {
+    async (chapterNumber: string) => {
       await expect(ReaderPage({ params: { bookId: book.id, chapterNumber } })).rejects.toThrow(
         'not found',
       );
@@ -326,7 +354,7 @@ describe('reader page initial chapter selection fallback', () => {
 
   it.each(['1.5', '2.25'])(
     'calls notFound before server fetches for non-integer chapterNumber %s',
-    async (chapterNumber) => {
+    async (chapterNumber: string) => {
       await expect(ReaderPage({ params: { bookId: book.id, chapterNumber } })).rejects.toThrow(
         'not found',
       );
@@ -340,10 +368,24 @@ describe('reader page initial chapter selection fallback', () => {
 
   it.each(['0', '-1'])(
     'calls notFound before server fetches for non-positive chapterNumber %s',
-    async (chapterNumber) => {
+    async (chapterNumber: string) => {
       await expect(ReaderPage({ params: { bookId: book.id, chapterNumber } })).rejects.toThrow(
         'not found',
       );
+
+      expect(fetchBookServer).not.toHaveBeenCalled();
+      expect(fetchBookChaptersServer).not.toHaveBeenCalled();
+      expect(fetchChapterServer).not.toHaveBeenCalled();
+      expect(fetchBooksServer).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['abc', '1.5', '0', '-1'])(
+    'returns empty metadata without server fetches for invalid chapterNumber %s',
+    async (chapterNumber: string) => {
+      await expect(
+        generateMetadata({ params: { bookId: book.id, chapterNumber } }),
+      ).resolves.toEqual({});
 
       expect(fetchBookServer).not.toHaveBeenCalled();
       expect(fetchBookChaptersServer).not.toHaveBeenCalled();
