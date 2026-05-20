@@ -274,7 +274,6 @@ export class AdminService {
       throw DomainError.badRequest('No chapters parsed; check the delimiter and file format');
     }
 
-    let baseOrder = book.totalChapters;
     if (options.replace) {
       // Soft-delete existing chapters but keep their globally unique
       // (book_id, order) slots reserved; append replacement imports after
@@ -283,12 +282,12 @@ export class AdminService {
         where: { bookId, deletedAt: null },
         data: { deletedAt: new Date() },
       });
-      const max = await this.prisma.chapter.aggregate({
-        where: { bookId },
-        _max: { order: true },
-      });
-      baseOrder = max._max.order ?? 0;
     }
+    const max = await this.prisma.chapter.aggregate({
+      where: { bookId },
+      _max: { order: true },
+    });
+    const baseOrder = max._max.order ?? 0;
 
     let created = 0;
     const uploadedKeys: string[] = [];

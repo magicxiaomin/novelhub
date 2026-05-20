@@ -16,6 +16,8 @@ Open the book in the admin panel and use bulk import. Supported sources are `.tx
 
 Review chapter numbers, titles, and free/paid status before confirming. Re-importing is intended for new chapter batches, not blind replacement of already-sold chapter content.
 
+Chapter order assignment is append-only against the historical maximum order for the book. Soft-deleted/tombstoned chapter rows keep their old order slots reserved, so non-replace and replace imports both start after the highest existing or deleted chapter order rather than reusing gaps or relying on the active `totalChapters` count.
+
 ## Push Broadcasts
 
 Open the push broadcast tool, compose the title and body, and leave the segment as `All` unless a narrower segment is explicitly required. The confirmation dialog shows the final audience and copy; send only after verifying both.

@@ -350,6 +350,43 @@ describe('AdminService', () => {
     expect(books.invalidateListCaches).toHaveBeenCalledTimes(1);
   });
 
+  it('bulkImportChapters non-replace appends after tombstoned high-order rows', async () => {
+    const { service, prisma } = buildService();
+    prisma.book.findFirst.mockResolvedValue({
+      id: 'book-1',
+      freeChapterCount: 3,
+      totalChapters: 2,
+    });
+    prisma.chapter.aggregate.mockResolvedValue({ _max: { order: 9 } });
+
+    await expect(
+      service.bulkImportChapters(
+        'book-1',
+        new TextEncoder().encode('Tombstone-safe import\nNew body'),
+        { replace: false },
+      ),
+    ).resolves.toEqual({ created: 1 });
+
+    expect(prisma.chapter.aggregate).toHaveBeenCalledWith({
+      where: { bookId: 'book-1' },
+      _max: { order: true },
+    });
+    expect(prisma.chapter.updateMany).not.toHaveBeenCalled();
+    expect(prisma.chapter.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          bookId: 'book-1',
+          order: 10,
+          title: 'Tombstone-safe import',
+        }),
+      }),
+    );
+    expect(prisma.book.update).toHaveBeenCalledWith({
+      where: { id: 'book-1' },
+      data: { totalChapters: 3 },
+    });
+  });
+
   it('bulkCreateChapters cleans up uploaded R2 keys when the post-upload DB transaction fails', async () => {
     const { service, prisma, storage, cache, books } = buildService();
     const dbFailure = new Error('database unavailable after upload');
