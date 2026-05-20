@@ -36,6 +36,21 @@ const transactions = {
   page: 2,
   limit: 25,
 };
+const transactionsEnvelope = {
+  items: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      amount: -9,
+      type: 'CHAPTER_UNLOCK',
+      relatedId: '44444444-4444-4444-8444-444444444444',
+      balanceAfter: 116,
+      createdAt: '2026-05-20T00:00:00.000Z',
+    },
+  ],
+  total: 7,
+  page: 1,
+  limit: 100,
+};
 
 const makeToken = (payload: JwtPayload, secret = jwtSecret) =>
   new JoseJwtClient(secret).signAsync(payload, { expiresIn: '15m' });
@@ -138,6 +153,24 @@ describe('Worker coins route contracts', () => {
     await expect(response.json()).resolves.toEqual(balance);
   });
 
+  it('preserves the exact balance DTO envelope returned by the coins service', async () => {
+    const app = buildApp();
+    const balanceEnvelope = { coinBalance: 0, source: 'service-owned-contract' };
+    getBalance.mockResolvedValueOnce(balanceEnvelope);
+    const token = await makeToken({ sub: userId, email: 'reader@example.com', type: 'access' });
+
+    const response = await app.request(
+      '/coins/balance',
+      { headers: { cookie: makeCookie(token) } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(getBalance).toHaveBeenCalledWith(userId);
+    expect(listTransactions).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual(balanceEnvelope);
+  });
+
   it('passes authenticated transaction pagination to the coins service and returns its DTO envelope', async () => {
     const app = buildApp();
     const token = await makeToken({ sub: userId, email: 'reader@example.com', type: 'access' });
@@ -154,7 +187,60 @@ describe('Worker coins route contracts', () => {
     await expect(response.json()).resolves.toEqual(transactions);
   });
 
-  it.each(['page=0', 'limit=101', 'page=abc'])(
+  it('characterizes omitted transaction pagination as undefined route arguments so service defaults apply', async () => {
+    const app = buildApp();
+    const token = await makeToken({ sub: userId, email: 'reader@example.com', type: 'access' });
+
+    const response = await app.request(
+      '/coins/transactions',
+      { headers: { cookie: makeCookie(token) } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(listTransactions).toHaveBeenCalledWith(userId, undefined, undefined);
+    expect(getBalance).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual(transactions);
+  });
+
+  it.each([
+    ['page lower boundary', 'page=1&limit=25', 1, 25],
+    ['limit lower boundary', 'page=2&limit=1', 2, 1],
+    ['limit upper boundary', 'page=2&limit=100', 2, 100],
+  ])('accepts transaction pagination %s', async (_name, query, expectedPage, expectedLimit) => {
+    const app = buildApp();
+    const token = await makeToken({ sub: userId, email: 'reader@example.com', type: 'access' });
+
+    const response = await app.request(
+      `/coins/transactions?${query}`,
+      { headers: { cookie: makeCookie(token) } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(listTransactions).toHaveBeenCalledWith(userId, expectedPage, expectedLimit);
+    expect(getBalance).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual(transactions);
+  });
+
+  it('preserves the exact transactions DTO envelope and item fields returned by the coins service', async () => {
+    const app = buildApp();
+    listTransactions.mockResolvedValueOnce(transactionsEnvelope);
+    const token = await makeToken({ sub: userId, email: 'reader@example.com', type: 'access' });
+
+    const response = await app.request(
+      '/coins/transactions?page=1&limit=100',
+      { headers: { authorization: `Bearer ${token}` } },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(listTransactions).toHaveBeenCalledWith(userId, 1, 100);
+    expect(getBalance).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual(transactionsEnvelope);
+  });
+
+  it.each(['limit=abc', 'limit=0', 'page=-1'])(
     'returns 400 for invalid transaction query %s without constructing the service',
     async (query) => {
       const app = buildApp();
@@ -174,6 +260,32 @@ describe('Worker coins route contracts', () => {
       expect(mockedMakeCoinsService).not.toHaveBeenCalled();
       expect(getBalance).not.toHaveBeenCalled();
       expect(listTransactions).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['balance', '/coins/balance', getBalance],
+    ['transactions', '/coins/transactions?page=1&limit=25', listTransactions],
+  ])(
+    'maps service DomainError for %s to the existing error envelope',
+    async (_name, path, serviceCall) => {
+      const app = buildApp();
+      serviceCall.mockRejectedValueOnce(
+        new DomainError(400, 'Coins contract violation', {
+          code: 'COINS_CONTRACT_CHARACTERIZATION',
+        }),
+      );
+      const token = await makeToken({ sub: userId, email: 'reader@example.com', type: 'access' });
+
+      const response = await app.request(path, { headers: { cookie: makeCookie(token) } }, env);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        statusCode: 400,
+        message: 'Coins contract violation',
+        error: 'Bad Request',
+        code: 'COINS_CONTRACT_CHARACTERIZATION',
+      });
     },
   );
 
