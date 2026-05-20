@@ -1,6 +1,6 @@
 # Entitlement matrix traceability appendix — Non-normative/descriptive only
 
-Linked issues: #489, #485
+Linked issues: #489, #485, #499, #500, #504
 
 This appendix is a docs-only traceability companion for `docs/pivot/entitlement-matrix.md`. It maps each current entitlement matrix row to coverage references already listed in `docs/pivot/novels-funnel-coverage.md`; it does not create new coverage claims, tests, product requirements, gap tickets, runtime behavior, schema changes, payment changes, or launch-readiness status.
 
@@ -11,6 +11,7 @@ This appendix is a docs-only traceability companion for `docs/pivot/entitlement-
 - Rows without a direct row-level coverage citation are labeled “deferred / non-normative traceability pending” instead of being treated as new gaps.
 - #233 / Kanban `t_030c3f29` remains unresolved for external launch verification.
 - #418 / Kanban `t_f06112fb` remains unresolved for consent-banner JSDOM/client coverage dependency-policy approval.
+- This PR does not resolve or bypass #233 or #418; both remain open blockers and are out of scope.
 
 ## Matrix-row traceability
 
@@ -21,8 +22,18 @@ This appendix is a docs-only traceability companion for `docs/pivot/entitlement-
 | Authenticated reader with an individual unlock for this chapter       | Purchase/unlock references: `apps/api/src/worker/routes/unlocks.contract.spec.ts`, `apps/api/src/modules/unlocks/unlocks.service.spec.ts`, `apps/api/src/worker/routes/payments.contract.spec.ts`, `apps/api/src/modules/payments/payments.service.spec.ts`, `apps/api/src/modules/payments/webhook.service.spec.ts`, `apps/api/test/payments-webhook.spec.ts`, `apps/api/src/worker/routes/coins.contract.spec.ts`, `apps/api/src/modules/coins/coins.service.spec.ts`. Reader/paywall references: `apps/web/src/app/read/[bookId]/[chapterNumber]/page.spec.tsx`, `tests/e2e/specs/paywall.spec.ts`.                                                    | Covered by existing coverage-map references for unlock services/contracts and reader/paywall surfaces.                                                                                     |
 | Authenticated reader with active subscription                         | Purchase/unlock references that include subscriptions: `apps/api/src/modules/payments/payments.service.spec.ts`, `apps/api/src/modules/payments/webhook.service.spec.ts`, `apps/api/test/payments-webhook.spec.ts`, `apps/api/src/worker/routes/payments.contract.spec.ts`. Library/account recovery references include account subscription surface: `apps/web/src/lib/account-subscription.spec.ts`.                                                                                                                                                                                                                                                    | Covered by existing coverage-map references for subscription payment/webhook/account surfaces; direct row-level entitlement traceability is deferred / non-normative traceability pending. |
 
+## Wave 2AB characterization traceability
+
+These Wave 2AB entries are descriptive traceability notes for characterization coverage that was already merged before this appendix update. They do not create new coverage requirements, alter entitlement behavior, or change launch-readiness status.
+
+| Merged PR                                                      | Characterization summary                                                                                                                                                                                                                                                                                                           | Entitlement traceability relevance                                                                                                                                                                                                                                                                  | Blocker status                                                                                   |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| #499 — `test(web): characterize reader route helper contracts` | Added non-DOM `ReaderPage` assertions for the current `ReaderContent` prop contract, including resolved chapter/page data and canonical reader URL; added helper contract coverage for raw scroll-restore keys, invalid primary restore-slot consumption, and reduced-data media query prefetch suppression.                       | Strengthens existing reader/free-chapter/paywall traceability for the `apps/web/src/app/read/[bookId]/[chapterNumber]` route and reader helper surfaces referenced by the guest/authenticated reader rows above. It is characterization-only and does not add or change an entitlement gate helper. | This PR does not resolve or bypass #233 or #418; both remain open blockers and are out of scope. |
+| #500 — `test(shared): audit quarantine import drift`           | Extended the quarantine-register audit to scan source files under `apps/`, `packages/`, `tests/`, and `scripts/` for import, require, and dynamic-import targets that exactly match present non-removed quarantined paths; reports import drift as `non-removed-path-imported` while preserving removed-path and warning behavior. | Strengthens novels-only/drama-quarantine traceability around surfaces that must remain out of the entitlement funnel; it supports the non-goal that this appendix does not reactivate drama routes, episode playback, drama unlocks, drama progress, drama admin, or drama media.                   | This PR does not resolve or bypass #233 or #418; both remain open blockers and are out of scope. |
+
 ## Non-goals and exclusions
 
 - This appendix does not alter `docs/adr/0001-novels-only-pivot.md`, `AGENTS.md`, `docs/pivot/funnel.md`, runtime source, payment code, database schema, tests, package manifests, or lockfiles.
 - This appendix does not reactivate drama routes, episode playback, drama unlocks, drama progress, drama admin, or drama media.
 - This appendix does not resolve or bypass #233 or #418.
+- This PR does not resolve or bypass #233 or #418; both remain open blockers and are out of scope.
