@@ -210,6 +210,50 @@ describe('auditQuarantineRegister', () => {
     });
   });
 
+  it('reports synthetic shared sources importing present non-removed quarantined paths', () => {
+    const repoRoot = createTempRepo();
+    mkdirSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'dramas'), { recursive: true });
+    mkdirSync(join(repoRoot, 'packages', 'shared', 'src'), { recursive: true });
+    writeFileSync(join(repoRoot, 'apps', 'web', 'src', 'app', 'dramas', 'page.tsx'), 'export {}');
+    writeFileSync(
+      join(repoRoot, 'packages', 'shared', 'src', 'synthetic-drama-import.ts'),
+      "import DramaPage from 'apps/web/src/app/dramas/page.tsx';\nexport { DramaPage };",
+    );
+    writeFileSync(
+      join(repoRoot, 'docs', 'pivot', 'quarantine-register.md'),
+      [
+        '## Web routes and UI',
+        '| Artifact | Disposition | Rationale / follow-up note |',
+        '| --- | --- | --- |',
+        '| `apps/web/src/app/dramas/page.tsx` | gate | Gate route. |',
+      ].join('\n'),
+    );
+
+    expect(auditQuarantineRegister({ repoRoot })).toEqual({
+      ok: false,
+      rows: [
+        {
+          rowNumber: 4,
+          section: 'Web routes and UI',
+          artifact: '`apps/web/src/app/dramas/page.tsx`',
+          disposition: 'gate',
+          paths: ['apps/web/src/app/dramas/page.tsx'],
+        },
+      ],
+      failures: [
+        {
+          rowNumber: 4,
+          section: 'Web routes and UI',
+          artifact: '`apps/web/src/app/dramas/page.tsx`',
+          path: 'apps/web/src/app/dramas/page.tsx',
+          reason: 'non-removed-path-imported',
+          sourcePath: 'packages/shared/src/synthetic-drama-import.ts',
+        },
+      ],
+      warnings: [],
+    });
+  });
+
   it('warns without failing for absent non-removed cited paths, citation-less rows, and absent removed rows', () => {
     const repoRoot = createTempRepo();
     writeFileSync(
