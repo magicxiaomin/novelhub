@@ -372,7 +372,7 @@ describe('AdminService', () => {
     ).rejects.toBe(dbFailure);
 
     expect(storage.uploadText).toHaveBeenCalledTimes(2);
-    const uploadedKeys = (storage.uploadText.mock.calls as Array<[string, string]>).map(
+    const uploadedKeys = (storage.uploadText.mock.calls as unknown as Array<[string, string]>).map(
       ([key]) => key,
     );
     expect(uploadedKeys).toHaveLength(2);
