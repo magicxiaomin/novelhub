@@ -320,6 +320,72 @@ describe('AdminService', () => {
     expect(storage.uploadText).not.toHaveBeenCalled();
   });
 
+  it('bulkCreateChapters exposes soft-deleted order collision risk under global uniqueness', async () => {
+    const { service, prisma, tx, storage, cache, books } = buildService();
+    const uniqueCollision = Object.assign(
+      new Error('Unique constraint failed on (book_id, order)'),
+      {
+        code: 'P2002',
+      },
+    );
+    prisma.book.findFirst.mockResolvedValue({ id: 'book-1', freeChapterCount: 3 });
+    tx.chapter.aggregate.mockResolvedValue({ _max: { order: 2 } });
+    tx.chapter.create.mockRejectedValue(uniqueCollision);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      service.bulkCreateChapters('book-1', [{ title: 'Three', content: 'body' }]),
+    ).rejects.toBe(uniqueCollision);
+
+    expect(tx.chapter.aggregate).toHaveBeenCalledWith({
+      where: { bookId: 'book-1', deletedAt: null },
+      _max: { order: true },
+    });
+    expect(tx.chapter.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ bookId: 'book-1', order: 3, title: 'Three' }),
+      }),
+    );
+    expect(storage.uploadText).toHaveBeenCalledTimes(1);
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(books.invalidateListCaches).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'bulkCreateChapters transaction failed after R2 upload; orphan keys:',
+      ),
+      expect.any(String),
+    );
+  });
+
+  it('bulkCreateChapters surfaces orphan R2 keys when the post-upload DB transaction fails', async () => {
+    const { service, prisma, storage, cache, books } = buildService();
+    const dbFailure = new Error('database unavailable after upload');
+    prisma.book.findFirst.mockResolvedValue({ id: 'book-1', freeChapterCount: 0 });
+    prisma.$transaction.mockRejectedValue(dbFailure);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      service.bulkCreateChapters('book-1', [
+        { title: 'One', content: 'first body' },
+        { title: 'Two', content: 'second body' },
+      ]),
+    ).rejects.toBe(dbFailure);
+
+    expect(storage.uploadText).toHaveBeenCalledTimes(2);
+    const uploadedKeys = (storage.uploadText.mock.calls as unknown as Array<[string, string]>).map(
+      ([key]) => key,
+    );
+    expect(uploadedKeys).toHaveLength(2);
+    expect(uploadedKeys.every((key) => String(key).startsWith('chapters/book-1/'))).toBe(true);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(books.invalidateListCaches).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`orphan keys: ${uploadedKeys.join(', ')}`),
+      expect.any(String),
+    );
+  });
+
   it('listChapters applies bookId filter and returns pagination shape', async () => {
     const { service, prisma } = buildService();
     prisma.chapter.findMany.mockResolvedValue([
@@ -527,13 +593,14 @@ describe('AdminService', () => {
     ).rejects.toEqual(expect.objectContaining({ name: 'DomainError', status: 400 }));
   });
 
-  it('bulkImportChapters in replace mode soft-deletes existing chapters', async () => {
+  it('bulkImportChapters in replace mode reuses order 1 while soft-deleted rows still exist', async () => {
     const { service, prisma } = buildService();
     prisma.book.findFirst.mockResolvedValue({
       id: 'book-1',
       freeChapterCount: 0,
       totalChapters: 5,
     });
+    prisma.chapter.updateMany.mockResolvedValue({ count: 5 });
     prisma.chapter.create.mockResolvedValue({ id: 'ch-new' });
 
     const result = await service.bulkImportChapters('book-1', Buffer.from('NewCh\nbody', 'utf-8'), {
@@ -545,8 +612,14 @@ describe('AdminService', () => {
       where: { bookId: 'book-1', deletedAt: null },
       data: { deletedAt: expect.any(Date) },
     });
-    // First-created chapter in replace mode should get order = 1 (baseOrder reset to 0)
-    expect(prisma.chapter.create.mock.calls[0][0].data.order).toBe(1);
+    // First-created chapter in replace mode gets order = 1 even though the
+    // updateMany only soft-deleted prior rows, so global (book_id, order)
+    // uniqueness can still collide with the retained tombstone row.
+    expect(prisma.chapter.create.mock.calls[0][0].data).toMatchObject({
+      bookId: 'book-1',
+      order: 1,
+      title: 'NewCh',
+    });
     // Total reset to created count, not added on top
     expect(prisma.book.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'book-1' }, data: { totalChapters: 1 } }),
