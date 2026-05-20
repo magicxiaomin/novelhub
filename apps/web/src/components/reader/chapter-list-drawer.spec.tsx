@@ -63,6 +63,20 @@ const renderDrawer = (props?: Partial<React.ComponentProps<typeof ChapterListDra
   />
 );
 
+const chapterStatusLabel = (chapterButton: ReturnType<typeof getByRole>): string | undefined => {
+  const statusNode = React.Children.toArray(chapterButton.props.children).at(-1);
+  if (!React.isValidElement<{ children?: React.ReactNode; 'aria-label'?: string }>(statusNode)) {
+    return undefined;
+  }
+
+  const ariaLabel = statusNode.props['aria-label'];
+  if (typeof ariaLabel === 'string') {
+    return ariaLabel;
+  }
+
+  return React.Children.toArray(statusNode.props.children).join('');
+};
+
 describe('ChapterListDrawer accessible semantics', () => {
   it('exposes a localized modal chapter dialog and close button', () => {
     const onClose = vi.fn();
@@ -93,6 +107,48 @@ describe('ChapterListDrawer accessible semantics', () => {
     expect(getByLabelText(drawer, messages.reader.locked).props['aria-label']).toBe(
       messages.reader.locked,
     );
+  });
+
+  it('shows free chapters as free even for anonymous readers', () => {
+    const chapterButton = getByRole(renderDrawer({ isAnonymous: true }), 'button', {
+      name: /The Door Opens/,
+    });
+
+    expect(chapterStatusLabel(chapterButton)).toBe(messages.reader.free);
+  });
+
+  it('locks paid chapters for anonymous readers', () => {
+    const chapterButton = getByRole(renderDrawer({ isAnonymous: true }), 'button', {
+      name: /The Locked Hall/,
+    });
+
+    expect(chapterStatusLabel(chapterButton)).toBe(messages.reader.locked);
+  });
+
+  it('shows paid chapters as unlocked for authenticated readers with chapter unlocks', () => {
+    const chapterButton = getByRole(
+      renderDrawer({
+        isAnonymous: false,
+        unlockedChapterIds: new Set(['chapter-2']),
+      }),
+      'button',
+      { name: /The Locked Hall/ },
+    );
+
+    expect(chapterStatusLabel(chapterButton)).toBe(messages.reader.unlocked);
+  });
+
+  it('locks paid chapters for authenticated readers without chapter unlocks', () => {
+    const chapterButton = getByRole(
+      renderDrawer({
+        isAnonymous: false,
+        unlockedChapterIds: new Set(['chapter-3']),
+      }),
+      'button',
+      { name: /The Locked Hall/ },
+    );
+
+    expect(chapterStatusLabel(chapterButton)).toBe(messages.reader.locked);
   });
 
   it('closes and routes to the selected chapter when a chapter button is activated', () => {
