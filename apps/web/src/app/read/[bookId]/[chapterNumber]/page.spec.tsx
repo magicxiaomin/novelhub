@@ -17,6 +17,8 @@ import type {
   Paginated,
 } from '@/lib/types';
 
+const readerContentSpy = vi.hoisted(() => vi.fn());
+
 vi.mock('next/navigation', () => ({
   notFound: vi.fn(() => {
     throw new Error('not found');
@@ -24,11 +26,20 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/components/reader/reader-content', () => ({
-  ReaderContent: ({ initialChapters }: { initialChapters: Paginated<ChapterSummary> }) => (
-    <article data-reader-content="true">
-      {initialChapters.items.map((chapter) => chapter.order).join(',')}
-    </article>
-  ),
+  ReaderContent: (props: {
+    chapter: ChapterResponse;
+    initialChapters: Paginated<ChapterSummary>;
+    currentUrl: string;
+    bookTitle: string;
+    bookCover: string;
+  }) => {
+    readerContentSpy(props);
+    return (
+      <article data-reader-content="true">
+        {props.initialChapters.items.map((chapter) => chapter.order).join(',')}
+      </article>
+    );
+  },
 }));
 
 vi.mock('@/components/reader/more-like-this', () => ({
@@ -125,6 +136,7 @@ const booksPage = (items: BookSummary[]): Paginated<BookSummary> => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  readerContentSpy.mockClear();
   vi.mocked(fetchBookServer).mockResolvedValue(book);
   vi.mocked(fetchBookChaptersServer).mockResolvedValue(chaptersPage);
   vi.mocked(fetchChapterServer).mockResolvedValue(chapter);
@@ -141,6 +153,20 @@ beforeEach(() => {
 });
 
 describe('reader page more like this', () => {
+  it('passes the resolved chapter, merged chapter page, and canonical reader URL to ReaderContent', async () => {
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '1' } });
+    renderToStaticMarkup(element);
+
+    expect(readerContentSpy).toHaveBeenCalledTimes(1);
+    expect(readerContentSpy).toHaveBeenCalledWith({
+      chapter,
+      initialChapters: chaptersPage,
+      currentUrl: '/read/current-book/1',
+      bookTitle: 'Current Book',
+      bookCover: '/covers/current.png',
+    });
+  });
+
   it('fetches a bounded category/status list and renders the deterministic top four excluding current book', async () => {
     const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '1' } });
     const html = renderToStaticMarkup(element);
