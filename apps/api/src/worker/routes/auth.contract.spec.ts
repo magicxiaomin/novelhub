@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import { DomainError } from '../../common/domain.errors';
 import { COOKIE_ACCESS, COOKIE_REFRESH } from '../../modules/auth/auth.constants';
@@ -53,13 +54,16 @@ const buildApp = (prisma = buildPrisma()) => {
     if (err instanceof DomainError) {
       return c.json({ statusCode: err.status, message: err.message, error: 'Error' }, err.status);
     }
+    const status = (
+      'status' in err && typeof err.status === 'number' ? err.status : 500
+    ) as ContentfulStatusCode;
     return c.json(
       {
-        statusCode: 'status' in err ? err.status : 500,
+        statusCode: status,
         message: err.message,
-        error: 'status' in err && err.status === 401 ? 'Unauthorized' : 'Error',
+        error: status === 401 ? 'Unauthorized' : 'Error',
       },
-      'status' in err ? err.status : 500,
+      status,
     );
   });
   return app;
