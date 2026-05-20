@@ -159,12 +159,14 @@ describe('Paywall static render', () => {
     expect(html).toContain('data-paywall-subscribe-tab="true"');
     expect(html).toContain('data-selected-plan="weekly"');
     expect(html).not.toContain('data-paywall-coins-tab="true"');
-    expect(html).toContain('Subscribe Now');
-    expect(html).toContain('Buy Coins Now');
-    expect(html).toContain('href="/terms"');
-    expect(html).toContain('href="/privacy"');
-    expect(html).toContain('href="/refund"');
-    expect(html).toContain('Maybe later');
+    expect(html).toContain('>Subscribe</button>');
+    expect(html).toContain('>Buy Coins</button>');
+    expect(html).toContain('>Subscribe Now</button>');
+    expect(html).toContain('>Buy Coins Now</button>');
+    expect(html).toContain('href="/terms">Terms</a>');
+    expect(html).toContain('href="/privacy">Privacy</a>');
+    expect(html).toContain('href="/refund">Refund</a>');
+    expect(html).toContain('>Maybe later</button>');
 
     expect(paywallMocks.openAuthModal).not.toHaveBeenCalled();
     expect(paywallMocks.createSubscriptionCheckout).not.toHaveBeenCalled();
