@@ -18,3 +18,13 @@ export function getPaymentSuccessState(
   if (order.status === 'failed' || order.status === 'refunded') return 'failed';
   return now - startedAt >= PAYMENT_SUCCESS_TIMEOUT_MS ? 'failed' : 'confirming';
 }
+
+export function getSafePaymentReturnUrl(value: string | null, origin: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value, origin);
+    return url.origin === origin ? value : null;
+  } catch {
+    return null;
+  }
+}

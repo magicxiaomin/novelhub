@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { PAYMENT_SUCCESS_TIMEOUT_MS, getPaymentSuccessState } from './payment-success';
+import {
+  PAYMENT_SUCCESS_TIMEOUT_MS,
+  getPaymentSuccessState,
+  getSafePaymentReturnUrl,
+} from './payment-success';
 import type { PaymentOrder } from './types';
 
 const order = (status: PaymentOrder['status']): PaymentOrder => ({
@@ -13,18 +17,42 @@ const order = (status: PaymentOrder['status']): PaymentOrder => ({
 });
 
 describe('payment success state machine', () => {
-  it('confirms while no terminal order is available', () => {
-    expect(getPaymentSuccessState(null, 1_000, 2_000)).toBe('confirming');
-    expect(getPaymentSuccessState(order('pending'), 1_000, 2_000)).toBe('confirming');
-  });
+  it.each([
+    { status: null, elapsedMs: PAYMENT_SUCCESS_TIMEOUT_MS - 1, expected: 'confirming' },
+    {
+      status: 'pending' as const,
+      elapsedMs: PAYMENT_SUCCESS_TIMEOUT_MS - 1,
+      expected: 'confirming',
+    },
+    { status: 'completed' as const, elapsedMs: 0, expected: 'completed' },
+    { status: 'failed' as const, elapsedMs: 0, expected: 'failed' },
+    { status: 'refunded' as const, elapsedMs: 0, expected: 'failed' },
+    { status: null, elapsedMs: PAYMENT_SUCCESS_TIMEOUT_MS, expected: 'failed' },
+    { status: 'pending' as const, elapsedMs: PAYMENT_SUCCESS_TIMEOUT_MS, expected: 'failed' },
+  ])(
+    'returns $expected for status $status after $elapsedMs ms',
+    ({ status, elapsedMs, expected }) => {
+      expect(getPaymentSuccessState(status ? order(status) : null, 1_000, 1_000 + elapsedMs)).toBe(
+        expected,
+      );
+    },
+  );
+});
 
-  it('finishes on completed orders', () => {
-    expect(getPaymentSuccessState(order('completed'), 1_000, 2_000)).toBe('completed');
-  });
+describe('payment return-url safety', () => {
+  const origin = 'https://novelhub.test';
 
-  it('fails on failed/refunded orders or timeout', () => {
-    expect(getPaymentSuccessState(order('failed'), 1_000, 2_000)).toBe('failed');
-    expect(getPaymentSuccessState(order('refunded'), 1_000, 2_000)).toBe('failed');
-    expect(getPaymentSuccessState(null, 1_000, 1_000 + PAYMENT_SUCCESS_TIMEOUT_MS)).toBe('failed');
+  it.each([
+    ['/read/book-1/7', '/read/book-1/7'],
+    ['/read/book-1/7?from=paywall#chapter', '/read/book-1/7?from=paywall#chapter'],
+    ['https://novelhub.test/read/book-1/7', 'https://novelhub.test/read/book-1/7'],
+    [null, null],
+    ['', null],
+    ['https://evil.example/phish', null],
+    ['javascript:alert(1)', null],
+    ['http://novelhub.test/read/book-1/7', null],
+    ['http://[malformed', null],
+  ])('maps %s to %s', (value, expected) => {
+    expect(getSafePaymentReturnUrl(value, origin)).toBe(expected);
   });
 });
