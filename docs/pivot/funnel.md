@@ -60,6 +60,12 @@ The novels-only funnel keeps the existing chapter unlock model:
 3. Individually unlocked chapters remain readable for that user.
 4. Otherwise the reader shows the paywall.
 
+### Entitlement matrix traceability cross-reference
+
+`docs/pivot/entitlement-matrix.md` restates this funnel's four-rule entitlement model as a non-normative snapshot; it does not add new states, product behavior, runtime code, database schema, payment handling, copy, tests, or launch-readiness claims. `docs/pivot/entitlement-matrix-traceability.md` is the matching non-normative/descriptive appendix that maps existing entitlement-matrix rows to coverage references already listed in `docs/pivot/novels-funnel-coverage.md`; it does not create new coverage claims, product requirements, gap tickets, schema changes, payment changes, or runtime behavior.
+
+The unresolved blockers stay separate from this cross-reference: #233 / Kanban `t_030c3f29` remains open for external launch verification, and #418 / Kanban `t_f06112fb` remains open for consent-banner JSDOM/client coverage pending dependency-policy approval.
+
 ## Out-of-funnel surfaces
 
 Drama browse, drama detail, episode playback, drama progress, drama admin, drama media fixtures, and drama smoke checks are not part of the active launch funnel. Their disposition is tracked in `docs/pivot/quarantine-register.md`.
