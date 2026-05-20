@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { ChapterResponse, Paginated, ChapterSummary } from '@/lib/types';
 
 const queryState = vi.hoisted(() => ({
   chapterContent: {
@@ -10,6 +11,7 @@ const queryState = vi.hoisted(() => ({
     isError: false,
   },
 }));
+const paywallSpy = vi.hoisted(() => vi.fn());
 
 vi.mock('next/link', () => ({ default: 'a' }));
 vi.mock('next/navigation', () => ({
@@ -23,7 +25,10 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 vi.mock('@/components/paywall/paywall', () => ({
-  Paywall: () => <section data-testid="reader-paywall">Paywall</section>,
+  Paywall: (props: { chapter: ChapterResponse; currentUrl: string; onDismiss: () => void }) => {
+    paywallSpy(props);
+    return <section data-testid="reader-paywall">Paywall</section>;
+  },
 }));
 vi.mock('@/components/reader/bottom-bar', () => ({ ReaderBottomBar: () => null }));
 vi.mock('@/components/reader/chapter-list-drawer', () => ({ ChapterListDrawer: () => null }));
@@ -87,7 +92,6 @@ import {
   readerScrollRestoreKey,
   ReaderContent,
 } from './reader-content';
-import type { ChapterResponse, Paginated, ChapterSummary } from '@/lib/types';
 
 const baseChapter: ChapterResponse = {
   id: 'chapter-1',
@@ -138,6 +142,7 @@ beforeEach(() => {
     isLoading: false,
     isError: false,
   };
+  paywallSpy.mockClear();
 });
 
 describe('calculateReaderScrollProgress', () => {
@@ -280,6 +285,30 @@ describe('ReaderContent scroll progress indicator', () => {
     expect(html).toContain('data-testid="reader-paywall"');
     expect(html).not.toContain('aria-label="Reader scroll progress"');
     expect(html).not.toContain(unlockedBodySentinel);
+  });
+
+  it('hands server-provided locked chapters directly to Paywall with the reader return URL', () => {
+    // Payment return-url/query-key behavior is characterized in the 2AD payment
+    // return tests (#512/#513/#514); reader scope only verifies the boundary
+    // handoff into Paywall.
+    renderToStaticMarkup(
+      <ReaderContent
+        chapter={lockedChapter}
+        initialChapters={{ ...initialChapters, items: [chapterSummary(1), chapterSummary(2)] }}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(paywallSpy).toHaveBeenCalledTimes(1);
+    expect(paywallSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapter: lockedChapter,
+        currentUrl: '/read/book-1/1',
+        onDismiss: expect.any(Function),
+      }),
+    );
   });
 });
 
