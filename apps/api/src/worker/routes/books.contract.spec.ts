@@ -77,6 +77,8 @@ describe('Worker books route contracts', () => {
   const search = jest.fn();
   const trending = jest.fn();
   const categories = jest.fn();
+  const featured = jest.fn();
+  const getById = jest.fn();
   const listChapters = jest.fn();
 
   beforeEach(() => {
@@ -87,6 +89,12 @@ describe('Worker books route contracts', () => {
       { category: 'romance', count: 12 },
       { category: 'fantasy', count: 9 },
     ]);
+    featured.mockResolvedValue([bookSummary]);
+    getById.mockResolvedValue({
+      ...bookSummary,
+      description: 'A pass-through worker detail DTO.',
+      chapters: [{ id: '11111111-1111-4111-8111-111111111112', bookId, order: 1, isFree: true }],
+    });
     listChapters.mockResolvedValue({
       items: [{ id: '11111111-1111-4111-8111-111111111112', bookId, order: 1, isFree: true }],
       total: 51,
@@ -98,8 +106,8 @@ describe('Worker books route contracts', () => {
       search,
       trending,
       categories,
-      featured: jest.fn(),
-      getById: jest.fn(),
+      featured,
+      getById,
       listChapters,
       invalidateListCaches: jest.fn(),
     } as unknown as ReturnType<typeof makeBooksService>);
@@ -181,6 +189,52 @@ describe('Worker books route contracts', () => {
       total: 1,
       page: 3,
       limit: 7,
+    });
+  });
+
+  it('passes /books/:id UUID params to getById and returns the service detail DTO without reshaping', async () => {
+    const app = buildApp();
+
+    const response = await app.request(`/books/${bookId}`);
+
+    expect(response.status).toBe(200);
+    expect(getById).toHaveBeenCalledWith(bookId);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toEqual({
+      ...bookSummary,
+      description: 'A pass-through worker detail DTO.',
+      chapters: [{ id: '11111111-1111-4111-8111-111111111112', bookId, order: 1, isFree: true }],
+    });
+    for (const key of dramaEraKeys) {
+      expect(body).not.toHaveProperty(key);
+    }
+  });
+
+  it('rejects invalid /books/:id UUID params with a 400 Bad Request envelope before getById', async () => {
+    const app = buildApp();
+
+    const response = await app.request('/books/not-a-uuid');
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      statusCode: 400,
+      error: 'Bad Request',
+    });
+    expect(getById).not.toHaveBeenCalled();
+  });
+
+  it('maps getById DomainError not-found to the current worker error envelope', async () => {
+    getById.mockRejectedValueOnce(DomainError.notFound('Book not found'));
+    const app = buildApp();
+
+    const response = await app.request(`/books/${bookId}`);
+
+    expect(response.status).toBe(404);
+    expect(getById).toHaveBeenCalledWith(bookId);
+    await expect(response.json()).resolves.toEqual({
+      statusCode: 404,
+      message: 'Book not found',
+      error: 'Error',
     });
   });
 
