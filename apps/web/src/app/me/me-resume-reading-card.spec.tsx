@@ -34,12 +34,66 @@ describe('MeResumeReadingCard', () => {
     expect(html).toBe('');
   });
 
-  it('links to the reader route using bookId and chapterNumber', () => {
-    const html = renderToStaticMarkup(
-      <MeResumeReadingCard entries={[entry({ bookId: 'book/unsafe', chapterNumber: 12 })]} />,
+  it('rounds fractional progress to the nearest whole percent', () => {
+    const roundedUpHtml = renderToStaticMarkup(
+      <MeResumeReadingCard entries={[entry({ scrollPercent: 42.5 })]} />,
+    );
+    const roundedDownHtml = renderToStaticMarkup(
+      <MeResumeReadingCard entries={[entry({ scrollPercent: 42.49 })]} />,
     );
 
-    expect(html).toContain('href="/read/book%2Funsafe/12"');
-    expect(html).not.toContain('/book/book%2Funsafe/chapter/12');
+    expect(roundedUpHtml).toContain('Chapter 7 · 43%');
+    expect(roundedDownHtml).toContain('Chapter 7 · 42%');
+  });
+
+  it('renders out-of-range and NaN scrollPercent values without clamping', () => {
+    // Characterization: MeResumeReadingCard currently delegates directly to Math.round
+    // instead of validating/clamping resume.scrollPercent.
+    const overRangeHtml = renderToStaticMarkup(
+      <MeResumeReadingCard entries={[entry({ scrollPercent: 150.4 })]} />,
+    );
+    const underRangeHtml = renderToStaticMarkup(
+      <MeResumeReadingCard entries={[entry({ scrollPercent: -12.6 })]} />,
+    );
+    const nanHtml = renderToStaticMarkup(
+      <MeResumeReadingCard entries={[entry({ scrollPercent: Number.NaN })]} />,
+    );
+
+    expect(overRangeHtml).toContain('Chapter 7 · 150%');
+    expect(underRangeHtml).toContain('Chapter 7 · -13%');
+    expect(nanHtml).toContain('Chapter 7 · NaN%');
+  });
+
+  it('links to the reader route using encodeURIComponent parity for reserved bookId characters', () => {
+    const bookId = 'book/unsafe ?x=#hash&space';
+    const html = renderToStaticMarkup(
+      <MeResumeReadingCard entries={[entry({ bookId, chapterNumber: 12 })]} />,
+    );
+
+    expect(html).toContain(`href="/read/${encodeURIComponent(bookId)}/12"`);
+    expect(html).not.toContain('/book/');
+  });
+
+  it('uses entries[0] even when a later array item has the newer updatedAt', () => {
+    const html = renderToStaticMarkup(
+      <MeResumeReadingCard
+        entries={[
+          entry({
+            bookTitle: 'Pinned By Position',
+            chapterNumber: 3,
+            updatedAt: '2026-05-01T00:00:00.000Z',
+          }),
+          entry({
+            bookTitle: 'Newer Updated At',
+            chapterNumber: 99,
+            updatedAt: '2026-05-20T00:00:00.000Z',
+          }),
+        ]}
+      />,
+    );
+
+    expect(html).toContain('Continue reading Pinned By Position · Ch 3');
+    expect(html).not.toContain('Newer Updated At');
+    expect(html).not.toContain('Ch 99');
   });
 });
