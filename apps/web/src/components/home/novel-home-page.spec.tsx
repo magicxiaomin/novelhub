@@ -1,9 +1,30 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { BookSummary, CategoryCount } from '@/lib/types';
+
+const queryState = vi.hoisted(() => ({
+  featured: { isLoading: true, data: undefined as BookSummary[] | undefined },
+  trending: { isLoading: true, data: undefined as BookSummary[] | undefined },
+  categories: { isLoading: true, data: undefined as CategoryCount[] | undefined },
+  newReleases: {
+    isLoading: true,
+    data: undefined as { items: BookSummary[] } | undefined,
+  },
+}));
+
+const railPropsSpy = vi.hoisted(() => vi.fn());
+const featuredPropsSpy = vi.hoisted(() => vi.fn());
+const categoryPropsSpy = vi.hoisted(() => vi.fn());
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ isLoading: true, data: undefined }),
+  useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => {
+    const key = queryKey[0];
+    if (key === 'featured') return queryState.featured;
+    if (key === 'trending') return queryState.trending;
+    if (key === 'categories') return queryState.categories;
+    return queryState.newReleases;
+  },
 }));
 
 vi.mock('@/components/layout/app-shell', async () => {
@@ -36,7 +57,10 @@ vi.mock('@/components/home/featured-carousel', async () => {
   const React = await import('react');
 
   return {
-    FeaturedCarousel: () => React.createElement('div', { 'data-marker': 'featured-carousel' }),
+    FeaturedCarousel: (props: { books: BookSummary[] }) => {
+      featuredPropsSpy(props);
+      return React.createElement('div', { 'data-marker': 'featured-carousel' });
+    },
   };
 });
 
@@ -44,7 +68,16 @@ vi.mock('@/components/home/book-rail', async () => {
   const React = await import('react');
 
   return {
-    BookRail: () => React.createElement('div', { 'data-marker': 'book-rail' }),
+    BookRail: (props: { title: string; books: BookSummary[]; seeAllHref?: string }) => {
+      railPropsSpy(props);
+      return React.createElement(
+        'section',
+        { 'data-marker': 'book-rail', 'data-see-all-href': props.seeAllHref ?? '' },
+        props.books.map((book) =>
+          React.createElement('a', { key: book.id, href: `/book/${book.id}` }, book.title),
+        ),
+      );
+    },
   };
 });
 
@@ -52,7 +85,17 @@ vi.mock('@/components/home/category-section', async () => {
   const React = await import('react');
 
   return {
-    CategorySection: () => React.createElement('div', { 'data-marker': 'category-section' }),
+    CategorySection: ({ category }: { category: string }) => {
+      categoryPropsSpy({ category });
+      return React.createElement(
+        'a',
+        {
+          'data-marker': 'category-section',
+          href: `/novels?category=${encodeURIComponent(category)}`,
+        },
+        category,
+      );
+    },
   };
 });
 
@@ -85,6 +128,28 @@ import { NovelHomePage } from './novel-home-page';
 
 vi.stubGlobal('React', React);
 
+const book = (id: string, category = 'Fantasy'): BookSummary => ({
+  id,
+  title: `Book ${id}`,
+  author: 'NovelHub',
+  coverUrl: `/covers/${id}.png`,
+  category,
+  tags: [],
+  status: 'ongoing',
+  isFeatured: false,
+  totalChapters: 12,
+  freeChapterCount: 3,
+  coinPerChapter: 10,
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  queryState.featured = { isLoading: true, data: undefined };
+  queryState.trending = { isLoading: true, data: undefined };
+  queryState.categories = { isLoading: true, data: undefined };
+  queryState.newReleases = { isLoading: true, data: undefined };
+});
+
 describe('NovelHomePage loading composition', () => {
   it('renders the loading-state shell, rails, headings, and category placeholders', () => {
     const html = renderToStaticMarkup(<NovelHomePage />);
@@ -102,5 +167,57 @@ describe('NovelHomePage loading composition', () => {
     expect(html).not.toContain('data-marker="featured-carousel"');
     expect(html).not.toContain('data-marker="book-rail"');
     expect(html).not.toContain('data-marker="category-section"');
+  });
+});
+
+describe('NovelHomePage novels entry handoffs', () => {
+  it('hands featured, trending, and new release book ids to current /book detail links', () => {
+    queryState.featured = { isLoading: false, data: [book('featured-entry')] };
+    queryState.trending = { isLoading: false, data: [book('trending-entry')] };
+    queryState.newReleases = { isLoading: false, data: { items: [book('new-release-entry')] } };
+    queryState.categories = { isLoading: false, data: [] };
+
+    const html = renderToStaticMarkup(<NovelHomePage />);
+
+    expect(featuredPropsSpy).toHaveBeenCalledWith({ books: [book('featured-entry')] });
+    expect(railPropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        books: [book('trending-entry')],
+        seeAllHref: '/novels',
+        title: 'Trending',
+      }),
+    );
+    expect(railPropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        books: [book('new-release-entry')],
+        seeAllHref: '/novels',
+        title: 'New Releases',
+      }),
+    );
+    expect(html).toContain('href="/book/trending-entry"');
+    expect(html).toContain('href="/book/new-release-entry"');
+    expect(html).toContain('data-see-all-href="/novels"');
+    expect(html).not.toContain('novelId=');
+  });
+
+  it('hands category sections the current category names for /novels category links', () => {
+    queryState.featured = { isLoading: false, data: [] };
+    queryState.trending = { isLoading: false, data: [] };
+    queryState.newReleases = { isLoading: false, data: { items: [] } };
+    queryState.categories = {
+      isLoading: false,
+      data: [
+        { category: 'Urban Fantasy', count: 4 },
+        { category: 'Sci-Fi & Space', count: 2 },
+      ],
+    };
+
+    const html = renderToStaticMarkup(<NovelHomePage />);
+
+    expect(categoryPropsSpy).toHaveBeenCalledWith({ category: 'Urban Fantasy' });
+    expect(categoryPropsSpy).toHaveBeenCalledWith({ category: 'Sci-Fi & Space' });
+    expect(html).toContain('href="/novels?category=Urban%20Fantasy"');
+    expect(html).toContain('href="/novels?category=Sci-Fi%20%26%20Space"');
+    expect(html).not.toContain('/drama');
   });
 });

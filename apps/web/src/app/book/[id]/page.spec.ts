@@ -7,6 +7,9 @@ import { fetchBookServer } from '@/lib/server-api';
 import type { BookDetail } from '@/lib/types';
 import { notFound } from 'next/navigation';
 
+const chapterListPropsSpy = vi.hoisted(() => vi.fn());
+const stickyStartReadingPropsSpy = vi.hoisted(() => vi.fn());
+
 vi.mock('next/image', () => ({
   default: ({ alt, src }: { alt: string; src: string }) => React.createElement('img', { alt, src }),
 }));
@@ -17,7 +20,14 @@ vi.mock('next/navigation', () => ({
   usePathname: vi.fn(() => '/book/book-seo-264'),
 }));
 vi.mock('@/components/book/chapter-list', () => ({
-  ChapterList: () => React.createElement('section', { 'data-chapter-list': true }),
+  ChapterList: (props: {
+    bookId: string;
+    chapters: BookDetail['chapters'];
+    totalChapters: number;
+  }) => {
+    chapterListPropsSpy(props);
+    return React.createElement('section', { 'data-chapter-list': true });
+  },
 }));
 vi.mock('@/components/book/collapsible-description', () => ({
   CollapsibleDescription: ({ text }: { text: string }) =>
@@ -30,7 +40,17 @@ vi.mock('@/components/book/related-books', () => ({
   RelatedBooks: () => React.createElement('section', { 'data-related-books': true }),
 }));
 vi.mock('@/components/book/sticky-cta', () => ({
-  StickyStartReading: () => React.createElement('a', { 'data-sticky-start-reading': true }),
+  StickyStartReading: (props: { bookId: string; firstChapterOrder: number }) => {
+    stickyStartReadingPropsSpy(props);
+    return React.createElement(
+      'a',
+      {
+        'data-sticky-start-reading': true,
+        href: `/read/${encodeURIComponent(props.bookId)}/${props.firstChapterOrder}`,
+      },
+      'Start reading',
+    );
+  },
 }));
 vi.mock('@/lib/server-api', () => ({ fetchBookServer: vi.fn() }));
 
@@ -113,6 +133,32 @@ describe('book detail page render', () => {
     expect(html).toContain('type="application/ld+json"');
     expect(html).toContain('"@type":"Book"');
     expect(html).toContain(`"name":"${book.title}"`);
+  });
+
+  it('hands the route id and fetched chapter order to current read-entry components', async () => {
+    mockedFetchBookServer.mockResolvedValueOnce({
+      ...book,
+      id: 'book with spaces',
+      chapters: [{ ...book.chapters[0]!, order: 7 }],
+    });
+
+    const html = renderToStaticMarkup(await BookPage({ params: { id: 'book with spaces' } }));
+
+    expect(mockedFetchBookServer).toHaveBeenCalledWith('book with spaces');
+    expect(chapterListPropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookId: 'book with spaces',
+        chapters: [{ ...book.chapters[0]!, order: 7 }],
+        totalChapters: book.totalChapters,
+      }),
+    );
+    expect(stickyStartReadingPropsSpy).toHaveBeenCalledWith({
+      bookId: 'book with spaces',
+      firstChapterOrder: 7,
+    });
+    expect(html).toContain('href="/read/book%20with%20spaces/7"');
+    expect(html).not.toContain('novelId=');
+    expect(html).not.toContain('/drama');
   });
 
   it('calls notFound when the server fetch returns null', async () => {

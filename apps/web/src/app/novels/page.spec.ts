@@ -1,15 +1,77 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { generateMetadata } from './page';
+import NovelsPage, { generateMetadata } from './page';
 import {
   buildCanonicalNovelsAffordance,
   shouldShowCanonicalNovelsAffordance,
 } from './canonical-affordance';
 import { shouldRedirectToCanonicalNovelsHref } from '@/lib/novels-canonical-redirect';
 import { messages } from '@novelhub/shared';
+import { fetchBookCategoriesServer, fetchBooksServer } from '@/lib/server-api';
+import type { BookSummary } from '@/lib/types';
+
+vi.mock('next/link', () => ({
+  default: ({ href, children }: { href: string; children: React.ReactNode }) =>
+    React.createElement('a', { href }, children),
+}));
+
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((href: string) => {
+    throw new Error(`redirect:${href}`);
+  }),
+}));
+
+vi.mock('@/components/layout/app-shell', () => ({
+  AppShell: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-marker': 'app-shell' }, children),
+}));
+
+vi.mock('@/components/book/book-card', () => ({
+  BookCard: ({ book }: { book: BookSummary }) =>
+    React.createElement('a', { href: `/book/${book.id}`, 'data-marker': 'book-card' }, book.title),
+}));
+
+vi.mock('@/lib/server-api', () => ({
+  fetchBooksServer: vi.fn(),
+  fetchBookCategoriesServer: vi.fn(),
+}));
+
+const mockedFetchBooksServer = vi.mocked(fetchBooksServer);
+const mockedFetchBookCategoriesServer = vi.mocked(fetchBookCategoriesServer);
+
+const listedBook = (id: string, category = 'Fantasy'): BookSummary => ({
+  id,
+  title: `Listed ${id}`,
+  author: 'NovelHub',
+  coverUrl: `/covers/${id}.png`,
+  category,
+  tags: [],
+  status: 'ongoing',
+  isFeatured: false,
+  totalChapters: 12,
+  freeChapterCount: 3,
+  coinPerChapter: 10,
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubGlobal('React', React);
+  mockedFetchBooksServer.mockResolvedValue({
+    items: [listedBook('entry-book')],
+    total: 1,
+    page: 1,
+    limit: 20,
+  });
+  mockedFetchBookCategoriesServer.mockResolvedValue([
+    { category: 'Urban Fantasy', count: 4 },
+    { category: 'Sci-Fi & Space', count: 2 },
+  ]);
+});
 
 const novelsRouteDir = join(process.cwd(), 'src/app/novels');
 
@@ -153,5 +215,26 @@ describe('novels route polish', () => {
     expect(source).toContain('BookCardSkeleton');
     expect(source).toContain('Array.from({ length: 8 })');
     expect(source).toContain('aria-label={messages.novels.loadingSkeletonLabel}');
+  });
+});
+
+describe('novels page entry handoffs', () => {
+  it('renders existing book-card /book detail handoffs without an ad redirect or novelId parser', async () => {
+    const html = renderToStaticMarkup(await NovelsPage({ searchParams: {} }));
+
+    expect(mockedFetchBooksServer).toHaveBeenCalledWith({ page: 1, limit: 20 });
+    expect(html).toContain('data-marker="book-card"');
+    expect(html).toContain('href="/book/entry-book"');
+    expect(html).not.toContain('novelId=');
+    expect(html).not.toContain('/drama');
+  });
+
+  it('uses current /novels category filter links for discovery handoff', async () => {
+    const html = renderToStaticMarkup(await NovelsPage({ searchParams: {} }));
+
+    expect(html).toContain('href="/novels?category=Urban+Fantasy"');
+    expect(html).toContain('href="/novels?category=Sci-Fi+%26+Space"');
+    expect(html).toContain('href="/novels?status=ONGOING"');
+    expect(html).not.toContain('/campaign');
   });
 });
