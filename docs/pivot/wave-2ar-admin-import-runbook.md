@@ -20,9 +20,19 @@ Repository inspection on the #594 baseline shows two admin chapter import paths 
 - `AdminService.bulkImportChapters()` is the file-bytes service path. It decodes text, splits by the provided delimiter/default delimiter, uploads parsed chapter bodies first, then performs the replace/append DB work in a transaction. On upload failure or transaction failure it attempts cleanup of already uploaded keys and logs the cleaned key list before rethrowing.
 - For `bulkImportChapters({ replace: true })`, the transaction first soft-deletes currently active chapters (`deletedAt: null`) and then creates the new rows. New row order still starts after the historical max order captured before replacement, so tombstone order slots are not reused. For non-replace imports, new rows are appended after the historical max order as well.
 
+## Wave 2AS-B R7: admin import chunking and partial-failure contract
+
+Wave 2AS-B documents the existing admin import page behavior in `apps/web/src/app/admin/chapters/import/page.tsx` only; it does not change runtime code, component code, specs, tooling, or operator authorization.
+
+- The import page defines `CHUNK_SIZE = 25` (`apps/web/src/app/admin/chapters/import/page.tsx`) and sends parsed chapters through `adminApi.bulkChapters()` in slices of at most 25 chapters per request.
+- During submit, `imported` starts at `0` and increments only after the current chunk's `adminApi.bulkChapters(bookId, chunk)` call resolves successfully. A partially attempted or rejected chunk is not counted as imported by the page.
+- On the first chunk failure, the page sets `failedChunkIndex` to that chunk's starting index, renders `toast.error(messages.admin.chapters.importPartial)` with `{imported}`, `{total}`, and `{message}`, and then `break`s the loop. Remaining chunks are not attempted after that first failure.
+- The all-success toast (`messages.admin.chapters.imported`) is gated on `failedChunkIndex === null`; therefore it only fires when every chunk resolves successfully.
+- A component-render characterization test for this client/edge page is explicitly deferred outside Wave 2AS-B because it would require separate jsdom/Vitest tooling work and module mocks. Wave 2AS-B is intentionally docs-only.
+
 ## Operator boundary
 
-Safe local verification for this runbook is limited to repository inspection and local automated tests. Do not use this runbook to perform live imports or deletes.
+Safe local verification for this runbook is limited to repository inspection, markdown diff review, and local automated tests when a future ticket explicitly changes behavior claims or snippets. Do not use this runbook to perform live imports or deletes.
 
 Hard exclusions:
 
