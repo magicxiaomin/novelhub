@@ -176,6 +176,61 @@ describe('Paywall static render', () => {
     expect(paywallMocks.toastError).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      label: 'coin-only unlock option',
+      unlockOptions: {
+        coinCost: 30,
+        canUnlockWithCoins: true,
+        canUnlockWithSubscription: false,
+      },
+    },
+    {
+      label: 'subscription-only unlock option',
+      unlockOptions: {
+        coinCost: 30,
+        canUnlockWithCoins: false,
+        canUnlockWithSubscription: true,
+      },
+    },
+    {
+      label: 'neither unlock option',
+      unlockOptions: {
+        coinCost: 30,
+        canUnlockWithCoins: false,
+        canUnlockWithSubscription: false,
+      },
+    },
+    {
+      label: 'alternate coin cost unlock option',
+      unlockOptions: {
+        coinCost: 75,
+        canUnlockWithCoins: true,
+        canUnlockWithSubscription: true,
+      },
+    },
+  ])(
+    'renders both tabs and CTAs without checkout or tracking side effects for $label',
+    ({ unlockOptions }) => {
+      paywallMocks.auth.user = { id: 'user-paywall-1' };
+      const html = renderToStaticMarkup(
+        <Paywall
+          chapter={{ ...lockedChapter, unlockOptions }}
+          currentUrl="/read/book-paywall-1/7"
+          onDismiss={vi.fn()}
+        />,
+      );
+
+      expectHtmlButtonToRenderEnabled(html, 'Subscribe');
+      expectHtmlButtonToRenderEnabled(html, 'Buy Coins');
+      expectHtmlButtonToRenderEnabled(html, 'Subscribe Now');
+      expectHtmlButtonToRenderEnabled(html, 'Buy Coins Now');
+      expect(buttonByLabel('Subscribe Now')?.onClick).toBeTypeOf('function');
+      expect(buttonByLabel('Buy Coins Now')?.onClick).toBeTypeOf('function');
+      expectNoCheckoutOrTrackingSideEffects();
+    },
+  );
+
   it('stores and passes the reader return URL for signed-in subscription checkout', async () => {
     paywallMocks.auth.user = { id: 'user-paywall-1' };
     paywallMocks.createSubscriptionCheckout.mockResolvedValue({
@@ -370,6 +425,24 @@ describe('Paywall static render', () => {
     );
   });
 });
+
+function expectHtmlButtonToRenderEnabled(html: string, label: string): void {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const buttonMatch = html.match(new RegExp(`<button[^>]*>${escapedLabel}</button>`));
+
+  expect(buttonMatch?.[0]).toBeDefined();
+  expect(buttonMatch?.[0]).not.toContain('disabled');
+}
+
+function expectNoCheckoutOrTrackingSideEffects(): void {
+  expect(paywallMocks.openAuthModal).not.toHaveBeenCalled();
+  expect(paywallMocks.createSubscriptionCheckout).not.toHaveBeenCalled();
+  expect(paywallMocks.createCoinCheckout).not.toHaveBeenCalled();
+  expect(paywallMocks.fbTrackAddToCart).not.toHaveBeenCalled();
+  expect(paywallMocks.fbTrackInitiateCheckout).not.toHaveBeenCalled();
+  expect(paywallMocks.locationAssign).not.toHaveBeenCalled();
+  expect(paywallMocks.toastError).not.toHaveBeenCalled();
+}
 
 function buttonByLabel(
   label: string,
