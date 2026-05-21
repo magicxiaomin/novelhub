@@ -367,3 +367,61 @@ describe('RechargeClient auth/loading/header states', () => {
     expect(rechargeMocks.locationAssign).not.toHaveBeenCalled();
   });
 });
+
+describe('RechargeClient transaction states', () => {
+  it('renders transaction skeleton rows while local mocked transactions are loading', async () => {
+    rechargeMocks.auth.user = { id: 'user-recharge-transactions-loading', coinBalance: 12 };
+    rechargeMocks.coinTransactions.mockReturnValue(new Promise(() => undefined));
+
+    renderRechargeClient();
+
+    await waitFor(() => expect(rechargeMocks.coinTransactions).toHaveBeenCalledWith(1, 20));
+    expect(document.querySelectorAll('.animate-pulse.h-12.rounded-md')).toHaveLength(3);
+    expect(screen.queryByText(messages.recharge.emptyTransactions)).not.toBeInTheDocument();
+  });
+
+  it('renders populated local mocked coin transactions with labels and formatted amounts', async () => {
+    rechargeMocks.auth.user = { id: 'user-recharge-transactions-populated', coinBalance: 42 };
+    rechargeMocks.coinTransactions.mockResolvedValue({
+      items: [
+        {
+          id: 'txn-purchase-1',
+          amount: 120,
+          type: 'COIN_PURCHASE',
+          relatedId: 'payment-1',
+          balanceAfter: 162,
+          createdAt: '2026-05-21T12:00:00.000Z',
+        },
+        {
+          id: 'txn-unlock-1',
+          amount: -12,
+          type: 'CHAPTER_UNLOCK',
+          relatedId: 'chapter-1',
+          balanceAfter: 150,
+          createdAt: '2026-05-21T12:05:00.000Z',
+        },
+      ],
+    });
+
+    renderRechargeClient();
+
+    await waitFor(() => expect(rechargeMocks.coinTransactions).toHaveBeenCalledWith(1, 20));
+    expect(await screen.findByText(messages.recharge.type_COIN_PURCHASE)).toBeInTheDocument();
+    expect(screen.getByText(messages.recharge.type_CHAPTER_UNLOCK)).toBeInTheDocument();
+    expect(screen.getByText('120')).toHaveClass('amount-class');
+    expect(screen.getByText('-12')).toHaveClass('amount-class');
+    expect(screen.getAllByText('just now')).toHaveLength(2);
+    expect(screen.queryByText(messages.recharge.emptyTransactions)).not.toBeInTheDocument();
+  });
+
+  it('renders the empty transaction state after the local mocked transactions resolve empty', async () => {
+    rechargeMocks.auth.user = { id: 'user-recharge-transactions-empty', coinBalance: 0 };
+    rechargeMocks.coinTransactions.mockResolvedValue({ items: [] });
+
+    renderRechargeClient();
+
+    await waitFor(() => expect(rechargeMocks.coinTransactions).toHaveBeenCalledWith(1, 20));
+    expect(await screen.findByText(messages.recharge.emptyTransactions)).toBeInTheDocument();
+    expect(screen.queryByText(messages.recharge.type_COIN_PURCHASE)).not.toBeInTheDocument();
+  });
+});
