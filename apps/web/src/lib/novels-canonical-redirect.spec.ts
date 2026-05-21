@@ -37,6 +37,30 @@ describe('novels canonical redirect helper', () => {
     ).toBe('/novels?category=Werewolf');
   });
 
+  it('documents current acquisition campaign context drop on canonicalization', () => {
+    expect(
+      shouldRedirectToCanonicalNovelsHref({
+        utm_source: 'facebook',
+        utm_medium: 'paid_social',
+        utm_campaign: 'spring_launch',
+        fbclid: 'fb-click-id',
+      }),
+    ).toBe('/novels');
+  });
+
+  it('documents that canonical filter normalization drops acquisition context rather than preserving it', () => {
+    expect(
+      shouldRedirectToCanonicalNovelsHref({
+        status: 'ONGOING',
+        category: 'Werewolf',
+        page: '2',
+        utm_source: 'facebook',
+        campaign: 'spring_launch',
+        ad_id: 'ad-123',
+      }),
+    ).toBe('/novels?category=Werewolf&status=ONGOING&page=2');
+  });
+
   it('redirects array values to the canonical path because filters require single values', () => {
     expect(
       shouldRedirectToCanonicalNovelsHref({
