@@ -28,7 +28,7 @@ Wave 2AS-B documents the existing admin import page behavior in `apps/web/src/ap
 - During submit, `imported` starts at `0` and increments only after the current chunk's `adminApi.bulkChapters(bookId, chunk)` call resolves successfully. A partially attempted or rejected chunk is not counted as imported by the page.
 - On the first chunk failure, the page sets `failedChunkIndex` to that chunk's starting index, renders `toast.error(messages.admin.chapters.importPartial)` with `{imported}`, `{total}`, and `{message}`, and then `break`s the loop. Remaining chunks are not attempted after that first failure.
 - The all-success toast (`messages.admin.chapters.imported`) is gated on `failedChunkIndex === null`; therefore it only fires when every chunk resolves successfully.
-- A component-render characterization test for this client/edge page is explicitly deferred outside Wave 2AS-B because it would require separate jsdom/Vitest tooling work and module mocks. Wave 2AS-B is intentionally docs-only.
+- Wave 2AS-B originally deferred component-render characterization for this client/edge page because it required separate jsdom/Vitest tooling work and module mocks. That deferral was reconciled by Wave 2AT-1 in `apps/web/src/app/admin/chapters/import/page.spec.tsx`, merged via PR #610 at `cbe7bcc`; the characterization covers the `.txt` parsing, 25-chapter chunking, partial-failure toast, success-toast, and validation paths, but does not add `.docx`/`mammoth.extractRawText` execution coverage.
 
 ## Operator boundary
 
