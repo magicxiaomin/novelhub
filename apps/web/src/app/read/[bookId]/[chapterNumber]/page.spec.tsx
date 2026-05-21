@@ -172,6 +172,36 @@ describe('reader page more like this', () => {
     });
   });
 
+  it('derives ReaderContent.currentUrl only from canonical route params without fabricated search params', async () => {
+    vi.mocked(fetchBookChaptersServer).mockResolvedValue(chaptersPageWith([makeChapterSummary(4)]));
+    vi.mocked(fetchChapterServer).mockResolvedValue({ ...chapter, chapterNumber: 4 });
+
+    const element = await ReaderPage({
+      params: { bookId: 'book with spaces', chapterNumber: '4' },
+      searchParams: {
+        utm_source: 'facebook',
+        utm_campaign: 'spring-reader',
+        fbclid: 'fb-click-id',
+        campaign: 'campaign-id',
+        ad_id: 'ad-id',
+      },
+    } as never);
+    renderToStaticMarkup(element);
+
+    expect(fetchBookServer).toHaveBeenCalledWith('book with spaces');
+    expect(fetchBookChaptersServer).toHaveBeenCalledWith('book with spaces', 1, 200);
+    expect(readerContentSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentUrl: '/read/book%20with%20spaces/4',
+      }),
+    );
+    const props = readerContentSpy.mock.calls.at(-1)?.[0];
+    expect(props.currentUrl).not.toContain('?');
+    for (const droppedQueryKey of ['utm_source', 'utm_campaign', 'fbclid', 'campaign', 'ad_id']) {
+      expect(props.currentUrl).not.toContain(droppedQueryKey);
+    }
+  });
+
   it('fetches a bounded category/status list and renders the deterministic top four excluding current book', async () => {
     const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '1' } });
     const html = renderToStaticMarkup(element);

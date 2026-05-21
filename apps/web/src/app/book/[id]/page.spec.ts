@@ -161,6 +161,37 @@ describe('book detail page render', () => {
     expect(html).not.toContain('/drama');
   });
 
+  it('keeps detail-to-reader entry hrefs canonical when acquisition query context is present', async () => {
+    mockedFetchBookServer.mockResolvedValueOnce({
+      ...book,
+      id: 'paid acquisition book',
+      chapters: [{ ...book.chapters[0]!, order: 2 }],
+    });
+
+    const html = renderToStaticMarkup(
+      await BookPage({
+        params: { id: 'paid acquisition book' },
+        searchParams: {
+          utm_source: 'facebook',
+          utm_campaign: 'spring-reader',
+          fbclid: 'fb-click-id',
+          campaign: 'campaign-id',
+          ad_id: 'ad-id',
+        },
+      } as never),
+    );
+
+    expect(stickyStartReadingPropsSpy).toHaveBeenCalledWith({
+      bookId: 'paid acquisition book',
+      firstChapterOrder: 2,
+    });
+    expect(html).toContain('href="/read/paid%20acquisition%20book/2"');
+    for (const droppedQueryKey of ['utm_source', 'utm_campaign', 'fbclid', 'campaign', 'ad_id']) {
+      expect(html).not.toContain(droppedQueryKey);
+    }
+    expect(html).not.toContain('?');
+  });
+
   it('calls notFound when the server fetch returns null', async () => {
     mockedFetchBookServer.mockResolvedValueOnce(null);
 
