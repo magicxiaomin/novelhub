@@ -38,6 +38,15 @@ export class LocalStorageClient implements StorageClient {
     return fs.readFile(this.localPathFor(key), 'utf-8');
   }
 
+  async deleteObject(key: string): Promise<void> {
+    try {
+      await fs.unlink(this.localPathFor(key));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw err;
+    }
+  }
+
   private localPathFor(key: string): string {
     // apps/api compiled to dist/, __dirname-style resolution through process.cwd()
     // is fragile; instead, anchor at process.cwd() (which is apps/api in dev).

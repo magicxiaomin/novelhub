@@ -60,14 +60,16 @@ type TxMock = {
     aggregate: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
+    updateMany: jest.Mock;
   };
   book: { update: jest.Mock };
   drama: { update: jest.Mock };
   episode: { create: jest.Mock };
 };
 
-type StorageMock = Partial<StorageClient> & {
-  deleteText: jest.Mock<Promise<void>, [string]>;
+type StorageMock = StorageClient & {
+  uploadText: jest.Mock<Promise<void>, [string, string]>;
+  deleteObject: jest.Mock<Promise<void>, [string]>;
 };
 
 const buildService = () => {
@@ -76,6 +78,7 @@ const buildService = () => {
       aggregate: jest.fn(async () => ({ _max: { order: 2 } })),
       create: jest.fn(async () => ({ id: `chapter-${tx.chapter.create.mock.calls.length}` })),
       update: jest.fn(async () => ({ id: 'chapter-1' })),
+      updateMany: jest.fn(async () => ({ count: 0 })),
     },
     book: { update: jest.fn(async () => ({ id: 'book-1' })) },
     drama: { update: jest.fn(async () => ({ id: 'drama-1' })) },
@@ -130,8 +133,11 @@ const buildService = () => {
     },
   };
   const storage = {
-    uploadText: jest.fn(async () => undefined),
-    deleteText: jest.fn(async (key: string) => {
+    uploadText: jest.fn<Promise<void>, [string, string]>(async (key: string, content: string) => {
+      void key;
+      void content;
+    }),
+    deleteObject: jest.fn<Promise<void>, [string]>(async (key: string) => {
       void key;
     }),
     getText: jest.fn(async () => ''),
@@ -351,7 +357,7 @@ describe('AdminService', () => {
   });
 
   it('bulkImportChapters non-replace appends after tombstoned high-order rows', async () => {
-    const { service, prisma } = buildService();
+    const { service, prisma, tx } = buildService();
     prisma.book.findFirst.mockResolvedValue({
       id: 'book-1',
       freeChapterCount: 3,
@@ -371,8 +377,8 @@ describe('AdminService', () => {
       where: { bookId: 'book-1' },
       _max: { order: true },
     });
-    expect(prisma.chapter.updateMany).not.toHaveBeenCalled();
-    expect(prisma.chapter.create).toHaveBeenCalledWith(
+    expect(tx.chapter.updateMany).not.toHaveBeenCalled();
+    expect(tx.chapter.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           bookId: 'book-1',
@@ -381,7 +387,7 @@ describe('AdminService', () => {
         }),
       }),
     );
-    expect(prisma.book.update).toHaveBeenCalledWith({
+    expect(tx.book.update).toHaveBeenCalledWith({
       where: { id: 'book-1' },
       data: { totalChapters: 3 },
     });
@@ -408,8 +414,8 @@ describe('AdminService', () => {
     expect(uploadedKeys).toHaveLength(2);
     expect(uploadedKeys.every((key) => String(key).startsWith('chapters/book-1/'))).toBe(true);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(storage.deleteText).toHaveBeenCalledTimes(2);
-    expect(storage.deleteText.mock.calls.map(([key]) => key)).toEqual(uploadedKeys);
+    expect(storage.deleteObject).toHaveBeenCalledTimes(2);
+    expect(storage.deleteObject.mock.calls.map(([key]) => key)).toEqual(uploadedKeys);
     expect(cache.set).not.toHaveBeenCalled();
     expect(books.invalidateListCaches).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalledWith(
@@ -583,15 +589,98 @@ describe('AdminService', () => {
     expect(storage.getSignedUploadUrl).not.toHaveBeenCalled();
   });
 
+  it('bulkImportChapters cleans uploaded keys and leaves DB untouched when an upload fails', async () => {
+    const { service, prisma, tx, storage, cache, books } = buildService();
+    const uploadFailure = new Error('r2 upload failed');
+    prisma.book.findFirst.mockResolvedValue({
+      id: 'book-1',
+      freeChapterCount: 0,
+      totalChapters: 7,
+    });
+    prisma.chapter.aggregate.mockResolvedValue({ _max: { order: 7 } });
+    storage.uploadText.mockImplementation(async (key: string) => {
+      if (key.endsWith('-2.txt')) throw uploadFailure;
+    });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      service.bulkImportChapters(
+        'book-1',
+        Buffer.from(['One\nfirst body', 'Two\nsecond body'].join('\n\n---\n\n'), 'utf-8'),
+        {},
+      ),
+    ).rejects.toBe(uploadFailure);
+
+    expect(storage.uploadText).toHaveBeenCalledTimes(2);
+    const uploadedKeys = (storage.uploadText.mock.calls as Array<[string, string]>).map(
+      ([key]) => key,
+    );
+    expect(uploadedKeys).toEqual([
+      'chapters/book-1/import-attempt-8-1.txt',
+      'chapters/book-1/import-attempt-9-2.txt',
+    ]);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.chapter.create).not.toHaveBeenCalled();
+    expect(tx.chapter.updateMany).not.toHaveBeenCalled();
+    expect(tx.book.update).not.toHaveBeenCalled();
+    expect(storage.deleteObject).toHaveBeenCalledWith(uploadedKeys[0]);
+    expect(storage.deleteObject).toHaveBeenCalledTimes(1);
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(books.invalidateListCaches).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`cleaned uploaded keys: ${uploadedKeys[0]}`),
+      expect.any(String),
+    );
+  });
+
+  it('bulkImportChapters rolls back and cleans uploads when the DB transaction fails', async () => {
+    const { service, prisma, tx, storage, cache, books } = buildService();
+    const dbFailure = new Error('book total update failed');
+    prisma.book.findFirst.mockResolvedValue({
+      id: 'book-1',
+      freeChapterCount: 1,
+      totalChapters: 4,
+    });
+    prisma.chapter.aggregate.mockResolvedValue({ _max: { order: 6 } });
+    prisma.$transaction.mockRejectedValue(dbFailure);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      service.bulkImportChapters(
+        'book-1',
+        Buffer.from(['One\nfirst body', 'Two\nsecond body'].join('\n\n---\n\n'), 'utf-8'),
+        { replace: true },
+      ),
+    ).rejects.toBe(dbFailure);
+
+    const uploadedKeys = (storage.uploadText.mock.calls as Array<[string, string]>).map(
+      ([key]) => key,
+    );
+    expect(uploadedKeys).toEqual([
+      'chapters/book-1/import-attempt-7-1.txt',
+      'chapters/book-1/import-attempt-8-2.txt',
+    ]);
+    expect(tx.chapter.updateMany).not.toHaveBeenCalled();
+    expect(tx.book.update).not.toHaveBeenCalled();
+    expect(tx.chapter.create).not.toHaveBeenCalled();
+    expect(storage.deleteObject.mock.calls.map(([key]) => key)).toEqual(uploadedKeys);
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(books.invalidateListCaches).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`cleaned uploaded keys: ${uploadedKeys.join(', ')}`),
+      expect.any(String),
+    );
+  });
+
   it('bulkImportChapters parses sections by --- and uploads each to R2', async () => {
-    const { service, prisma, storage } = buildService();
+    const { service, prisma, tx, storage } = buildService();
     prisma.book.findFirst.mockResolvedValue({
       id: 'book-1',
       freeChapterCount: 2,
       totalChapters: 0,
     });
     let nextId = 0;
-    prisma.chapter.create.mockImplementation(async () => ({ id: `ch-${++nextId}` }));
+    tx.chapter.create.mockImplementation(async () => ({ id: `ch-${++nextId}` }));
 
     const text = [
       'The Encounter\nLuna walked into the clearing...',
@@ -604,11 +693,11 @@ describe('AdminService', () => {
 
     expect(result.created).toBe(4);
     expect(storage.uploadText).toHaveBeenCalledTimes(4);
-    expect(prisma.chapter.create).toHaveBeenCalledTimes(4);
+    expect(tx.chapter.create).toHaveBeenCalledTimes(4);
     // First two chapters are free (freeChapterCount=2); last two paid
-    const createCalls = prisma.chapter.create.mock.calls.map(([arg]) => arg.data.isFree);
+    const createCalls = tx.chapter.create.mock.calls.map(([arg]) => arg.data.isFree);
     expect(createCalls).toEqual([true, true, false, false]);
-    expect(prisma.book.update).toHaveBeenCalledWith(
+    expect(tx.book.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'book-1' }, data: { totalChapters: 4 } }),
     );
   });
@@ -626,22 +715,22 @@ describe('AdminService', () => {
   });
 
   it('bulkImportChapters in replace mode assigns after soft-deleted orders', async () => {
-    const { service, prisma } = buildService();
+    const { service, prisma, tx } = buildService();
     prisma.book.findFirst.mockResolvedValue({
       id: 'book-1',
       freeChapterCount: 0,
       totalChapters: 5,
     });
-    prisma.chapter.updateMany.mockResolvedValue({ count: 5 });
+    tx.chapter.updateMany.mockResolvedValue({ count: 5 });
     prisma.chapter.aggregate.mockResolvedValue({ _max: { order: 5 } });
-    prisma.chapter.create.mockResolvedValue({ id: 'ch-new' });
+    tx.chapter.create.mockResolvedValue({ id: 'ch-new' });
 
     const result = await service.bulkImportChapters('book-1', Buffer.from('NewCh\nbody', 'utf-8'), {
       replace: true,
     });
 
     expect(result.created).toBe(1);
-    expect(prisma.chapter.updateMany).toHaveBeenCalledWith({
+    expect(tx.chapter.updateMany).toHaveBeenCalledWith({
       where: { bookId: 'book-1', deletedAt: null },
       data: { deletedAt: expect.any(Date) },
     });
@@ -649,13 +738,13 @@ describe('AdminService', () => {
       where: { bookId: 'book-1' },
       _max: { order: true },
     });
-    expect(prisma.chapter.create.mock.calls[0][0].data).toMatchObject({
+    expect(tx.chapter.create.mock.calls[0][0].data).toMatchObject({
       bookId: 'book-1',
       order: 6,
       title: 'NewCh',
     });
     // Total reset to created count, not added on top
-    expect(prisma.book.update).toHaveBeenCalledWith(
+    expect(tx.book.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'book-1' }, data: { totalChapters: 1 } }),
     );
   });

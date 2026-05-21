@@ -7,4 +7,5 @@ export interface StorageClient {
   getSignedUrl(key: string, expiresInSeconds?: number): Promise<string>;
   getSignedUploadUrl(key: string, contentType: string, expiresInSeconds?: number): Promise<string>;
   getText(key: string): Promise<string>;
+  deleteObject(key: string): Promise<void>;
 }
