@@ -219,12 +219,25 @@ describe('novels route polish', () => {
 });
 
 describe('novels page entry handoffs', () => {
+  it('drops acquisition query context at the novels canonical redirect instead of preserving it', () => {
+    expect(
+      shouldRedirectToCanonicalNovelsHref({
+        utm_source: 'facebook',
+        utm_medium: 'paid_social',
+        utm_campaign: 'spring_launch',
+        fbclid: 'fb-click-id',
+      }),
+    ).toBe('/novels');
+  });
+
   it('renders existing book-card /book detail handoffs without an ad redirect or novelId parser', async () => {
     const html = renderToStaticMarkup(await NovelsPage({ searchParams: {} }));
 
     expect(mockedFetchBooksServer).toHaveBeenCalledWith({ page: 1, limit: 20 });
     expect(html).toContain('data-marker="book-card"');
     expect(html).toContain('href="/book/entry-book"');
+    expect(html).not.toContain('utm_source=');
+    expect(html).not.toContain('fbclid=');
     expect(html).not.toContain('novelId=');
     expect(html).not.toContain('/drama');
   });

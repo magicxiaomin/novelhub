@@ -2,7 +2,7 @@
 
 Source snapshot: current `main` at `0cf8739ac2ba33fe1bb63db5702e488c44b1cd96`, using `docs/pivot/novels-funnel-coverage.md` as the factual source of truth. That source document describes its factual coverage snapshot as of `924eaaf07403d5c23c960c00adfbb76bdadbf2a0`.
 
-Parent planning issues: #632 and #639. Child issues: #635 and #640.
+Parent planning issues: #632 and #639. Child issues: #635, #640, and #642.
 
 This document is descriptive, non-binding planning analysis. It does not rewrite the factual snapshot, create implementation commitments, change ADR direction, alter the novels-only funnel, or reopen drama surfaces. Future characterization candidates below are prioritized planning inputs only. Wave 2AY-A adds a docs-first purchase/unlock seam inventory and duplicate-coverage audit in `docs/pivot/wave-2ay-closure.md`; it does not change the frozen factual snapshot.
 
@@ -46,6 +46,8 @@ Why: the library stage is covered, but its value depends on correctly reflecting
 Out of scope for this candidate: new entitlement states, data model changes, subscription logic changes, drama shelf reactivation, and production data inspection.
 
 ### P2: Ad landing to paywall campaign-context preservation
+
+Status: Wave 2AY-C characterized current as-built repository behavior for the first acquisition handoff. `apps/web/src/lib/novels-canonical-redirect.spec.ts` documents that unsupported acquisition query keys such as `utm_source`, `utm_medium`, `utm_campaign`, `fbclid`, `campaign`, and `ad_id` are dropped by `/novels` canonicalization. `apps/web/src/app/novels/page.spec.ts` documents that book-card detail handoffs render the current `/book/{id}` href without appending acquisition context. This is descriptive only; no context-preservation feature was implemented.
 
 Candidate scope: characterize only repository-local routing/context preservation from landing/discovery into detail, free chapter, and paywall return context.
 
