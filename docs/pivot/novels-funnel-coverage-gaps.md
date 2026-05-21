@@ -1,10 +1,10 @@
 # Novels funnel coverage gap analysis
 
-Source snapshot: current `main` at `0cf8739ac2ba33fe1bb63db5702e488c44b1cd96`, using `docs/pivot/novels-funnel-coverage.md` as the factual source of truth. That source document describes its factual coverage snapshot as of `924eaaf07403d5c23c960c00adfbb76bdadbf2a0`.
+Source snapshot: current `main` at `e782780769bf38bf5acbdb084cb1027b3a84e178`, using `docs/pivot/novels-funnel-coverage.md` as the factual source of truth. That source document describes its factual coverage snapshot as of `924eaaf07403d5c23c960c00adfbb76bdadbf2a0`.
 
-Parent planning issues: #632 and #639. Child issues: #635, #640, and #642.
+Parent planning issues: #632 and #639. Child issues: #635, #640, #642, and #648.
 
-This document is descriptive, non-binding planning analysis. It does not rewrite the factual snapshot, create implementation commitments, change ADR direction, alter the novels-only funnel, or reopen drama surfaces. Future characterization candidates below are prioritized planning inputs only. Wave 2AY-A adds a docs-first purchase/unlock seam inventory and duplicate-coverage audit in `docs/pivot/wave-2ay-closure.md`; it does not change the frozen factual snapshot.
+This document is descriptive, non-binding planning analysis. It does not rewrite the factual snapshot, create implementation commitments, change ADR direction, alter the novels-only funnel, or reopen drama surfaces. Future characterization candidates below are prioritized planning inputs only. Wave 2AY-A adds a docs-first purchase/unlock seam inventory and duplicate-coverage audit in `docs/pivot/wave-2ay-closure.md`; Wave 2AZ-A adds route-level acquisition-context characterization in PR TBD from branch `feature/2az-a-route-context-characterization` at SHA TBD; neither changes the frozen factual snapshot.
 
 External launch verification remains out of scope: #233 / Kanban `t_030c3f29` was not probed, unblocked, bypassed, or reinterpreted for this analysis.
 
@@ -45,11 +45,13 @@ Future scope: refresh these tests only if the existing `/me`, resume-reading, or
 
 ### P2: Ad landing to paywall campaign-context preservation
 
-Status: Wave 2AY-C characterized current as-built repository behavior for the first acquisition handoff. `apps/web/src/lib/novels-canonical-redirect.spec.ts` documents that unsupported acquisition query keys such as `utm_source`, `utm_medium`, `utm_campaign`, `fbclid`, `campaign`, and `ad_id` are dropped by `/novels` canonicalization. `apps/web/src/app/novels/page.spec.ts` documents that book-card detail handoffs render the current `/book/{id}` href without appending acquisition context. This is descriptive only; no context-preservation feature was implemented.
+Status: Wave 2AY-C characterized current as-built repository behavior for the first acquisition handoff. `apps/web/src/lib/novels-canonical-redirect.spec.ts` documents that unsupported acquisition query keys such as `utm_source`, `utm_medium`, `utm_campaign`, `fbclid`, `campaign`, and `ad_id` are dropped by `/novels` canonicalization. `apps/web/src/app/novels/page.spec.ts` documents that book-card detail handoffs render the current `/book/{id}` href without appending acquisition context. Wave 2AZ-A extends that route-level characterization in PR TBD / SHA TBD: `apps/web/src/app/book/[id]/page.spec.ts` documents that detail-to-reader entry hrefs remain canonical `/read/{bookId}/{chapter}` URLs and omit `utm_*`, `fbclid`, `campaign`, and `ad_id`; `apps/web/src/app/read/[bookId]/[chapterNumber]/page.spec.tsx` documents that `ReaderPage` derives `ReaderContent.currentUrl` from params as a canonical path rather than fabricated `searchParams`. This is descriptive only; no context-preservation feature was implemented.
 
-Candidate scope: characterize only repository-local routing/context preservation from landing/discovery into detail, free chapter, and paywall return context.
+Resolved Wave 2AZ-A scope: route-level acquisition-context drop is characterized through detail-to-reader and reader-to-paywall current-url inputs. No Wave 2AZ-B or Wave 2AZ-C work is recorded or implied by this ledger update.
 
-Why: ad landing is covered as a surface, and paywall return context is covered separately. A future narrow characterization could make the acquisition-to-lock boundary easier to reason about while keeping external ad platforms out of scope.
+Future scope: only if future planning explicitly approves a new wave, characterize repository-local routing/context preservation from landing/discovery into detail, free chapter, and paywall return context beyond the as-built drops already documented.
+
+Why: ad landing is covered as a surface, and paywall return context is covered separately. This narrow characterization makes the acquisition-to-lock boundary easier to reason about while keeping external ad platforms out of scope.
 
 Out of scope for this candidate: Facebook Ads, Meta Pixel/CAPI, Stape, production campaign URLs, DNS/CDN/cert changes, or any live acquisition verification.
 
