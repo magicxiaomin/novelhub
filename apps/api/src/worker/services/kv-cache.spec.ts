@@ -1,3 +1,11 @@
+const mockSend = jest.fn();
+
+jest.mock('resend', () => ({
+  Resend: jest.fn().mockImplementation(() => ({
+    emails: { send: mockSend },
+  })),
+}));
+
 import { SupportService } from '../../modules/support/support.service';
 import { KvCacheClient, type KVNamespace } from './kv-cache';
 
@@ -67,23 +75,16 @@ describe('KvCacheClient', () => {
 });
 
 describe('SupportService backed by KvCacheClient', () => {
-  const sendMock = jest.fn();
-  jest.mock('resend', () => ({
-    Resend: jest.fn().mockImplementation(() => ({
-      emails: { send: sendMock },
-    })),
-  }));
-
   const originalEnv = { ...process.env };
   beforeEach(() => {
-    sendMock.mockReset();
+    mockSend.mockReset();
     process.env = {
       ...originalEnv,
       RESEND_API_KEY: 're_test',
       SUPPORT_EMAIL: 'support@example.com',
       SUPPORT_FROM_EMAIL: 'NovelHub <noreply@example.com>',
     };
-    sendMock.mockResolvedValue({ id: 'msg_1' });
+    mockSend.mockResolvedValue({ id: 'msg_1' });
   });
   afterAll(() => {
     process.env = originalEnv;
