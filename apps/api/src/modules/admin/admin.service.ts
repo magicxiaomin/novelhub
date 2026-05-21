@@ -12,11 +12,6 @@ import type { BulkChapterDto, BulkImportOptionsDto, UpdateChapterDto } from './d
 import type { AdminChapterListDto, AdminOrderListDto, AdminSearchDto } from './dto/query.types';
 import { clampFreeChapterLimit, configuredFreeChapterLimit } from './free-chapter-limit';
 
-type CleanableStorageClient = StorageClient & {
-  deleteText?: (key: string) => Promise<void>;
-  deleteObject?: (key: string) => Promise<void>;
-};
-
 const DEFAULT_DELIMITER = '\n\n---\n\n';
 const MAX_CHAPTER_CONTENT_BYTES = 204800;
 const ALLOWED_COVER_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
@@ -72,7 +67,7 @@ const globalCrypto = (globalThis as unknown as { crypto: { randomUUID(): string 
 
 export class AdminService {
   private readonly prisma: PrismaClient;
-  private readonly storage: CleanableStorageClient;
+  private readonly storage: StorageClient;
   private readonly cache: CacheClient;
   private readonly books: BooksService;
   private readonly publicR2Host: string | undefined;
@@ -90,19 +85,24 @@ export class AdminService {
   }
 
   private async cleanupUploadedChapterKeys(keys: string[]): Promise<string[]> {
-    const remove = this.storage.deleteText ?? this.storage.deleteObject;
-    if (!remove) return [];
-
     const cleaned: string[] = [];
     for (const key of keys) {
       try {
-        await remove.call(this.storage, key);
+        await this.storage.deleteObject(key);
         cleaned.push(key);
       } catch (err) {
         log.error(`failed to clean uploaded chapter key: ${key}`, err);
       }
     }
     return cleaned;
+  }
+
+  private async runBestEffortSideEffect(name: string, action: () => Promise<void>): Promise<void> {
+    try {
+      await action();
+    } catch (err) {
+      log.error(`${name} failed after commit`, err);
+    }
   }
 
   async createBook(dto: CreateBookDto): Promise<{ id: string }> {
@@ -273,63 +273,76 @@ export class AdminService {
     if (sections.length === 0) {
       throw DomainError.badRequest('No chapters parsed; check the delimiter and file format');
     }
-
-    if (options.replace) {
-      // Soft-delete existing chapters but keep their globally unique
-      // (book_id, order) slots reserved; append replacement imports after
-      // all retained tombstones to avoid P2002 without a schema migration.
-      await this.prisma.chapter.updateMany({
-        where: { bookId, deletedAt: null },
-        data: { deletedAt: new Date() },
-      });
-    }
     const max = await this.prisma.chapter.aggregate({
       where: { bookId },
       _max: { order: true },
     });
     const baseOrder = max._max.order ?? 0;
+    const parsedChapters = sections.flatMap((section, index) => {
+      const order = baseOrder + index + 1;
+      const lines = section.split('\n');
+      const firstLine = lines[0]?.trim() ?? '';
+      const hasTitle = firstLine.length > 0 && firstLine.length < 120;
+      const title = hasTitle ? firstLine : `Chapter ${order}`;
+      const body = hasTitle ? lines.slice(1).join('\n').trim() : section;
+      if (body.length === 0) return [];
+      return [
+        {
+          order,
+          title,
+          body,
+          key: `chapters/${bookId}/import-attempt-${order}-${index + 1}.txt`,
+        },
+      ];
+    });
 
-    let created = 0;
     const uploadedKeys: string[] = [];
     try {
-      for (const [i, section] of sections.entries()) {
-        const order = baseOrder + i + 1;
-        const lines = section.split('\n');
-        const firstLine = lines[0]?.trim() ?? '';
-        const hasTitle = firstLine.length > 0 && firstLine.length < 120;
-        const title = hasTitle ? firstLine : `Chapter ${order}`;
-        const body = hasTitle ? lines.slice(1).join('\n').trim() : section;
-        if (body.length === 0) continue;
-
-        const isFree = order <= book.freeChapterCount;
-
-        const chapter = await this.prisma.chapter.create({
-          data: {
-            bookId,
-            order,
-            title,
-            contentUrl: '',
-            wordCount: wordCount(body),
-            isFree,
-          },
-          select: { id: true },
-        });
-        const key = `chapters/${bookId}/${chapter.id}.txt`;
-        await this.storage.uploadText(key, body);
-        uploadedKeys.push(key);
-        await this.prisma.chapter.update({
-          where: { id: chapter.id },
-          data: { contentUrl: key },
-        });
-        // pre-warm the preview so the first read of a locked chapter is cheap
-        await this.cache.set(`chapter:preview:${chapter.id}`, body.slice(0, 100));
-        created += 1;
+      for (const chapter of parsedChapters) {
+        await this.storage.uploadText(chapter.key, chapter.body);
+        uploadedKeys.push(chapter.key);
       }
+    } catch (err) {
+      const cleaned = await this.cleanupUploadedChapterKeys(uploadedKeys);
+      log.error(
+        `bulkImportChapters failed after R2 upload; cleaned uploaded keys: ${cleaned.join(', ')}`,
+        err,
+      );
+      throw err;
+    }
 
-      const newTotal = options.replace ? created : book.totalChapters + created;
-      await this.prisma.book.update({
-        where: { id: bookId },
-        data: { totalChapters: newTotal },
+    let createdRows: Array<{ id: string; body: string }> = [];
+    try {
+      createdRows = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        if (options.replace) {
+          await tx.chapter.updateMany({
+            where: { bookId, deletedAt: null },
+            data: { deletedAt: new Date() },
+          });
+        }
+
+        const rows: Array<{ id: string; body: string }> = [];
+        for (const chapter of parsedChapters) {
+          const row = await tx.chapter.create({
+            data: {
+              bookId,
+              order: chapter.order,
+              title: chapter.title,
+              contentUrl: chapter.key,
+              wordCount: wordCount(chapter.body),
+              isFree: chapter.order <= book.freeChapterCount,
+            },
+            select: { id: true },
+          });
+          rows.push({ id: row.id, body: chapter.body });
+        }
+
+        const newTotal = options.replace ? rows.length : book.totalChapters + rows.length;
+        await tx.book.update({
+          where: { id: bookId },
+          data: { totalChapters: newTotal },
+        });
+        return rows;
       });
     } catch (err) {
       const cleaned = await this.cleanupUploadedChapterKeys(uploadedKeys);
@@ -339,8 +352,18 @@ export class AdminService {
       );
       throw err;
     }
-    await this.books.invalidateListCaches();
-    return { created };
+
+    await Promise.all(
+      createdRows.map((row) =>
+        this.runBestEffortSideEffect(`chapter preview cache ${row.id}`, () =>
+          this.cache.set(`chapter:preview:${row.id}`, row.body.slice(0, 100)),
+        ),
+      ),
+    );
+    await this.runBestEffortSideEffect('book list cache invalidation', () =>
+      this.books.invalidateListCaches(),
+    );
+    return { created: createdRows.length };
   }
 
   async bulkCreateChapters(

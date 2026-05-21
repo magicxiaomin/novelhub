@@ -67,6 +67,7 @@ describe('WorkerR2StorageClient', () => {
           text: async () => 'hello world',
         })),
         put: jest.fn(async () => undefined),
+        delete: jest.fn(async () => undefined),
       };
       const client = new WorkerR2StorageClient({ ...fullEnv, BUCKET: fakeBucket });
       const text = await client.getText('a.txt');
@@ -78,6 +79,7 @@ describe('WorkerR2StorageClient', () => {
       const fakeBucket = {
         get: jest.fn(async () => null),
         put: jest.fn(async () => undefined),
+        delete: jest.fn(async () => undefined),
       };
       const client = new WorkerR2StorageClient({ ...fullEnv, BUCKET: fakeBucket });
       await expect(client.getText('missing.txt')).rejects.toThrow(/R2 object not found/);
@@ -87,6 +89,7 @@ describe('WorkerR2StorageClient', () => {
       const fakeBucket = {
         get: jest.fn(async () => null),
         put: jest.fn(async () => undefined),
+        delete: jest.fn(async () => undefined),
       };
       const client = new WorkerR2StorageClient({ ...fullEnv, BUCKET: fakeBucket });
       await client.uploadText('a.txt', 'hello');

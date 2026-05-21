@@ -23,6 +23,7 @@ import { makeFbCapiService } from './fb-capi-factory';
 interface R2BucketBinding {
   get(key: string): Promise<{ text(): Promise<string> } | null>;
   put(key: string, body: string | ArrayBuffer | ReadableStream): Promise<unknown>;
+  delete(key: string): Promise<void>;
 }
 
 export type WorkerEnv = {

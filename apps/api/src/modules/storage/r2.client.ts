@@ -1,5 +1,10 @@
 import { Logger } from '@nestjs/common';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import { SIGNED_URL_TTL_SECONDS, type StorageClient } from './storage.constants';
@@ -56,6 +61,11 @@ export class R2StorageClient implements StorageClient {
     }
     const text = await res.Body.transformToString('utf-8');
     return text;
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    const { client, bucket } = this.requireClient();
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   }
 
   private requireClient(): { client: S3Client; bucket: string } {

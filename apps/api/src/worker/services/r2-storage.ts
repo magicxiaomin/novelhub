@@ -42,6 +42,7 @@ export type R2StorageEnv = {
 interface R2Bucket {
   get(key: string): Promise<R2ObjectBody | null>;
   put(key: string, body: string | ArrayBuffer | ReadableStream): Promise<unknown>;
+  delete(key: string): Promise<void>;
 }
 interface R2ObjectBody {
   text(): Promise<string>;
@@ -103,6 +104,19 @@ export class WorkerR2StorageClient implements StorageClient {
       throw new Error(`R2 GET failed (${res.status}) for ${key}`);
     }
     return res.text();
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    if (this.env.BUCKET) {
+      await this.env.BUCKET.delete(key);
+      return;
+    }
+    const aws = this.requireAwsClient();
+    const res = await aws.fetch(this.objectUrl(key), { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`R2 DELETE failed (${res.status}) for ${key}: ${body}`);
+    }
   }
 
   private requireAwsClient(): AwsClient {
