@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { ChapterResponse, Paginated, ChapterSummary } from '@/lib/types';
 
 const queryState = vi.hoisted(() => ({
+  calls: [] as Array<{ queryKey?: unknown[]; enabled?: boolean; queryFn?: () => unknown }>,
   chapterContent: {
     data: undefined as string | undefined,
     isSuccess: false,
@@ -18,10 +19,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
 }));
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: ({ queryKey }: { queryKey?: unknown[] }) =>
-    queryKey?.[0] === 'chapterContent'
+  useQuery: (options: { queryKey?: unknown[]; enabled?: boolean; queryFn?: () => unknown }) => {
+    queryState.calls.push(options);
+    return options.queryKey?.[0] === 'chapterContent'
       ? queryState.chapterContent
-      : { data: { items: [] }, isSuccess: true, isLoading: false, isError: false },
+      : { data: { items: [] }, isSuccess: true, isLoading: false, isError: false };
+  },
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 vi.mock('@/components/paywall/paywall', () => ({
@@ -136,6 +139,7 @@ const chapterSummary = (order: number, id = `chapter-${order}`): ChapterSummary 
 });
 
 beforeEach(() => {
+  queryState.calls = [];
   queryState.chapterContent = {
     data: undefined,
     isSuccess: false,
@@ -309,6 +313,49 @@ describe('ReaderContent scroll progress indicator', () => {
         onDismiss: expect.any(Function),
       }),
     );
+  });
+
+  it('keeps the locked chapter content query disabled at the ReaderContent boundary', () => {
+    renderToStaticMarkup(
+      <ReaderContent
+        chapter={lockedChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    const contentQuery = queryState.calls.find((call) => call.queryKey?.[0] === 'chapterContent');
+    expect(contentQuery).toEqual(expect.objectContaining({ enabled: false }));
+  });
+
+  it('hands the exact reader URL with search context to Paywall without rendering unlocked content', () => {
+    const unlockedBodySentinel = 'UNLOCKED_BODY_SHOULD_NOT_RENDER_WITH_PAYWALL_URL_CONTEXT';
+    queryState.chapterContent = {
+      data: unlockedBodySentinel,
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    };
+
+    const html = renderToStaticMarkup(
+      <ReaderContent
+        chapter={lockedChapter}
+        initialChapters={initialChapters}
+        currentUrl="/read/book-1/1?utm_source=fb&ad_id=reader-paywall"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    expect(paywallSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentUrl: '/read/book-1/1?utm_source=fb&ad_id=reader-paywall',
+      }),
+    );
+    expect(html).toContain('data-testid="reader-paywall"');
+    expect(html).not.toContain(unlockedBodySentinel);
   });
 });
 
