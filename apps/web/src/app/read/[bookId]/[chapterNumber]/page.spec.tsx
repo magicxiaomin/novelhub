@@ -106,11 +106,16 @@ const candidate = (id: string): BookSummary => ({
   coinPerChapter: 10,
 });
 
-const makeChapterSummary = (order: number, id = `chapter-${order}`): ChapterSummary => ({
+const makeChapterSummary = (
+  order: number,
+  id = `chapter-${order}`,
+  overrides: Partial<ChapterSummary> = {},
+): ChapterSummary => ({
   ...chapterSummary,
   id,
   order,
   title: `Chapter ${order}`,
+  ...overrides,
 });
 
 const chaptersPage: Paginated<ChapterSummary> = {
@@ -477,5 +482,77 @@ describe('reader page initial chapter selection fallback', () => {
     expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(1, book.id, 1, 200);
     expect(fetchBookChaptersServer).toHaveBeenNthCalledWith(2, book.id, 5, 200);
     expect(fetchChapterServer).not.toHaveBeenCalled();
+  });
+});
+
+describe('reader page free-chapter paywall boundary characterization', () => {
+  it('resolves the Nth free chapter by chapter order and passes its unlocked server response through', async () => {
+    const boundaryBook: BookDetail = { ...book, freeChapterCount: 3 };
+    const unorderedChapters = chaptersPageWith([
+      makeChapterSummary(4, 'paid-n-plus-one', { isFree: false }),
+      makeChapterSummary(1, 'free-one', { isFree: true }),
+      makeChapterSummary(3, 'free-n', { isFree: true }),
+      makeChapterSummary(2, 'free-two', { isFree: true }),
+    ]);
+    const freeBoundaryChapter: ChapterResponse = {
+      ...chapter,
+      id: 'free-n',
+      chapterNumber: 3,
+      title: 'Chapter 3',
+      isLocked: false,
+      contentUrl: 'https://cdn.example.test/free-n.txt',
+    };
+    vi.mocked(fetchBookServer).mockResolvedValue(boundaryBook);
+    vi.mocked(fetchBookChaptersServer).mockResolvedValue(unorderedChapters);
+    vi.mocked(fetchChapterServer).mockResolvedValue(freeBoundaryChapter);
+
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '3' } });
+    renderToStaticMarkup(element);
+
+    expect(fetchChapterServer).toHaveBeenCalledWith('free-n');
+    expect(readerContentSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapter: freeBoundaryChapter,
+        initialChapters: unorderedChapters,
+      }),
+    );
+  });
+
+  it('resolves the N+1 paid chapter by chapter order and passes its locked server response through', async () => {
+    const boundaryBook: BookDetail = { ...book, freeChapterCount: 3 };
+    const unorderedChapters = chaptersPageWith([
+      makeChapterSummary(3, 'free-n', { isFree: true }),
+      makeChapterSummary(1, 'free-one', { isFree: true }),
+      makeChapterSummary(4, 'paid-n-plus-one', { isFree: false }),
+      makeChapterSummary(2, 'free-two', { isFree: true }),
+    ]);
+    const lockedBoundaryChapter: ChapterResponse = {
+      id: 'paid-n-plus-one',
+      bookId: book.id,
+      chapterNumber: 4,
+      title: 'Chapter 4',
+      isLocked: true,
+      preview: 'Server preview for the first locked chapter.',
+      unlockOptions: {
+        coinCost: 10,
+        canUnlockWithCoins: true,
+        canUnlockWithSubscription: true,
+      },
+    };
+    vi.mocked(fetchBookServer).mockResolvedValue(boundaryBook);
+    vi.mocked(fetchBookChaptersServer).mockResolvedValue(unorderedChapters);
+    vi.mocked(fetchChapterServer).mockResolvedValue(lockedBoundaryChapter);
+
+    const element = await ReaderPage({ params: { bookId: book.id, chapterNumber: '4' } });
+    renderToStaticMarkup(element);
+
+    expect(fetchChapterServer).toHaveBeenCalledWith('paid-n-plus-one');
+    expect(readerContentSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapter: lockedBoundaryChapter,
+        initialChapters: unorderedChapters,
+        currentUrl: '/read/current-book/4',
+      }),
+    );
   });
 });
