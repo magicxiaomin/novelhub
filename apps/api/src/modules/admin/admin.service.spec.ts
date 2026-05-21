@@ -672,6 +672,53 @@ describe('AdminService', () => {
     );
   });
 
+  it('bulkImportChapters preserves the transaction error when cleanup deletion fails and keeps cleaning remaining keys', async () => {
+    const { service, prisma, tx, storage, cache, books } = buildService();
+    const dbFailure = new Error('book total update failed');
+    const deleteFailure = new Error('r2 delete failed');
+    prisma.book.findFirst.mockResolvedValue({
+      id: 'book-1',
+      freeChapterCount: 1,
+      totalChapters: 4,
+    });
+    prisma.chapter.aggregate.mockResolvedValue({ _max: { order: 6 } });
+    prisma.$transaction.mockRejectedValue(dbFailure);
+    storage.deleteObject.mockImplementation(async (key: string) => {
+      if (key.endsWith('-1.txt')) throw deleteFailure;
+    });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      service.bulkImportChapters(
+        'book-1',
+        Buffer.from(['One\nfirst body', 'Two\nsecond body'].join('\n\n---\n\n'), 'utf-8'),
+        { replace: true },
+      ),
+    ).rejects.toBe(dbFailure);
+
+    const uploadedKeys = (storage.uploadText.mock.calls as Array<[string, string]>).map(
+      ([key]) => key,
+    );
+    expect(uploadedKeys).toEqual([
+      'chapters/book-1/import-attempt-7-1.txt',
+      'chapters/book-1/import-attempt-8-2.txt',
+    ]);
+    expect(storage.deleteObject.mock.calls.map(([key]) => key)).toEqual(uploadedKeys);
+    expect(tx.chapter.updateMany).not.toHaveBeenCalled();
+    expect(tx.book.update).not.toHaveBeenCalled();
+    expect(tx.chapter.create).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(books.invalidateListCaches).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`failed to clean uploaded chapter key: ${uploadedKeys[0]}`),
+      expect.stringContaining('r2 delete failed'),
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`cleaned uploaded keys: ${uploadedKeys[1]}`),
+      expect.any(String),
+    );
+  });
+
   it('bulkImportChapters parses sections by --- and uploads each to R2', async () => {
     const { service, prisma, tx, storage } = buildService();
     prisma.book.findFirst.mockResolvedValue({
