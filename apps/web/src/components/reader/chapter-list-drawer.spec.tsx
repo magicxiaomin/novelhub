@@ -125,17 +125,24 @@ describe('ChapterListDrawer accessible semantics', () => {
     expect(chapterStatusLabel(chapterButton)).toBe(messages.reader.locked);
   });
 
-  it('shows paid chapters as unlocked for authenticated readers with chapter unlocks', () => {
-    const chapterButton = getByRole(
-      renderDrawer({
-        isAnonymous: false,
-        unlockedChapterIds: new Set(['chapter-2']),
-      }),
-      'button',
-      { name: /The Locked Hall/ },
-    );
+  it('changes a paid chapter from locked to unlocked when authenticated unlock-list data includes it', () => {
+    const lockedDrawer = renderDrawer({
+      currentChapterId: 'chapter-1',
+      isAnonymous: false,
+      unlockedChapterIds: new Set(['chapter-3']),
+    });
+    const unlockedDrawer = renderDrawer({
+      currentChapterId: 'chapter-1',
+      isAnonymous: false,
+      unlockedChapterIds: new Set(['chapter-2']),
+    });
 
-    expect(chapterStatusLabel(chapterButton)).toBe(messages.reader.unlocked);
+    expect(chapterStatusLabel(getByRole(lockedDrawer, 'button', { name: /The Locked Hall/ }))).toBe(
+      messages.reader.locked,
+    );
+    expect(
+      chapterStatusLabel(getByRole(unlockedDrawer, 'button', { name: /The Locked Hall/ })),
+    ).toBe(messages.reader.unlocked);
   });
 
   it('locks paid chapters for authenticated readers without chapter unlocks', () => {
