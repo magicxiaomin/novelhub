@@ -12,11 +12,13 @@ The admin UI requests a presigned upload URL from the API, uploads the file with
 
 ## Bulk-Import Chapters
 
-Open the book in the admin panel and use bulk import. Supported sources are `.txt` files split by the `^Chapter \d+` delimiter or `.docx` files parsed by the importer. The UI chunks imports at 25 chapters per request so large books do not exceed API request limits.
+Open the book in the admin panel and use bulk import. Repository inspection for #596 verified that the local admin UI accepts `.txt` and `.docx` files: `.docx` files are converted to raw text with Mammoth, other files use browser text reading, and parsed text is split with the default `^Chapter\s+\d+` expression unless the operator changes the field. The UI submits parsed chapters in chunks of 25 per request to stay below backend content/body limits.
 
-Review chapter numbers, titles, and free/paid status before confirming. Re-importing is intended for new chapter batches, not blind replacement of already-sold chapter content.
+Review chapter numbers, titles, and free/paid status before confirming. Re-importing is intended for new chapter batches, not blind replacement of already-sold chapter content. Do not use this guide to run staging or production imports; live imports require a separate approved ticket.
 
-Chapter order assignment is append-only against the historical maximum order for the book. Soft-deleted/tombstoned chapter rows keep their old order slots reserved, so non-replace and replace imports both start after the highest existing or deleted chapter order rather than reusing gaps or relying on the active `totalChapters` count.
+Chapter order assignment is append-only against the historical maximum order for the book. Soft-deleted/tombstoned chapter rows keep their old order slots reserved, so non-replace imports and replace-style service imports both start after the highest existing or deleted chapter order rather than reusing gaps or relying on the active `totalChapters` count.
+
+For the read-only #566/#594 traceability runbook, verified cleanup behavior, safe local test commands, and hard exclusions, see `docs/pivot/wave-2ar-admin-import-runbook.md`.
 
 ## Push Broadcasts
 
