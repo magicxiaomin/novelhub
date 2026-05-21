@@ -5,6 +5,13 @@ import type { ChapterResponse, Paginated, ChapterSummary } from '@/lib/types';
 
 const queryState = vi.hoisted(() => ({
   calls: [] as Array<{ queryKey?: unknown[]; enabled?: boolean; queryFn?: () => unknown }>,
+  user: null as { id: string } | null,
+  unlocks: {
+    data: { items: [] as Array<{ chapterId: string }> },
+    isSuccess: true,
+    isLoading: false,
+    isError: false,
+  },
   chapterContent: {
     data: undefined as string | undefined,
     isSuccess: false,
@@ -13,6 +20,7 @@ const queryState = vi.hoisted(() => ({
   },
 }));
 const paywallSpy = vi.hoisted(() => vi.fn());
+const chapterListDrawerSpy = vi.hoisted(() => vi.fn());
 
 vi.mock('next/link', () => ({ default: 'a' }));
 vi.mock('next/navigation', () => ({
@@ -21,9 +29,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (options: { queryKey?: unknown[]; enabled?: boolean; queryFn?: () => unknown }) => {
     queryState.calls.push(options);
-    return options.queryKey?.[0] === 'chapterContent'
-      ? queryState.chapterContent
-      : { data: { items: [] }, isSuccess: true, isLoading: false, isError: false };
+    if (options.queryKey?.[0] === 'chapterContent') return queryState.chapterContent;
+    if (options.queryKey?.[0] === 'unlocks') return queryState.unlocks;
+    return { data: { items: [] }, isSuccess: true, isLoading: false, isError: false };
   },
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
@@ -34,14 +42,25 @@ vi.mock('@/components/paywall/paywall', () => ({
   },
 }));
 vi.mock('@/components/reader/bottom-bar', () => ({ ReaderBottomBar: () => null }));
-vi.mock('@/components/reader/chapter-list-drawer', () => ({ ChapterListDrawer: () => null }));
+vi.mock('@/components/reader/chapter-list-drawer', () => ({
+  ChapterListDrawer: (props: {
+    bookId: string;
+    currentChapterId: string;
+    chapters: ChapterSummary[];
+    unlockedChapterIds: Set<string>;
+    isAnonymous: boolean;
+  }) => {
+    chapterListDrawerSpy(props);
+    return null;
+  },
+}));
 vi.mock('@/components/reader/settings-drawer', () => ({ SettingsDrawer: () => null }));
 vi.mock('@/components/reader/top-bar', () => ({ ReaderTopBar: () => null }));
 vi.mock('@/components/ui/button', () => ({
   Button: ({ children }: { children: unknown }) => children,
 }));
 vi.mock('@/components/ui/skeleton', () => ({ Skeleton: () => null }));
-vi.mock('@/components/providers', () => ({ useAuth: () => ({ user: null }) }));
+vi.mock('@/components/providers', () => ({ useAuth: () => ({ user: queryState.user }) }));
 vi.mock('@/lib/anonymous-reading-progress', () => ({
   loadAnonymousChapterProgress: vi.fn(),
   saveAnonymousReadingProgress: vi.fn(),
@@ -51,7 +70,12 @@ vi.mock('@/lib/queries', () => ({
   fetchChapterReadingProgress: vi.fn(),
   fetchUnlocks: vi.fn(),
   queryKeys: {
-    unlocks: vi.fn(() => ['unlocks']),
+    unlocks: vi.fn((page: number, limit: number, bookId?: string) => [
+      'unlocks',
+      page,
+      limit,
+      bookId,
+    ]),
     chapterContent: vi.fn(() => ['chapterContent']),
   },
   saveReadingProgress: vi.fn(),
@@ -140,6 +164,13 @@ const chapterSummary = (order: number, id = `chapter-${order}`): ChapterSummary 
 
 beforeEach(() => {
   queryState.calls = [];
+  queryState.user = null;
+  queryState.unlocks = {
+    data: { items: [] },
+    isSuccess: true,
+    isLoading: false,
+    isError: false,
+  };
   queryState.chapterContent = {
     data: undefined,
     isSuccess: false,
@@ -147,6 +178,7 @@ beforeEach(() => {
     isError: false,
   };
   paywallSpy.mockClear();
+  chapterListDrawerSpy.mockClear();
 });
 
 describe('calculateReaderScrollProgress', () => {
@@ -449,6 +481,58 @@ describe('ReaderContent pagination anchors', () => {
     expect(html).toContain('A second paragraph keeps readers moving.');
     expect(html).not.toContain('data-testid="reader-paywall"');
     expect(html).not.toContain('Loading chapter content');
+  });
+
+  it('scopes unlock-list data to the current book and passes paid chapter unlocks into the chapter drawer', () => {
+    queryState.user = { id: 'user-1' };
+    queryState.unlocks = {
+      data: { items: [{ chapterId: 'chapter-2' }] },
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    };
+
+    renderToStaticMarkup(
+      <ReaderContent
+        chapter={baseChapter}
+        initialChapters={{
+          ...initialChapters,
+          items: [
+            chapterSummary(1),
+            { ...chapterSummary(2), isFree: false },
+            { ...chapterSummary(3), isFree: false },
+          ],
+          total: 3,
+        }}
+        currentUrl="/read/book-1/1"
+        bookTitle="Book 1"
+        bookCover="/cover.jpg"
+      />,
+    );
+
+    const unlocksQuery = queryState.calls.find((call) => call.queryKey?.[0] === 'unlocks');
+    expect(unlocksQuery).toEqual(
+      expect.objectContaining({
+        queryKey: ['unlocks', 1, 200, 'book-1'],
+        enabled: true,
+      }),
+    );
+    expect(chapterListDrawerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookId: 'book-1',
+        currentChapterId: 'chapter-1',
+        isAnonymous: false,
+        chapters: expect.arrayContaining([
+          expect.objectContaining({ id: 'chapter-2', isFree: false }),
+        ]),
+        unlockedChapterIds: expect.any(Set),
+      }),
+    );
+    const drawerProps = chapterListDrawerSpy.mock.calls.at(-1)?.[0] as {
+      unlockedChapterIds: Set<string>;
+    };
+    expect(drawerProps.unlockedChapterIds.has('chapter-2')).toBe(true);
+    expect(drawerProps.unlockedChapterIds.has('chapter-3')).toBe(false);
   });
 
   it('renders an empty unlocked chapter without a paywall or loading placeholder', () => {
