@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
+import { deriveNovelsEmptyReason } from '@/lib/novels-empty-reason';
 import { messages } from '@novelhub/shared';
 
 type NovelsEmptyStateProps = {
@@ -14,7 +15,9 @@ function getNovelsEmptyStateCopy({ hasCategoryFilter, hasStatusFilter }: NovelsE
   body: string;
   canClearFilters: boolean;
 } {
-  if (hasCategoryFilter && hasStatusFilter) {
+  const reason = deriveNovelsEmptyReason({ hasCategoryFilter, hasStatusFilter });
+
+  if (reason === 'categoryAndStatus') {
     return {
       title: messages.novels.categoryAndStatusEmptyTitle,
       body: messages.novels.categoryAndStatusEmptyBody,
@@ -22,7 +25,7 @@ function getNovelsEmptyStateCopy({ hasCategoryFilter, hasStatusFilter }: NovelsE
     };
   }
 
-  if (hasCategoryFilter) {
+  if (reason === 'categoryOnly') {
     return {
       title: messages.novels.categoryOnlyEmptyTitle,
       body: messages.novels.categoryOnlyEmptyBody,
@@ -30,7 +33,7 @@ function getNovelsEmptyStateCopy({ hasCategoryFilter, hasStatusFilter }: NovelsE
     };
   }
 
-  if (hasStatusFilter) {
+  if (reason === 'statusOnly') {
     return {
       title: messages.novels.statusOnlyEmptyTitle,
       body: messages.novels.statusOnlyEmptyBody,

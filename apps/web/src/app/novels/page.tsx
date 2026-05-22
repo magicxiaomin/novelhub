@@ -7,6 +7,7 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BookCard } from '@/components/book/book-card';
+import { NovelsEmptyReasonReporter } from '@/components/novels/novels-empty-reason-reporter';
 import { NovelsEmptyState } from '@/components/novels/novels-empty-state';
 import { fetchBooksServer, fetchBookCategoriesServer } from '@/lib/server-api';
 import {
@@ -148,10 +149,16 @@ export default async function NovelsPage({ searchParams }: NovelsPageProps): Pro
         </section>
 
         {books.items.length === 0 ? (
-          <NovelsEmptyState
-            hasCategoryFilter={hasCategoryFilter}
-            hasStatusFilter={hasStatusFilter}
-          />
+          <>
+            <NovelsEmptyReasonReporter
+              hasCategoryFilter={hasCategoryFilter}
+              hasStatusFilter={hasStatusFilter}
+            />
+            <NovelsEmptyState
+              hasCategoryFilter={hasCategoryFilter}
+              hasStatusFilter={hasStatusFilter}
+            />
+          </>
         ) : (
           <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4">
             {books.items.map((book) => (
